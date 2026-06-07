@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'application/game_cubit.dart';
 import 'infrastructure/ad_service.dart';
 import 'infrastructure/hive_storage_service.dart';
-import 'presentation/screens/game_screen.dart';
+import 'presentation/screens/tier_select_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,10 +34,7 @@ class MergeLoopApp extends StatelessWidget {
       title: 'Merge Loop',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(useMaterial3: true),
-      home: BlocProvider(
-        create: (_) => GameCubit(storage: storage)..init(),
-        child: GameScreen(adService: adService),
-      ),
+      home: TierSelectScreen(storage: storage, adService: adService),
     );
   }
 }

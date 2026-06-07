@@ -1,4 +1,5 @@
 import 'game_status.dart';
+import 'move.dart';
 import 'tile.dart';
 
 /// Immutable snapshot of a daily board. Row-major: index = row * kGridSize + col.
@@ -12,6 +13,11 @@ class BoardState {
   final int movesMade; // total successful merges (for display incl. ad moves)
   final GameStatus status;
 
+  /// Ordered record of state-changing player inputs (merges + ad-continues).
+  /// Unused by Phase 1 UI; the authoritative input for Phase 2 replay
+  /// verification. Persisted/restored with the snapshot. Defaults to empty.
+  final List<MoveEvent> moveLog;
+
   const BoardState({
     required this.cells,
     required this.movesRemaining,
@@ -21,6 +27,7 @@ class BoardState {
     required this.adContinuesUsed,
     required this.movesMade,
     required this.status,
+    this.moveLog = const [],
   });
 
   BoardState copyWith({
@@ -32,6 +39,7 @@ class BoardState {
     int? adContinuesUsed,
     int? movesMade,
     GameStatus? status,
+    List<MoveEvent>? moveLog,
   }) {
     return BoardState(
       cells: cells ?? this.cells,
@@ -42,6 +50,7 @@ class BoardState {
       adContinuesUsed: adContinuesUsed ?? this.adContinuesUsed,
       movesMade: movesMade ?? this.movesMade,
       status: status ?? this.status,
+      moveLog: moveLog ?? this.moveLog,
     );
   }
 
@@ -78,10 +87,12 @@ class BoardState {
         'adContinuesUsed': adContinuesUsed,
         'movesMade': movesMade,
         'status': status.name,
+        'moveLog': moveLog.map((e) => e.toJson()).toList(),
       };
 
   static BoardState fromJson(Map<String, dynamic> j) {
     final rawCells = j['cells'] as List;
+    final rawLog = j['moveLog'] as List?; // absent in pre-tier snapshots
     return BoardState(
       cells: rawCells
           .map((e) => e == null
@@ -95,6 +106,12 @@ class BoardState {
       adContinuesUsed: j['adContinuesUsed'] as int,
       movesMade: j['movesMade'] as int,
       status: GameStatus.values.byName(j['status'] as String),
+      moveLog: rawLog == null
+          ? const []
+          : rawLog
+              .map((e) =>
+                  MoveEvent.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList(),
     );
   }
 }

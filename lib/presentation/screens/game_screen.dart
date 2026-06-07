@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../application/game_cubit.dart';
 import '../../application/game_state.dart';
 import '../../domain/models/board_state.dart';
+import '../../domain/models/difficulty.dart';
 import '../../infrastructure/ad_service.dart';
 import '../widgets/banner_slot.dart';
 import '../widgets/board_widget.dart';
@@ -36,9 +37,9 @@ class GameScreen extends StatelessWidget {
                   return switch (state) {
                     GameInitial() =>
                       const Center(child: CircularProgressIndicator()),
-                    GameAdRewardGranted(:final board) ||
-                    GamePlaying(:final board) =>
-                      _buildPlaying(context, board),
+                    GameAdRewardGranted(:final board, :final difficulty) ||
+                    GamePlaying(:final board, :final difficulty) =>
+                      _buildPlaying(context, board, difficulty),
                     GameOverShowScore(:final board, :final date, :final stats) =>
                       ScoreShareScreen(
                         board: board,
@@ -59,11 +60,19 @@ class GameScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPlaying(BuildContext context, BoardState board) {
+  Widget _buildPlaying(
+      BuildContext context, BoardState board, Difficulty difficulty) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          Text(difficulty.label.toUpperCase(),
+              style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
           MovesCounter(
               movesRemaining: board.movesRemaining, score: board.score),
           const SizedBox(height: 24),

@@ -11,10 +11,10 @@ const int kMaxTier = 11; // 2^11 = 2048
 /// Daily move budget. One move == one successful merge.
 const int kMovesPerDay = 30;
 
-/// Constant board population. Each merge frees a cell and each drop fills one,
-/// so occupancy stays at this value all day. Must be <= kMaxTier for deadlock
-/// to be reachable (pigeonhole: all-unique tiers needs <= 11 tiles).
-const int kStartingFill = 8;
+/// Board population is now per-difficulty (see [Difficulty.startingFill]). Each
+/// merge frees a cell and each drop fills one, so occupancy stays at the chosen
+/// tier's starting fill all day. All starting fills must be <= kMaxTier for
+/// deadlock to be reachable (pigeonhole: all-unique tiers needs <= 11 tiles).
 
 /// Moves granted per rewarded video, and the daily cap on rewarded continues.
 const int kAdMoveReward = 3;

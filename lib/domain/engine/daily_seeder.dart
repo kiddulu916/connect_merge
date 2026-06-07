@@ -3,6 +3,7 @@ import 'package:crypto/crypto.dart';
 
 import '../constants.dart';
 import '../models/board_state.dart';
+import '../models/difficulty.dart';
 import '../models/game_status.dart';
 import '../models/tile.dart';
 import 'prng.dart';
@@ -14,34 +15,41 @@ class DailyStart {
   const DailyStart(this.board, this.dropTiers);
 }
 
-/// Turns a `YYYY-MM-DD` string into the day's board and drop schedule.
+/// Turns a `(YYYY-MM-DD, Difficulty)` pair into the day's board and drop
+/// schedule. Each tier is a fully independent deterministic stream keyed by
+/// `"$date:${difficulty.name}"`.
 ///
 /// Two independent PRNG streams keep concerns decoupled:
 ///  - stream A (seedA): initial board placement + drop tiers (the global item
-///    sequence — identical for every player).
+///    sequence — identical for every player on the same date+tier).
 ///  - stream B (seedB): landing-cell selection at drop time (mapped onto each
 ///    player's own empty cells, so position adapts locally).
 class DailySeeder {
-  final String date;
-  const DailySeeder(this.date);
+  final String date; // UTC YYYY-MM-DD
+  final Difficulty difficulty;
+  const DailySeeder(this.date, this.difficulty);
 
-  static int seedForDate(String date) {
-    final bytes = sha256.convert(utf8.encode(date)).bytes;
+  /// Hashes an arbitrary seed key (e.g. `"2026-06-07:hard"`) to a 32-bit seed.
+  static int seedForKey(String key) {
+    final bytes = sha256.convert(utf8.encode(key)).bytes;
     return (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) &
         0xFFFFFFFF;
   }
 
-  int get _seedA => seedForDate(date);
-  int get _seedB => seedForDate(date) ^ 0x9E3779B9;
+  String get _key => '$date:${difficulty.name}';
+  int get _seedA => seedForKey(_key);
+  int get _seedB => seedForKey(_key) ^ 0x9E3779B9;
 
   DailyStart generate() {
     final a = Prng(_seedA);
 
-    // Initial board: kStartingFill tiles of tier 1-2 in deterministic cells.
+    // Initial board: difficulty.startingFill tiles of tier 1-2 in
+    // deterministic cells.
     final cells = List<Tile?>.filled(kCellCount, null);
     var nextId = 0;
     var placed = 0;
-    while (placed < kStartingFill) {
+    final startingFill = difficulty.startingFill;
+    while (placed < startingFill) {
       final idx = a.nextInt(kCellCount);
       if (cells[idx] != null) continue; // rejection sampling; deterministic
       cells[idx] = Tile(id: nextId++, tier: 1 + a.nextInt(2));
