@@ -1,5 +1,5 @@
 /// Tunable game constants — the single source of truth for game feel.
-library merge_loop.domain.constants;
+library;
 
 /// Board is a fixed kGridSize × kGridSize matrix.
 const int kGridSize = 5;
