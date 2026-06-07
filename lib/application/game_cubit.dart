@@ -13,6 +13,9 @@ import 'game_state.dart';
 String formatDate(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+/// Orchestrates the daily game. **Call [init] before any other method** —
+/// `merge`/`grantAdReward` rely on fields set up there (they are also guarded
+/// by the state machine, which starts in [GameInitial]).
 class GameCubit extends Cubit<GameState> {
   final StorageService storage;
   final String Function() todayProvider;
