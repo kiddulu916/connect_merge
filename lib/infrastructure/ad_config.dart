@@ -6,7 +6,7 @@ import 'dart:io' show Platform;
 class AdConfig {
   const AdConfig._();
 
-  static const bool useTestAds = true;
+  static const bool useTestAds = false;
 
   // Google test unit IDs (safe to ship while developing).
   static const _testBannerAndroid = 'ca-app-pub-3940256099942544/6300978111';
@@ -15,10 +15,10 @@ class AdConfig {
   static const _testRewardedIos = 'ca-app-pub-3940256099942544/1712485313';
 
   // TODO(release): replace with real unit IDs before publishing.
-  static const _realBannerAndroid = 'ca-app-pub-0000000000000000/0000000000';
-  static const _realBannerIos = 'ca-app-pub-0000000000000000/0000000000';
-  static const _realRewardedAndroid = 'ca-app-pub-0000000000000000/0000000000';
-  static const _realRewardedIos = 'ca-app-pub-0000000000000000/0000000000';
+  static const _realBannerAndroid = 'ca-app-pub-4807961095325796/1830849771';
+  static const _realBannerIos = 'ca-app-pub-4807961095325796/1257803007';
+  static const _realRewardedAndroid = 'ca-app-pub-4807961095325796/8528798683';
+  static const _realRewardedIos = 'ca-app-pub-4807961095325796/1034441724';
 
   static bool get _ios => Platform.isIOS;
 

@@ -25,6 +25,10 @@ android {
         versionName = flutter.versionName
     }
 
+    dependencies {
+        implementation("com.google.android.gms:play-services-ads:25.3.0")
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

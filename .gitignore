@@ -1,7 +1,7 @@
 # Miscellaneous
-.cursor/
+.claude/
 .superpowers/
-.cursor/mcp.json
+.claude/mcp.json
 *.class
 *.log
 *.pyc
@@ -52,4 +52,4 @@ app.*.map.json
 
 # Custom / editor
 .superpowers/
-.cursor/
+.claude/
