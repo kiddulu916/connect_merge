@@ -92,6 +92,37 @@ void main() {
     expect(find.byKey(const Key('reset-countdown')), findsOneWidget);
     expect(find.textContaining('Resets in'), findsOneWidget);
   });
+
+  testWidgets('main-menu Leaderboard button is always visible', (tester) async {
+    final storage = InMemoryStorageService();
+    await tester.pumpWidget(MaterialApp(
+      home: TierSelectScreen(
+        storage: storage,
+        adService: AdService(),
+        todayProvider: () => '2026-06-07',
+        onTierSelected: (_, __) {},
+      ),
+    ));
+    expect(find.byKey(const Key('open-leaderboard-menu')), findsOneWidget);
+  });
+
+  testWidgets('offline, tapping Leaderboard shows an explanatory snackbar',
+      (tester) async {
+    final storage = InMemoryStorageService();
+    await tester.pumpWidget(MaterialApp(
+      home: TierSelectScreen(
+        storage: storage,
+        adService: AdService(),
+        todayProvider: () => '2026-06-07',
+        onTierSelected: (_, __) {},
+      ),
+    ));
+
+    await tester.tap(find.byKey(const Key('open-leaderboard-menu')));
+    await tester.pump(); // start the snackbar animation
+    expect(find.text('Leaderboards need an internet connection.'),
+        findsOneWidget);
+  });
 }
 
 BoardState _completedBoard() => BoardState(

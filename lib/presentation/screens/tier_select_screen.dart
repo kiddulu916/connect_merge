@@ -180,6 +180,19 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     );
   }
 
+  /// Main-menu entry point: open the leaderboard when online, otherwise explain
+  /// why it's unavailable. Always reachable so there's a visible button.
+  void _openLeaderboardOrExplain(BuildContext context) {
+    if (widget.leaderboard == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Leaderboards need an internet connection.')),
+      );
+      return;
+    }
+    _openLeaderboard(context, Difficulty.values.first);
+  }
+
   void _openFriends(BuildContext context) {
     final service = widget.friends;
     if (service == null) return;
@@ -383,6 +396,18 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                       color: Colors.white38,
                       fontSize: 12,
                       letterSpacing: 1)),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                key: const Key('open-leaderboard-menu'),
+                onPressed: () => _openLeaderboardOrExplain(context),
+                icon: const Icon(Icons.leaderboard, color: Colors.white),
+                label: const Text('Leaderboard'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white24),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
               const SizedBox(height: 24),
               Expanded(
                 child: ListView(
