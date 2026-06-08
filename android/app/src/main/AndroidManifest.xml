@@ -6,7 +6,7 @@
          usable. -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <application
-        android:label="merge_loop"
+        android:label="Merge Loop"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <meta-data
