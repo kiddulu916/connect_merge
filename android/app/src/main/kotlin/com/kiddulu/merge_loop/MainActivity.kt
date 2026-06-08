@@ -1,4 +1,4 @@
-package com.mergeloop.merge_loop
+package com.kiddulu.merge_loop
 
 import io.flutter.embedding.android.FlutterActivity
 
