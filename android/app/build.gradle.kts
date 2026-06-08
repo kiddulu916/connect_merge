@@ -10,6 +10,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -27,6 +28,7 @@ android {
 
     dependencies {
         implementation("com.google.android.gms:play-services-ads:25.3.0")
+        coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     }
 
     buildTypes {
@@ -34,6 +36,12 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // Flutter enables R8 (minify + shrink) for release. Apply our keep
+            // rules so reflectively-loaded classes (WorkManager/Room) survive.
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
