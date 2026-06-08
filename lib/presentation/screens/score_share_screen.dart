@@ -34,7 +34,8 @@ class ScoreShareScreen extends StatelessWidget {
   /// Achievements unlocked by THIS run (Phase 4). Celebrated once here.
   final Set<Achievement> newlyUnlocked;
 
-  /// Seam: native share. Defaults to [share_plus]. Tests inject a fake.
+  /// Seam: text-only native share, used only by the [_invite] flow.
+  /// Production falls through to [_nativeShare]; tests inject a fake.
   final Future<void> Function(String text)? shareText;
 
   /// Performs the actual score share. Production uses [PlatformScoreSharer];
@@ -155,7 +156,14 @@ class ScoreShareScreen extends StatelessWidget {
 
   Future<void> _share(BuildContext context) async {
     final png = await _capture();
-    if (png == null) return;
+    if (png == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't prepare the image to share.")),
+        );
+      }
+      return;
+    }
     final reached = await sharer.shareToFacebook(png);
     if (!reached) await sharer.shareToSheet(png);
   }
