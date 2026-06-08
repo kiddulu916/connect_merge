@@ -185,8 +185,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   void _openLeaderboardOrExplain(BuildContext context) {
     if (widget.leaderboard == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Leaderboards need an internet connection.')),
+        const SnackBar(content: Text('Leaderboards need an internet connection.')),
       );
       return;
     }
@@ -400,7 +399,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
               OutlinedButton.icon(
                 key: const Key('open-leaderboard-menu'),
                 onPressed: () => _openLeaderboardOrExplain(context),
-                icon: const Icon(Icons.leaderboard, color: Colors.white),
+                icon: const Icon(Icons.leaderboard),
                 label: const Text('Leaderboard'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
