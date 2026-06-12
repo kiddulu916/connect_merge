@@ -45,10 +45,18 @@ class GameCubit extends Cubit<GameState> {
   /// callback) so the cubit stays plugin-free and unit-testable.
   final Future<void> Function()? onTierCompleted;
 
+  /// Optional coins hook (Phase 1). Fired with the bonus when a merge consumes a
+  /// golden tile, so the client-side wallet is credited. Decoupled (a plain
+  /// callback, like [onTierCompleted]) — golden coins NEVER touch `score`.
+  final void Function(int coins)? onCoinsEarned;
+
   late Difficulty _difficulty;
   late String _date;
   late List<int> _dropTiers;
   late Prng _landing;
+
+  /// Drop indices that are golden for this date+tier (seed-derived).
+  late Set<int> _goldenDrops;
 
   /// Rewarded-hint usage this cubit lifetime (one tier's day). Gates the
   /// per-day cap on the reveal-next-drop hint.
@@ -59,6 +67,7 @@ class GameCubit extends Cubit<GameState> {
     String Function()? todayProvider,
     this.onSubmitRun,
     this.onTierCompleted,
+    this.onCoinsEarned,
   })  : todayProvider = todayProvider ?? utcToday,
         super(const GameInitial());
 
@@ -68,6 +77,7 @@ class GameCubit extends Cubit<GameState> {
     final seeder = DailySeeder(_date, difficulty);
     final start = seeder.generate();
     _dropTiers = start.dropTiers;
+    _goldenDrops = seeder.goldenDropIndices();
 
     final snap = storage.loadSnapshot(_date, difficulty);
     if (snap != null && snap.date == _date) {
@@ -108,12 +118,24 @@ class GameCubit extends Cubit<GameState> {
     final log = List<MoveEvent>.of(s.board.moveLog)
       ..add(MergeEvent(from: fromIndex, to: toIndex));
 
+    // Golden bonus is computed against the PRE-merge board, then credited to the
+    // wallet via the decoupled callback. It NEVER touches score or the move log.
+    final goldenBonus =
+        GameEngine.goldenBonusFor(s.board, fromIndex, toIndex);
+
     var board = GameEngine.merge(s.board, fromIndex: fromIndex, toIndex: toIndex)
         .copyWith(moveLog: log);
     if (board.dropIndex < _dropTiers.length) {
-      board = GameEngine.applyDrop(board, _dropTiers[board.dropIndex], _landing);
+      board = GameEngine.applyDrop(
+        board,
+        _dropTiers[board.dropIndex],
+        _landing,
+        golden: _goldenDrops.contains(board.dropIndex),
+      );
     }
     board = GameEngine.evaluateStatus(board);
+
+    if (goldenBonus > 0) onCoinsEarned?.call(goldenBonus);
 
     final done = board.status != GameStatus.playing;
     await storage.saveSnapshot(GameSnapshot(

@@ -77,4 +77,56 @@ void main() {
     }, moves: 0);
     expect(GameEngine.evaluateStatus(b).status, GameStatus.outOfMoves);
   });
+
+  group('golden tiles (Phase 1) — economy only, never scoring', () {
+    test('applyDrop stamps golden only when requested', () {
+      final b = boardWith({0: const Tile(id: 1, tier: 3)});
+      final plain = GameEngine.applyDrop(b, 2, Prng(7));
+      final gold = GameEngine.applyDrop(b, 2, Prng(7), golden: true);
+      // Same landing draw (same seed) => same landed cell index.
+      final plainCell = plain.cells.indexWhere((c) => c?.id == b.nextTileId);
+      final goldCell = gold.cells.indexWhere((c) => c?.id == b.nextTileId);
+      expect(goldCell, plainCell);
+      expect(plain.cells[plainCell]!.golden, isFalse);
+      expect(gold.cells[goldCell]!.golden, isTrue);
+    });
+
+    test('goldenBonusFor pays per golden tile consumed', () {
+      final none = boardWith({
+        0: const Tile(id: 1, tier: 2),
+        1: const Tile(id: 2, tier: 2),
+      });
+      expect(GameEngine.goldenBonusFor(none, 0, 1), 0);
+
+      final one = boardWith({
+        0: const Tile(id: 1, tier: 2, golden: true),
+        1: const Tile(id: 2, tier: 2),
+      });
+      expect(GameEngine.goldenBonusFor(one, 0, 1), kGoldenMergeBonus);
+
+      final both = boardWith({
+        0: const Tile(id: 1, tier: 2, golden: true),
+        1: const Tile(id: 2, tier: 2, golden: true),
+      });
+      expect(GameEngine.goldenBonusFor(both, 0, 1), 2 * kGoldenMergeBonus);
+    });
+
+    test('merging golden tiles yields the SAME score as a non-golden control',
+        () {
+      final golden = boardWith({
+        0: const Tile(id: 1, tier: 4, golden: true),
+        1: const Tile(id: 2, tier: 4, golden: true),
+      });
+      final control = boardWith({
+        0: const Tile(id: 1, tier: 4),
+        1: const Tile(id: 2, tier: 4),
+      });
+      final gMerged = GameEngine.merge(golden, fromIndex: 0, toIndex: 1);
+      final cMerged = GameEngine.merge(control, fromIndex: 0, toIndex: 1);
+      expect(gMerged.score, cMerged.score);
+      expect(gMerged.moveLog, cMerged.moveLog);
+      // The merged tile is no longer golden (the flag is consumed, not carried).
+      expect(gMerged.cells[1]!.golden, isFalse);
+    });
+  });
 }

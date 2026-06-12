@@ -78,4 +78,60 @@ void main() {
     expect(DailySeeder.seedForKey('2026-06-06:hard'),
         isNot(DailySeeder.seedForKey('2026-06-06:easy')));
   });
+
+  group('goldenDropIndices (Phase 1)', () {
+    test('same date+tier yields an identical golden set across runs', () {
+      final a = const DailySeeder('2026-06-06', Difficulty.medium)
+          .goldenDropIndices();
+      final b = const DailySeeder('2026-06-06', Difficulty.medium)
+          .goldenDropIndices();
+      expect(a, b);
+    });
+
+    test('indices are within the drop range', () {
+      final set = const DailySeeder('2026-06-06', Difficulty.hard)
+          .goldenDropIndices();
+      for (final n in set) {
+        expect(n, inInclusiveRange(0, kMaxDrops - 1));
+      }
+    });
+
+    test('different dates/tiers generally produce different sets', () {
+      final a = const DailySeeder('2026-06-06', Difficulty.medium)
+          .goldenDropIndices();
+      final b = const DailySeeder('2026-06-07', Difficulty.medium)
+          .goldenDropIndices();
+      final c = const DailySeeder('2026-06-06', Difficulty.hard)
+          .goldenDropIndices();
+      expect(a, isNot(b));
+      expect(a, isNot(c));
+    });
+
+    test('golden stream is independent of board/drop generation', () {
+      // Generating the board first must not perturb the golden set.
+      const s = DailySeeder('2026-06-06', Difficulty.medium);
+      final beforeGen = s.goldenDropIndices();
+      s.generate();
+      final afterGen = s.goldenDropIndices();
+      expect(beforeGen, afterGen);
+    });
+
+    test('golden density is in a sane, rare-ish range over a sample', () {
+      var total = 0;
+      var golden = 0;
+      final start = DateTime.utc(2026, 1, 1);
+      for (var i = 0; i < 200; i++) {
+        final date = start.add(Duration(days: i));
+        final key =
+            '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        final set = DailySeeder(key, Difficulty.medium).goldenDropIndices();
+        golden += set.length;
+        total += kMaxDrops;
+      }
+      final ratio = golden / total;
+      // Centred on kGoldenDropPercent (~8%); allow generous slack.
+      expect(ratio, greaterThan(0.02));
+      expect(ratio, lessThan(0.18));
+    });
+  });
 }

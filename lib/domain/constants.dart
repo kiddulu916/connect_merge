@@ -33,6 +33,41 @@ const int kMaxFreezeGrantsPerDay = 1;
 /// Maximum number of drops that can ever occur in one day.
 const int kMaxDrops = kMovesPerDay + kAdMoveReward * kMaxAdContinuesPerDay; // 39
 
+/// Phase 1 (engagement engine) — golden tiles. A deterministic, seed-derived
+/// subset (~[kGoldenDropPercent]% on average) of the day's drops are "golden".
+/// Merging a golden tile credits [kGoldenMergeBonus] coins to the client-side
+/// wallet. Golden is a purely visual/economy property: it NEVER touches
+/// `BoardState.score` or `moveLog`, so replay verification stays untouched.
+const int kGoldenDropPercent = 8;
+const int kGoldenMergeBonus = 5;
+
+/// Phase 1 — Daily Loot Chest reward bands (coins). The day's reward is derived
+/// from the daily seed (`"$date:loot"`), so it is identical for every player,
+/// cheat-proof, and free. Bands: mostly small, occasional jackpot — the
+/// variable-reward dopamine core. Exposed here for playtest tuning.
+const int kLootCommonBase = 10;
+const int kLootCommonSpan = 15;
+const int kLootUncommonBase = 30;
+const int kLootUncommonSpan = 30;
+const int kLootJackpotBase = 100;
+const int kLootJackpotSpan = 50;
+
+/// Roll thresholds (0..99) for the loot bands: roll < common => common band,
+/// < uncommon => uncommon band, else jackpot. A rare cosmetic shard drops at
+/// or above [kLootShardThreshold].
+const int kLootCommonRollMax = 70;
+const int kLootUncommonRollMax = 95;
+const int kLootShardThreshold = 97;
+
+/// Phase 1 — near-miss framing. The largest score gap below a personal best
+/// that still reads as "so close" (only surfaced when no tile-pair near-miss
+/// applies). Kept small so the line stays honest.
+const int kNearMissScoreWindow = 50;
+
+/// Phase 1 — midday "your boards are waiting" nudge, minutes past local
+/// midnight (12:00 by default). Reuses the [reminderMinutes]-style slot.
+const int kMiddayReminderMinutes = 12 * 60;
+
 /// Upper bound (inclusive) of the drop tier band for drop number [n].
 /// Drops are drawn from tiers [1 .. dropCap(n)]. The band widens by drop
 /// INDEX (not board state) so the item sequence is identical for all players.

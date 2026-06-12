@@ -40,6 +40,22 @@ class DailySeeder {
   int get _seedA => seedForKey(_key);
   int get _seedB => seedForKey(_key) ^ 0x9E3779B9;
 
+  /// The set of drop indices that are "golden" for this date+tier, derived from
+  /// an independent `"$_key:gold"` sub-stream (decoupled from board placement,
+  /// drop tiers, and landing). Same date+tier ⇒ identical set for every player.
+  ///
+  /// Golden is a purely visual/economy property carried on the dropped [Tile];
+  /// it never affects `score` or the move log, so it cannot be forged for
+  /// leaderboard gain (Phase 2 replay only sees tiers + moves).
+  Set<int> goldenDropIndices() {
+    final g = Prng(seedForKey('$_key:gold'));
+    final out = <int>{};
+    for (var n = 0; n < kMaxDrops; n++) {
+      if (g.nextInt(100) < kGoldenDropPercent) out.add(n);
+    }
+    return out;
+  }
+
   DailyStart generate() {
     final a = Prng(_seedA);
 

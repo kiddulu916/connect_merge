@@ -6,6 +6,8 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/engagement_cubit.dart';
 import '../../application/game_cubit.dart';
+import '../../application/loot_cubit.dart';
+import '../../application/loot_state.dart';
 import '../../domain/models/difficulty.dart';
 import '../../infrastructure/ad_service.dart';
 import '../../infrastructure/friends_service.dart';
@@ -13,12 +15,14 @@ import '../../infrastructure/leaderboard_service.dart';
 import '../../infrastructure/notification_service.dart';
 import '../../infrastructure/storage_service.dart';
 import '../theme/tile_palette.dart';
+import '../widgets/coin_balance.dart';
 import '../widgets/streak_banner.dart';
 import 'achievements_screen.dart';
 import 'cosmetics_screen.dart';
 import 'friends_screen.dart';
 import 'game_screen.dart';
 import 'leaderboard_screen.dart';
+import 'loot_chest_screen.dart';
 import 'practice_screen.dart';
 
 /// Entry screen: pick a difficulty tier. Each card shows the starting tile
@@ -40,6 +44,10 @@ class TierSelectScreen extends StatefulWidget {
   /// null (tests), a local cubit is created from [storage].
   final EngagementCubit? engagement;
 
+  /// Phase 1 Daily Loot Chest cubit. When null, a local cubit is created from
+  /// [storage].
+  final LootCubit? loot;
+
   /// Local notification scheduler. Null in tests / when unavailable.
   final NotificationService? notifications;
 
@@ -58,6 +66,7 @@ class TierSelectScreen extends StatefulWidget {
     this.leaderboard,
     this.friends,
     this.engagement,
+    this.loot,
     this.notifications,
     this.todayProvider,
     this.onTierSelected,
@@ -81,6 +90,10 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   late final EngagementCubit _engagement;
   bool _ownsEngagement = false;
 
+  /// Loot cubit (provided, or created locally). Owned locally only when created.
+  late final LootCubit _loot;
+  bool _ownsLoot = false;
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +102,11 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
             storage: widget.storage, todayProvider: widget.todayProvider)
           ..load());
     _ownsEngagement = widget.engagement == null;
+    _loot = widget.loot ??
+        (LootCubit(
+            storage: widget.storage, todayProvider: widget.todayProvider)
+          ..load());
+    _ownsLoot = widget.loot == null;
     _untilReset = _computeUntilReset();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -115,6 +133,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   void dispose() {
     _ticker?.cancel();
     if (_ownsEngagement) _engagement.close();
+    if (_ownsLoot) _loot.close();
     super.dispose();
   }
 
@@ -140,6 +159,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
         enabled: profile.notificationsEnabled,
         allTiersDoneToday: _allTiersDoneToday(),
         streakAtRisk: atRisk,
+        lootUnclaimed: profile.lastLootClaimDate != today,
       );
     } catch (_) {
       // Notifications are best-effort; never block the UI.
@@ -219,6 +239,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                 storage: widget.storage,
                 todayProvider: widget.todayProvider,
                 onTierCompleted: _onTierCompleted,
+                onCoinsEarned: _creditCoins,
               )..init(difficulty: difficulty),
               child: GameScreen(
                 adService: widget.adService,
@@ -302,6 +323,32 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
         }
       },
     );
+  }
+
+  void _openLootChest(BuildContext context) {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => LootChestScreen(
+              loot: _loot,
+              adService: widget.adService,
+            ),
+          ),
+        )
+        .then((_) {
+          if (mounted) setState(() {}); // refresh coin pill / chest badge
+          _rescheduleNotifications();
+        });
+  }
+
+  /// Credit golden-tile bonus coins to the wallet (Phase 1). Decoupled hook
+  /// passed to [GameCubit]; coins never touch score. Refreshes the loot cubit
+  /// so the coin pill reflects the new balance.
+  void _creditCoins(int coins) {
+    if (coins <= 0) return;
+    final profile = widget.storage.loadProfile();
+    widget.storage.saveProfile(profile.copyWith(coins: profile.coins + coins));
+    _loot.load();
   }
 
   void _openPractice(BuildContext context, Difficulty difficulty) {
@@ -396,16 +443,49 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                       fontSize: 12,
                       letterSpacing: 1)),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                key: const Key('open-leaderboard-menu'),
-                onPressed: () => _openLeaderboardOrExplain(context),
-                icon: const Icon(Icons.leaderboard),
-                label: const Text('Leaderboard'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white24),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
+              BlocBuilder<LootCubit, LootState>(
+                bloc: _loot,
+                builder: (context, loot) {
+                  final ready = loot is LootReady;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          key: const Key('open-loot-chest'),
+                          onPressed: () => _openLootChest(context),
+                          icon: const Icon(Icons.card_giftcard, size: 18),
+                          label: Text(
+                              ready ? 'Daily chest' : 'Chest claimed',
+                              overflow: TextOverflow.ellipsis),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: ready
+                                ? Colors.amber.shade700
+                                : const Color(0xFF1B1E2A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      CoinBalance(coins: loot.coins),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          key: const Key('open-leaderboard-menu'),
+                          onPressed: () => _openLeaderboardOrExplain(context),
+                          icon: const Icon(Icons.leaderboard, size: 18),
+                          label: const Text('Leaderboard',
+                              overflow: TextOverflow.ellipsis),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white24),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 24),
               Expanded(

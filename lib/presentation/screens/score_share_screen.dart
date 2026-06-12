@@ -34,6 +34,10 @@ class ScoreShareScreen extends StatelessWidget {
   /// Achievements unlocked by THIS run (Phase 4). Celebrated once here.
   final Set<Achievement> newlyUnlocked;
 
+  /// Optional near-miss "so close" line (Phase 1), shown on a finished board
+  /// that was one merge / a few points short. Null when none applies.
+  final String? nearMiss;
+
   /// Seam: text-only native share, used only by the [_invite] flow.
   /// Production falls through to [_nativeShare]; tests inject a fake.
   final Future<void> Function(String text)? shareText;
@@ -56,6 +60,7 @@ class ScoreShareScreen extends StatelessWidget {
     this.onMainMenu,
     this.friendCode,
     this.newlyUnlocked = const {},
+    this.nearMiss,
     this.shareText,
     this.sharer = const PlatformScoreSharer(),
     this.captureOverride,
@@ -99,6 +104,16 @@ class ScoreShareScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       _smallStat('BEST EVER', '${stats.bestScore}'),
+                      if (nearMiss != null) ...[
+                        const SizedBox(height: 16),
+                        Text(nearMiss!,
+                            key: const Key('near-miss-line'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                color: Colors.amberAccent,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700)),
+                      ],
                       if (newlyUnlocked.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         _achievementsBanner(),

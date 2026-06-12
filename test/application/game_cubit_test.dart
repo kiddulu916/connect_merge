@@ -8,6 +8,7 @@ import 'package:merge_count/domain/models/board_state.dart';
 import 'package:merge_count/domain/models/difficulty.dart';
 import 'package:merge_count/domain/models/game_status.dart';
 import 'package:merge_count/domain/models/move.dart';
+import 'package:merge_count/domain/models/tile.dart';
 import 'package:merge_count/infrastructure/storage_service.dart';
 
 void main() {
@@ -177,6 +178,64 @@ void main() {
       expect(board.status, GameStatus.playing);
       expect(board.moveLog.last, const ContinueEvent());
     }
+  });
+
+  group('golden tiles credit coins (Phase 1)', () {
+    test('merging golden tiles fires onCoinsEarned without changing score',
+        () async {
+      // Resume a seeded board with two golden, equal-tier tiles in cells 0/1.
+      final base =
+          const DailySeeder('2026-06-06', Difficulty.medium).generate().board;
+      final cells = List<Tile?>.of(base.cells);
+      cells[0] = const Tile(id: 900, tier: 2, golden: true);
+      cells[1] = const Tile(id: 901, tier: 2, golden: true);
+      await storage.saveSnapshot(GameSnapshot(
+          date: '2026-06-06',
+          difficulty: Difficulty.medium,
+          board: base.copyWith(cells: cells),
+          completed: false));
+
+      var credited = 0;
+      final c = GameCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-06',
+        onCoinsEarned: (coins) => credited += coins,
+      );
+      await c.init(difficulty: Difficulty.medium);
+
+      final before = (c.state as GamePlaying).board;
+      await c.merge(fromIndex: 0, toIndex: 1);
+      final after = (c.state as GamePlaying).board;
+
+      // Two golden tiles consumed => bonus credited; score is the merge only.
+      expect(credited, 2 * kGoldenMergeBonus);
+      expect(after.score, before.score + (1 << 3)); // tier 2 -> tier 3
+      // The move log records only the merge (no golden/coin artifacts).
+      expect(after.moveLog.last, const MergeEvent(from: 0, to: 1));
+    });
+
+    test('merging non-golden tiles credits nothing', () async {
+      final base =
+          const DailySeeder('2026-06-06', Difficulty.medium).generate().board;
+      final cells = List<Tile?>.of(base.cells);
+      cells[0] = const Tile(id: 900, tier: 2);
+      cells[1] = const Tile(id: 901, tier: 2);
+      await storage.saveSnapshot(GameSnapshot(
+          date: '2026-06-06',
+          difficulty: Difficulty.medium,
+          board: base.copyWith(cells: cells),
+          completed: false));
+
+      var credited = 0;
+      final c = GameCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-06',
+        onCoinsEarned: (coins) => credited += coins,
+      );
+      await c.init(difficulty: Difficulty.medium);
+      await c.merge(fromIndex: 0, toIndex: 1);
+      expect(credited, 0);
+    });
   });
 }
 

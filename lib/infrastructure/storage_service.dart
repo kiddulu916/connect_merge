@@ -120,6 +120,16 @@ class PlayerProfile {
   /// populated lazily after a leaderboard fetch (powers rank-based achievements).
   final Map<String, int> bestRankByDifficulty;
 
+  /// Soft-currency wallet balance (Phase 1). A purely client-side economy:
+  /// coins NEVER affect `BoardState.score` or the move log. Migration-free
+  /// default 0.
+  final int coins;
+
+  /// UTC date (`YYYY-MM-DD`) of the last Daily Loot Chest claim, or null if the
+  /// chest has never been claimed. Guards once-per-UTC-day claiming.
+  /// Migration-free default null.
+  final String? lastLootClaimDate;
+
   const PlayerProfile({
     this.dailyActiveStreak = 0,
     this.lastActiveDate,
@@ -129,6 +139,8 @@ class PlayerProfile {
     this.notificationsEnabled = false,
     this.reminderMinutes = 19 * 60,
     this.bestRankByDifficulty = const {},
+    this.coins = 0,
+    this.lastLootClaimDate,
   });
 
   static const empty = PlayerProfile();
@@ -142,6 +154,8 @@ class PlayerProfile {
     bool? notificationsEnabled,
     int? reminderMinutes,
     Map<String, int>? bestRankByDifficulty,
+    int? coins,
+    String? lastLootClaimDate,
   }) =>
       PlayerProfile(
         dailyActiveStreak: dailyActiveStreak ?? this.dailyActiveStreak,
@@ -153,6 +167,8 @@ class PlayerProfile {
         reminderMinutes: reminderMinutes ?? this.reminderMinutes,
         bestRankByDifficulty:
             bestRankByDifficulty ?? this.bestRankByDifficulty,
+        coins: coins ?? this.coins,
+        lastLootClaimDate: lastLootClaimDate ?? this.lastLootClaimDate,
       );
 
   Map<String, dynamic> toJson() => {
@@ -164,6 +180,8 @@ class PlayerProfile {
         'notificationsEnabled': notificationsEnabled,
         'reminderMinutes': reminderMinutes,
         'bestRankByDifficulty': bestRankByDifficulty,
+        'coins': coins,
+        'lastLootClaimDate': lastLootClaimDate,
       };
 
   static PlayerProfile fromJson(Map<String, dynamic> j) => PlayerProfile(
@@ -181,6 +199,9 @@ class PlayerProfile {
         reminderMinutes: (j['reminderMinutes'] as int?) ?? 19 * 60,
         bestRankByDifficulty: ((j['bestRankByDifficulty'] as Map?) ?? const {})
             .map((k, v) => MapEntry(k as String, (v as num).toInt())),
+        // Absent in pre-Phase-1 profiles: migration-free defaults.
+        coins: (j['coins'] as int?) ?? 0,
+        lastLootClaimDate: j['lastLootClaimDate'] as String?,
       );
 }
 

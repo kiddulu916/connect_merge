@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../application/engagement_cubit.dart';
 import '../../application/game_cubit.dart';
 import '../../application/game_state.dart';
+import '../../domain/engine/near_miss.dart';
 import '../../domain/models/board_state.dart';
 import '../../domain/models/cosmetic.dart';
 import '../../infrastructure/storage_service.dart';
@@ -112,6 +113,7 @@ class _GameScreenState extends State<GameScreen> {
       stats: stats,
       friendCode: friendCode,
       newlyUnlocked: newly,
+      nearMiss: NearMiss.message(board, bestScore: stats.bestScore),
       canOfferAd: context.read<GameCubit>().canOfferAd,
       onWatchAd: () => _watchRewarded(context, context.read<GameCubit>()),
       onMainMenu: () => Navigator.of(context).pop(),
