@@ -1,12 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Contacts is OPT-IN and used ONLY to find friends already on Merge Loop.
+    <!-- Contacts is OPT-IN and used ONLY to find friends already on Merge Count.
          Raw phone numbers / emails NEVER leave the device — they are normalized
          and SHA256-hashed on-device, and only hashes are checked against
          opted-in players. Denying this permission keeps friend codes fully
          usable. -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <application
-        android:label="Merge Loop"
+        android:label="Merge Count"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <meta-data

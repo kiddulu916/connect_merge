@@ -209,7 +209,7 @@ class _MergeCountAppState extends State<MergeCountApp> {
       );
     }
     return MaterialApp(
-      title: 'Merge Loop',
+      title: 'Merge Count',
       debugShowCheckedModeBanner: false,
       navigatorKey: _navKey,
       scaffoldMessengerKey: _messengerKey,

@@ -330,7 +330,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  const Text('Merge Loop',
+                  const Text('Merge Count',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           color: Colors.white,

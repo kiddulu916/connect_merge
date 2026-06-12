@@ -4,12 +4,12 @@
 <dict>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-4807961095325796~2255720130</string>
-	<!-- Contacts is OPT-IN and used ONLY to find friends already on Merge Loop.
+	<!-- Contacts is OPT-IN and used ONLY to find friends already on Merge Count.
 	     Raw phone numbers / emails NEVER leave your device — they are hashed
 	     on-device and only the hashes are checked. Denying this keeps friend
 	     codes fully usable. -->
 	<key>NSContactsUsageDescription</key>
-	<string>Merge Loop can find friends who already play. Your contacts never leave your device — only secure, anonymized fingerprints are checked. You can always add friends by code instead.</string>
+	<string>Merge Count can find friends who already play. Your contacts never leave your device — only secure, anonymized fingerprints are checked. You can always add friends by code instead.</string>
 	<!-- Invite deep links: mergeloop://invite/<code> -->
 	<key>CFBundleURLTypes</key>
 	<array>
@@ -32,7 +32,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Merge Loop</string>
+	<string>Merge Count</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -40,7 +40,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Merge Loop</string>
+	<string>Merge Count</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
