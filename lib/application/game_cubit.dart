@@ -39,11 +39,14 @@ class GameCubit extends Cubit<GameState> {
   /// Optional online submit hook. Null when offline / not signed in.
   final SubmitRun? onSubmitRun;
 
-  /// Optional completion hook (Phase 4). Fired once per locked day, after stats
-  /// are recorded, so the engagement layer can advance the headline streak,
-  /// evaluate achievements, and reschedule notifications. Decoupled (a plain
-  /// callback) so the cubit stays plugin-free and unit-testable.
-  final Future<void> Function()? onTierCompleted;
+  /// Optional completion hook (Phase 4 / Phase 2). Fired once per locked day,
+  /// after stats are recorded, so the engagement layer can advance the headline
+  /// streak, evaluate achievements, fold meta-progression (XP + almanac), and
+  /// reschedule notifications. Receives the finished run's [score] and
+  /// [highestTier] for the Phase-2 XP/almanac fold — these are read-only run
+  /// summaries; the hook is purely client-side and NEVER affects score/replay.
+  /// Decoupled (a plain callback) so the cubit stays plugin-free + testable.
+  final Future<void> Function({int score, int highestTier})? onTierCompleted;
 
   /// Optional coins hook (Phase 1). Fired with the bonus when a merge consumes a
   /// golden tile, so the client-side wallet is credited. Decoupled (a plain
@@ -61,6 +64,22 @@ class GameCubit extends Cubit<GameState> {
   /// Rewarded-hint usage this cubit lifetime (one tier's day). Gates the
   /// per-day cap on the reveal-next-drop hint.
   int _hintsUsed = 0;
+
+  /// Coins earned this run (golden merges + completion bonus). Tracked so the
+  /// result screen can offer a rewarded "double coins" that credits the same
+  /// amount again. Purely client-side bookkeeping — never affects score.
+  int _coinsEarnedThisRun = 0;
+
+  /// Whether the rewarded "double coins" reward has already been taken this run
+  /// (idempotency guard, so the double can't be claimed twice).
+  bool _coinsDoubled = false;
+
+  /// Total coins earned this run so far (golden + completion). Read by the
+  /// result screen to offer the double-coins ad.
+  int get coinsEarnedThisRun => _coinsEarnedThisRun;
+
+  /// Whether the double-coins reward has already been claimed this run.
+  bool get coinsDoubled => _coinsDoubled;
 
   GameCubit({
     required this.storage,
@@ -135,7 +154,10 @@ class GameCubit extends Cubit<GameState> {
     }
     board = GameEngine.evaluateStatus(board);
 
-    if (goldenBonus > 0) onCoinsEarned?.call(goldenBonus);
+    if (goldenBonus > 0) {
+      _coinsEarnedThisRun += goldenBonus;
+      onCoinsEarned?.call(goldenBonus);
+    }
 
     final done = board.status != GameStatus.playing;
     await storage.saveSnapshot(GameSnapshot(
@@ -145,8 +167,16 @@ class GameCubit extends Cubit<GameState> {
         completed: done));
 
     if (done) {
+      final firstCompletionToday =
+          storage.loadStats(_difficulty).lastCompletedDate != _date;
       final stats = await _recordCompletion(board);
-      await _fireCompletionHook();
+      // Flat completion reward (Phase 2), credited once per locked day via the
+      // wallet hook — never touches score. Tracked so it can be doubled.
+      if (firstCompletionToday && kCompletionCoinReward > 0) {
+        _coinsEarnedThisRun += kCompletionCoinReward;
+        onCoinsEarned?.call(kCompletionCoinReward);
+      }
+      await _fireCompletionHook(board);
       emit(GameOverShowScore(
           board: board, date: _date, difficulty: _difficulty, stats: stats));
       // Submit to the leaderboard only when the day is genuinely terminal:
@@ -196,14 +226,16 @@ class GameCubit extends Cubit<GameState> {
 
   bool _completionFired = false;
 
-  /// Fire the Phase 4 completion hook at most once per cubit lifetime. Off the
-  /// critical path: a failing hook never blocks the result screen.
-  Future<void> _fireCompletionHook() async {
+  /// Fire the completion hook at most once per cubit lifetime, passing the
+  /// finished [board]'s `score` + `highestTier` so the engagement layer can fold
+  /// XP and the almanac. Off the critical path: a failing hook never blocks the
+  /// result screen, and the run summary is read-only (never mutates the board).
+  Future<void> _fireCompletionHook(BoardState board) async {
     final hook = onTierCompleted;
     if (hook == null || _completionFired) return;
     _completionFired = true;
     try {
-      await hook();
+      await hook(score: board.score, highestTier: board.highestTier);
     } catch (_) {
       // Engagement bookkeeping is best-effort; play is never blocked by it.
     }
@@ -256,6 +288,18 @@ class GameCubit extends Cubit<GameState> {
         completed: false));
     emit(GameAdRewardGranted(board: board, difficulty: _difficulty));
     emit(GamePlaying(board: board, difficulty: _difficulty));
+  }
+
+  /// Double the coins earned this run (Phase 2). Call AFTER a rewarded ad
+  /// grants. Credits the run's earned coins a second time via the same wallet
+  /// hook. Idempotent: a no-op if already doubled or nothing was earned. Returns
+  /// the amount credited (0 when nothing happened). NEVER affects score.
+  int doubleRunCoins() {
+    if (_coinsDoubled || _coinsEarnedThisRun <= 0) return 0;
+    _coinsDoubled = true;
+    final bonus = _coinsEarnedThisRun;
+    onCoinsEarned?.call(bonus);
+    return bonus;
   }
 
   /// Update per-tier lifetime stats once per completed day (idempotent within a

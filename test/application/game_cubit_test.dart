@@ -237,6 +237,63 @@ void main() {
       expect(credited, 0);
     });
   });
+
+  group('double coins on completion (Phase 2)', () {
+    /// Resume a board with two golden tier-2 tiles so a single merge credits
+    /// run coins without ending the day; returns the wired cubit + a coin sink.
+    Future<(GameCubit, List<int>)> goldenRun() async {
+      final base =
+          const DailySeeder('2026-06-06', Difficulty.medium).generate().board;
+      final cells = List<Tile?>.of(base.cells);
+      cells[0] = const Tile(id: 900, tier: 2, golden: true);
+      cells[1] = const Tile(id: 901, tier: 2, golden: true);
+      await storage.saveSnapshot(GameSnapshot(
+          date: '2026-06-06',
+          difficulty: Difficulty.medium,
+          board: base.copyWith(cells: cells),
+          completed: false));
+      final credits = <int>[];
+      final c = GameCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-06',
+        onCoinsEarned: credits.add,
+      );
+      await c.init(difficulty: Difficulty.medium);
+      return (c, credits);
+    }
+
+    test('tracks coins earned this run and doubles them once', () async {
+      final (c, credits) = await goldenRun();
+      await c.merge(fromIndex: 0, toIndex: 1);
+
+      final earned = c.coinsEarnedThisRun;
+      expect(earned, 2 * kGoldenMergeBonus);
+      expect(c.coinsDoubled, isFalse);
+
+      final bonus = c.doubleRunCoins();
+      expect(bonus, earned); // credits the same amount again
+      expect(c.coinsDoubled, isTrue);
+      // The wallet hook saw the golden credit then the double of the same total.
+      expect(credits, [earned, earned]);
+    });
+
+    test('doubleRunCoins is idempotent (no triple credit)', () async {
+      final (c, _) = await goldenRun();
+      await c.merge(fromIndex: 0, toIndex: 1);
+      final first = c.doubleRunCoins();
+      final second = c.doubleRunCoins(); // second call is a no-op
+      expect(first, greaterThan(0));
+      expect(second, 0);
+    });
+
+    test('doubleRunCoins with no earned coins is a no-op', () async {
+      final c = make('2026-06-06');
+      await c.init(difficulty: Difficulty.medium);
+      expect(c.coinsEarnedThisRun, 0);
+      expect(c.doubleRunCoins(), 0);
+      expect(c.coinsDoubled, isFalse);
+    });
+  });
 }
 
 /// Persist a completed snapshot + run completion bookkeeping for [tier] on

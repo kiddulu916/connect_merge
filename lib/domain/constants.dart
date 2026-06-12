@@ -68,6 +68,32 @@ const int kNearMissScoreWindow = 50;
 /// midnight (12:00 by default). Reuses the [reminderMinutes]-style slot.
 const int kMiddayReminderMinutes = 12 * 60;
 
+/// Phase 2 (meta-progression) — player level / XP. XP is purely a client-side
+/// flair derived from already-recorded cumulative score: `lifetimeXp` accrues
+/// `score ~/ kXpPerScore` each completed run. It NEVER affects `BoardState.score`
+/// or replay verification, and the level curve is monotonic non-decreasing.
+const int kXpPerScore = 10;
+
+/// Base divisor for the level curve: `level = floor(sqrt(xp / kXpPerLevelBase))`.
+/// Larger => slower leveling. Open tuning item.
+const int kXpPerLevelBase = 50;
+
+/// Phase 2 — Merge Almanac. A run records its `highestTier` into the per-tier
+/// almanac count (`tier -> times reached`). A tier's mastery badge unlocks once
+/// that tier has been reached [kAlmanacMasteryThreshold] times. Pure collection
+/// flair; never touches score.
+const int kAlmanacMasteryThreshold = 5;
+
+/// Phase 2 — earned cosmetics economy. Coin prices for purchasable tile themes.
+/// Open tuning items (watch coin sink/earn ratio for runaway inflation).
+const int kCosmeticPriceCommon = 150;
+const int kCosmeticPriceRare = 400;
+
+/// Phase 2 — flat soft-currency reward for completing a tier's day. Credited via
+/// the same [onCoinsEarned] wallet hook as golden tiles, so it NEVER touches
+/// `BoardState.score`. A rewarded ad can double the run's earned coins.
+const int kCompletionCoinReward = 20;
+
 /// Upper bound (inclusive) of the drop tier band for drop number [n].
 /// Drops are drawn from tiers [1 .. dropCap(n)]. The band widens by drop
 /// INDEX (not board state) so the item sequence is identical for all players.

@@ -18,6 +18,7 @@ import '../theme/tile_palette.dart';
 import '../widgets/coin_balance.dart';
 import '../widgets/streak_banner.dart';
 import 'achievements_screen.dart';
+import 'almanac_screen.dart';
 import 'cosmetics_screen.dart';
 import 'friends_screen.dart';
 import 'game_screen.dart';
@@ -259,8 +260,12 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   /// Completion hook fired by [GameCubit] when a tier's day is locked: advance
   /// the headline streak / achievements / cosmetics, then reschedule the
   /// reminder (suppressed once all tiers are done).
-  Future<void> _onTierCompleted() async {
-    await _engagement.onTierCompleted(date: widget.today());
+  Future<void> _onTierCompleted({int score = 0, int highestTier = 0}) async {
+    await _engagement.onTierCompleted(
+      date: widget.today(),
+      score: score,
+      highestTier: highestTier,
+    );
     await _maybeRequestPermissionThenReschedule();
   }
 
@@ -300,6 +305,18 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
         builder: (_) => CosmeticsScreen(
           engagement: _engagement,
           adService: widget.adService,
+        ),
+      ),
+    );
+  }
+
+  void _openAlmanac(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AlmanacScreen(
+          almanac: _engagement.state.almanac,
+          lifetimeXp: _engagement.state.lifetimeXp,
+          cosmetic: _engagement.state.selectedCosmetic,
         ),
       ),
     );
@@ -400,6 +417,13 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                           tooltip: 'Tile themes',
                           icon: const Icon(Icons.palette, color: Colors.white70),
                           onPressed: () => _openCosmetics(context),
+                        ),
+                        IconButton(
+                          key: const Key('open-almanac'),
+                          tooltip: 'Merge Almanac',
+                          icon: const Icon(Icons.menu_book,
+                              color: Colors.white70),
+                          onPressed: () => _openAlmanac(context),
                         ),
                         if (widget.friends != null)
                           IconButton(

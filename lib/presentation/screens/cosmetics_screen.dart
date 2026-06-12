@@ -5,10 +5,12 @@ import '../../application/engagement_cubit.dart';
 import '../../domain/models/cosmetic.dart';
 import '../../infrastructure/ad_service.dart';
 import '../theme/tile_palette.dart';
+import '../widgets/price_tag.dart';
 
 /// Pick a tile theme. Unlocked cosmetics are selectable; locked ones show their
-/// unlock requirement. A rewarded-ad cosmetic can be unlocked in-place.
-class CosmeticsScreen extends StatelessWidget {
+/// unlock requirement. A rewarded-ad cosmetic can be unlocked in-place; a
+/// purchase cosmetic can be bought with coins (Phase 2).
+class CosmeticsScreen extends StatefulWidget {
   final EngagementCubit engagement;
   final AdService adService;
 
@@ -19,9 +21,22 @@ class CosmeticsScreen extends StatelessWidget {
   });
 
   @override
+  State<CosmeticsScreen> createState() => _CosmeticsScreenState();
+}
+
+class _CosmeticsScreenState extends State<CosmeticsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Coins can be credited outside this cubit (golden tiles, loot chest); pull
+    // the current balance so purchase affordability is accurate.
+    widget.engagement.refreshWallet();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return BlocBuilder<EngagementCubit, EngagementState>(
-      bloc: engagement,
+      bloc: widget.engagement,
       builder: (context, state) {
         return Scaffold(
           backgroundColor: const Color(0xFF12141C),
@@ -29,6 +44,23 @@ class CosmeticsScreen extends StatelessWidget {
             backgroundColor: const Color(0xFF12141C),
             foregroundColor: Colors.white,
             title: const Text('Tile Themes'),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Row(
+                  key: const Key('cosmetics-coin-balance'),
+                  children: [
+                    const Icon(Icons.monetization_on,
+                        color: Colors.amberAccent, size: 18),
+                    const SizedBox(width: 4),
+                    Text('${state.coins}',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+            ],
           ),
           body: ListView(
             key: const Key('cosmetics-list'),
@@ -39,9 +71,13 @@ class CosmeticsScreen extends StatelessWidget {
                   cosmetic: c,
                   selected: state.selectedCosmetic == c,
                   unlocked: state.unlockedCosmetics.contains(c),
-                  onSelect: () => engagement.selectCosmetic(c),
+                  affordable: state.coins >= c.price,
+                  onSelect: () => widget.engagement.selectCosmetic(c),
                   onUnlockViaAd: c.unlock == CosmeticUnlock.rewardedAd
                       ? () => _unlockViaAd(context, c)
+                      : null,
+                  onBuy: c.unlock == CosmeticUnlock.purchase
+                      ? () => _buy(context, c)
                       : null,
                 ),
             ],
@@ -52,8 +88,8 @@ class CosmeticsScreen extends StatelessWidget {
   }
 
   void _unlockViaAd(BuildContext context, Cosmetic c) {
-    adService.showRewarded(
-      onReward: () => engagement.grantAdCosmetic(c),
+    widget.adService.showRewarded(
+      onReward: () => widget.engagement.grantAdCosmetic(c),
       onUnavailable: () {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -63,21 +99,35 @@ class CosmeticsScreen extends StatelessWidget {
       },
     );
   }
+
+  Future<void> _buy(BuildContext context, Cosmetic c) async {
+    final ok = await widget.engagement.purchaseCosmetic(c);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? '${c.label} unlocked!' : 'Not enough coins.'),
+      ),
+    );
+  }
 }
 
 class _CosmeticTile extends StatelessWidget {
   final Cosmetic cosmetic;
   final bool selected;
   final bool unlocked;
+  final bool affordable;
   final VoidCallback onSelect;
   final VoidCallback? onUnlockViaAd;
+  final VoidCallback? onBuy;
 
   const _CosmeticTile({
     required this.cosmetic,
     required this.selected,
     required this.unlocked,
+    required this.affordable,
     required this.onSelect,
     this.onUnlockViaAd,
+    this.onBuy,
   });
 
   String get _unlockHint => switch (cosmetic.unlock) {
@@ -86,6 +136,7 @@ class _CosmeticTile extends StatelessWidget {
         CosmeticUnlock.achievement =>
           'Earn: ${cosmetic.achievement?.label ?? ''}',
         CosmeticUnlock.rewardedAd => 'Watch an ad to unlock',
+        CosmeticUnlock.purchase => 'Buy for ${cosmetic.price} coins',
       };
 
   @override
@@ -133,6 +184,13 @@ class _CosmeticTile extends StatelessWidget {
                 ),
                 if (selected)
                   const Icon(Icons.check_circle, color: Colors.greenAccent)
+                else if (!unlocked && onBuy != null)
+                  PriceTag(
+                    key: Key('cosmetic-buy-${cosmetic.name}'),
+                    price: cosmetic.price,
+                    affordable: affordable,
+                    onBuy: onBuy!,
+                  )
                 else if (!unlocked && onUnlockViaAd != null)
                   TextButton(
                     key: Key('cosmetic-ad-${cosmetic.name}'),

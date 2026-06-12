@@ -7,6 +7,7 @@ import '../../application/game_state.dart';
 import '../../domain/engine/near_miss.dart';
 import '../../domain/models/board_state.dart';
 import '../../domain/models/cosmetic.dart';
+import '../../domain/models/player_level.dart';
 import '../../infrastructure/storage_service.dart';
 import '../../domain/models/difficulty.dart';
 import '../../infrastructure/ad_service.dart';
@@ -107,6 +108,16 @@ class _GameScreenState extends State<GameScreen> {
         engagement?.acknowledgeNewlyUnlocked();
       });
     }
+    final cubit = context.read<GameCubit>();
+
+    // Phase 2 meta-progression flair. XP/level reflect the post-completion
+    // engagement state (the completion hook fires before this screen builds).
+    final xpGained = xpForScore(board.score);
+    final level = engagement?.state.level ?? 0;
+    final lifetimeXp = engagement?.state.lifetimeXp ?? 0;
+    // Did THIS run's XP push the player up a level?
+    final leveledUp = level > levelForXp(lifetimeXp - xpGained);
+
     return ScoreShareScreen(
       board: board,
       date: date,
@@ -114,9 +125,36 @@ class _GameScreenState extends State<GameScreen> {
       friendCode: friendCode,
       newlyUnlocked: newly,
       nearMiss: NearMiss.message(board, bestScore: stats.bestScore),
-      canOfferAd: context.read<GameCubit>().canOfferAd,
-      onWatchAd: () => _watchRewarded(context, context.read<GameCubit>()),
+      xpGained: xpGained,
+      level: level,
+      leveledUp: leveledUp,
+      coinsEarned: cubit.coinsEarnedThisRun,
+      coinsDoubled: cubit.coinsDoubled,
+      onDoubleCoins: () => _watchDoubleCoins(context, cubit),
+      canOfferAd: cubit.canOfferAd,
+      onWatchAd: () => _watchRewarded(context, cubit),
       onMainMenu: () => Navigator.of(context).pop(),
+    );
+  }
+
+  /// Rewarded "double coins" on the result screen (Phase 2). On reward, credits
+  /// the run's earned coins again, then refreshes so the button hides.
+  void _watchDoubleCoins(BuildContext context, GameCubit cubit) {
+    adService.showRewarded(
+      onReward: () {
+        final bonus = cubit.doubleRunCoins();
+        if (bonus > 0) {
+          widget.engagement?.refreshWallet();
+          if (mounted) setState(() {}); // hide the button / reflect doubled
+        }
+      },
+      onUnavailable: () {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No ad available right now.')),
+          );
+        }
+      },
     );
   }
 

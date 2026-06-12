@@ -76,6 +76,12 @@ void main() {
     expect(s.loadProfile().dailyActiveStreak, 0);
     expect(s.loadProfile().selectedCosmetic, 'classic');
 
+    // Phase 1 + Phase 2 fields default migration-free.
+    expect(s.loadProfile().coins, 0);
+    expect(s.loadProfile().purchasedCosmetics, isEmpty);
+    expect(s.loadProfile().lifetimeXp, 0);
+    expect(s.loadProfile().almanacCounts, isEmpty);
+
     const profile = PlayerProfile(
       dailyActiveStreak: 7,
       lastActiveDate: '2026-06-07',
@@ -85,6 +91,11 @@ void main() {
       notificationsEnabled: true,
       reminderMinutes: 20 * 60,
       bestRankByDifficulty: {'hard': 3},
+      coins: 250,
+      lastLootClaimDate: '2026-06-07',
+      purchasedCosmetics: {'forest'},
+      lifetimeXp: 1234,
+      almanacCounts: {'9': 2, '11': 1},
     );
     await s.saveProfile(profile);
 
@@ -97,5 +108,11 @@ void main() {
     expect(loaded.notificationsEnabled, isTrue);
     expect(loaded.reminderMinutes, 20 * 60);
     expect(loaded.bestRankByDifficulty, {'hard': 3});
+    // Phase 1 + Phase 2 round-trip.
+    expect(loaded.coins, 250);
+    expect(loaded.lastLootClaimDate, '2026-06-07');
+    expect(loaded.purchasedCosmetics, {'forest'});
+    expect(loaded.lifetimeXp, 1234);
+    expect(loaded.almanacCounts, {'9': 2, '11': 1});
   });
 }

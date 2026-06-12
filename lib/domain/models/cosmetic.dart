@@ -1,3 +1,4 @@
+import '../constants.dart';
 import 'achievement.dart';
 
 /// How a cosmetic tile theme is unlocked. Pure data — the predicate is
@@ -16,6 +17,9 @@ enum CosmeticUnlock {
 
   /// Unlocked by watching a rewarded ad (recorded explicitly).
   rewardedAd,
+
+  /// Bought with soft-currency coins (recorded explicitly in the purchase set).
+  purchase,
 }
 
 /// A selectable tile theme. The enum `name` is the stable storage token (the
@@ -124,6 +128,48 @@ enum Cosmetic {
       0xFFC084FC,
       0xFF818CF8,
     ],
+  ),
+
+  /// Bought with coins (Phase 2). Lush forest ramp.
+  forest(
+    label: 'Forest',
+    unlock: CosmeticUnlock.purchase,
+    price: kCosmeticPriceCommon,
+    colors: [
+      0x14FFFFFF,
+      0xFF65A30D,
+      0xFF4D7C0F,
+      0xFF3F6212,
+      0xFF166534,
+      0xFF15803D,
+      0xFF16A34A,
+      0xFF22C55E,
+      0xFF4ADE80,
+      0xFF86EFAC,
+      0xFFBEF264,
+      0xFFA3E635,
+    ],
+  ),
+
+  /// Bought with coins (Phase 2). Rare aurora ramp (higher price).
+  aurora(
+    label: 'Aurora',
+    unlock: CosmeticUnlock.purchase,
+    price: kCosmeticPriceRare,
+    colors: [
+      0x14FFFFFF,
+      0xFF2DD4BF,
+      0xFF14B8A6,
+      0xFF0D9488,
+      0xFF6366F1,
+      0xFF8B5CF6,
+      0xFFA855F7,
+      0xFFD946EF,
+      0xFFEC4899,
+      0xFFF472B6,
+      0xFF60A5FA,
+      0xFF34D399,
+    ],
   );
 
   const Cosmetic({
@@ -132,6 +178,7 @@ enum Cosmetic {
     required this.colors,
     this.threshold = 0,
     this.achievement,
+    this.price = 0,
   });
 
   final String label;
@@ -147,16 +194,21 @@ enum Cosmetic {
   /// Source achievement for [CosmeticUnlock.achievement].
   final Achievement? achievement;
 
+  /// Coin price for [CosmeticUnlock.purchase] cosmetics (0 for all others).
+  final int price;
+
   /// The default cosmetic (always available).
   static const Cosmetic defaultCosmetic = Cosmetic.classic;
 
-  /// Pure: is this cosmetic unlocked given streak/achievements and the set of
-  /// ad-unlocked cosmetics? `free` is always unlocked; `rewardedAd` only when it
-  /// is explicitly present in [adUnlocked].
+  /// Pure: is this cosmetic unlocked given streak/achievements and the sets of
+  /// ad-unlocked and purchased cosmetics? `free` is always unlocked; `rewardedAd`
+  /// only when present in [adUnlocked]; `purchase` only when present in
+  /// [purchased].
   bool isUnlocked({
     required int dailyActiveStreak,
     required Set<Achievement> achievements,
     required Set<Cosmetic> adUnlocked,
+    Set<Cosmetic> purchased = const {},
   }) {
     switch (unlock) {
       case CosmeticUnlock.free:
@@ -167,6 +219,8 @@ enum Cosmetic {
         return achievement != null && achievements.contains(achievement);
       case CosmeticUnlock.rewardedAd:
         return adUnlocked.contains(this);
+      case CosmeticUnlock.purchase:
+        return purchased.contains(this);
     }
   }
 }
@@ -176,11 +230,13 @@ Set<Cosmetic> unlockedCosmetics({
   required int dailyActiveStreak,
   required Set<Achievement> achievements,
   required Set<Cosmetic> adUnlocked,
+  Set<Cosmetic> purchased = const {},
 }) =>
     Cosmetic.values
         .where((c) => c.isUnlocked(
               dailyActiveStreak: dailyActiveStreak,
               achievements: achievements,
               adUnlocked: adUnlocked,
+              purchased: purchased,
             ))
         .toSet();

@@ -130,6 +130,20 @@ class PlayerProfile {
   /// Migration-free default null.
   final String? lastLootClaimDate;
 
+  /// Cosmetic enum `name`s bought with coins (Phase 2). A purely client-side
+  /// purchase ledger — buying debits [coins] and records the name here.
+  /// Migration-free default empty.
+  final Set<String> purchasedCosmetics;
+
+  /// Cumulative client-side XP (Phase 2), derived from already-recorded run
+  /// scores. Drives the player level (pure flair); NEVER affects score or
+  /// replay. Migration-free default 0.
+  final int lifetimeXp;
+
+  /// Merge Almanac counts (Phase 2): tier (as a string key) -> times that tier
+  /// was the highest reached in a run. Migration-free default empty.
+  final Map<String, int> almanacCounts;
+
   const PlayerProfile({
     this.dailyActiveStreak = 0,
     this.lastActiveDate,
@@ -141,6 +155,9 @@ class PlayerProfile {
     this.bestRankByDifficulty = const {},
     this.coins = 0,
     this.lastLootClaimDate,
+    this.purchasedCosmetics = const {},
+    this.lifetimeXp = 0,
+    this.almanacCounts = const {},
   });
 
   static const empty = PlayerProfile();
@@ -156,6 +173,9 @@ class PlayerProfile {
     Map<String, int>? bestRankByDifficulty,
     int? coins,
     String? lastLootClaimDate,
+    Set<String>? purchasedCosmetics,
+    int? lifetimeXp,
+    Map<String, int>? almanacCounts,
   }) =>
       PlayerProfile(
         dailyActiveStreak: dailyActiveStreak ?? this.dailyActiveStreak,
@@ -169,6 +189,9 @@ class PlayerProfile {
             bestRankByDifficulty ?? this.bestRankByDifficulty,
         coins: coins ?? this.coins,
         lastLootClaimDate: lastLootClaimDate ?? this.lastLootClaimDate,
+        purchasedCosmetics: purchasedCosmetics ?? this.purchasedCosmetics,
+        lifetimeXp: lifetimeXp ?? this.lifetimeXp,
+        almanacCounts: almanacCounts ?? this.almanacCounts,
       );
 
   Map<String, dynamic> toJson() => {
@@ -182,6 +205,9 @@ class PlayerProfile {
         'bestRankByDifficulty': bestRankByDifficulty,
         'coins': coins,
         'lastLootClaimDate': lastLootClaimDate,
+        'purchasedCosmetics': purchasedCosmetics.toList(),
+        'lifetimeXp': lifetimeXp,
+        'almanacCounts': almanacCounts,
       };
 
   static PlayerProfile fromJson(Map<String, dynamic> j) => PlayerProfile(
@@ -202,6 +228,13 @@ class PlayerProfile {
         // Absent in pre-Phase-1 profiles: migration-free defaults.
         coins: (j['coins'] as int?) ?? 0,
         lastLootClaimDate: j['lastLootClaimDate'] as String?,
+        // Absent in pre-Phase-2 profiles: migration-free defaults.
+        purchasedCosmetics: ((j['purchasedCosmetics'] as List?) ?? const [])
+            .map((e) => e as String)
+            .toSet(),
+        lifetimeXp: (j['lifetimeXp'] as int?) ?? 0,
+        almanacCounts: ((j['almanacCounts'] as Map?) ?? const {})
+            .map((k, v) => MapEntry(k as String, (v as num).toInt())),
       );
 }
 

@@ -10,6 +10,7 @@ import '../../domain/models/board_state.dart';
 import '../../infrastructure/friends_service.dart';
 import '../../infrastructure/score_sharer.dart';
 import '../../infrastructure/storage_service.dart';
+import '../widgets/level_badge.dart';
 
 /// Offline daily result: the player's own score/tier/moves plus local personal
 /// stats. The emoji share is the (offline) comparison mechanism. When a friend
@@ -38,6 +39,26 @@ class ScoreShareScreen extends StatelessWidget {
   /// that was one merge / a few points short. Null when none applies.
   final String? nearMiss;
 
+  /// XP earned by THIS run (Phase 2). When > 0 an "+XP" line is shown.
+  final int xpGained;
+
+  /// The player's CURRENT level after this run (Phase 2). Shown as flair.
+  final int level;
+
+  /// Whether this run pushed the player up a level (Phase 2). Fires a one-shot
+  /// level-up celebration banner when true.
+  final bool leveledUp;
+
+  /// Coins earned this run that can be doubled by a rewarded ad (Phase 2). When
+  /// > 0 and [onDoubleCoins] is set, a "double coins" button is shown.
+  final int coinsEarned;
+
+  /// Whether the double-coins reward has already been taken (hides the button).
+  final bool coinsDoubled;
+
+  /// Rewarded-ad "double coins" handler (Phase 2). Null hides the button.
+  final VoidCallback? onDoubleCoins;
+
   /// Seam: text-only native share, used only by the [_invite] flow.
   /// Production falls through to [_nativeShare]; tests inject a fake.
   final Future<void> Function(String text)? shareText;
@@ -61,6 +82,12 @@ class ScoreShareScreen extends StatelessWidget {
     this.friendCode,
     this.newlyUnlocked = const {},
     this.nearMiss,
+    this.xpGained = 0,
+    this.level = 0,
+    this.leveledUp = false,
+    this.coinsEarned = 0,
+    this.coinsDoubled = false,
+    this.onDoubleCoins,
     this.shareText,
     this.sharer = const PlatformScoreSharer(),
     this.captureOverride,
@@ -114,6 +141,14 @@ class ScoreShareScreen extends StatelessWidget {
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700)),
                       ],
+                      if (xpGained > 0 || level > 0) ...[
+                        const SizedBox(height: 16),
+                        _xpRow(),
+                      ],
+                      if (leveledUp) ...[
+                        const SizedBox(height: 12),
+                        _levelUpBanner(),
+                      ],
                       if (newlyUnlocked.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         _achievementsBanner(),
@@ -123,6 +158,12 @@ class ScoreShareScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
+              if (coinsEarned > 0 && !coinsDoubled && onDoubleCoins != null)
+                FilledButton.tonal(
+                  key: const Key('double-coins-button'),
+                  onPressed: onDoubleCoins,
+                  child: Text('Watch ad: double $coinsEarned coins'),
+                ),
               if (canOfferAd)
                 FilledButton.tonal(
                   onPressed: onWatchAd,
@@ -195,6 +236,43 @@ class ScoreShareScreen extends StatelessWidget {
   /// [shareText] seam is injected.
   static Future<void> _nativeShare(String text) =>
       Share.share(text, subject: 'Merge Count');
+
+  Widget _xpRow() => Row(
+        key: const Key('xp-row'),
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          LevelBadge(level: level),
+          if (xpGained > 0) ...[
+            const SizedBox(width: 10),
+            Text('+$xpGained XP',
+                key: const Key('xp-gained-line'),
+                style: const TextStyle(
+                    color: Colors.amberAccent,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800)),
+          ],
+        ],
+      );
+
+  Widget _levelUpBanner() => Container(
+        key: const Key('level-up-banner'),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B1E2A),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.amberAccent, width: 1.5),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.arrow_circle_up, color: Colors.amberAccent),
+            const SizedBox(width: 8),
+            Text('Level up! You reached level $level',
+                style: const TextStyle(
+                    color: Colors.amberAccent, fontWeight: FontWeight.w800)),
+          ],
+        ),
+      );
 
   Widget _achievementsBanner() => Container(
         key: const Key('newly-unlocked-banner'),

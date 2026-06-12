@@ -1,8 +1,11 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../domain/engine/almanac_progress.dart';
 import '../domain/models/achievement.dart';
+import '../domain/models/almanac.dart';
 import '../domain/models/cosmetic.dart';
 import '../domain/models/difficulty.dart';
+import '../domain/models/player_level.dart';
 import '../domain/models/streak.dart';
 import '../infrastructure/storage_service.dart';
 import 'game_cubit.dart' show utcToday;
@@ -32,6 +35,16 @@ class EngagementState {
   /// missed UTC day).
   final int freezeTokens;
 
+  /// Soft-currency wallet balance (Phase 2), surfaced so the cosmetics screen
+  /// can gate purchases without re-reading storage.
+  final int coins;
+
+  /// Cumulative client-side XP (Phase 2). Derived from recorded run scores.
+  final int lifetimeXp;
+
+  /// The Merge Almanac (Phase 2) — per-tier collection + mastery badges.
+  final Almanac almanac;
+
   const EngagementState({
     this.dailyActiveStreak = 0,
     this.lastActiveDate,
@@ -40,7 +53,13 @@ class EngagementState {
     this.selectedCosmetic = Cosmetic.classic,
     this.unlockedCosmetics = const {Cosmetic.classic},
     this.freezeTokens = 0,
+    this.coins = 0,
+    this.lifetimeXp = 0,
+    this.almanac = Almanac.empty,
   });
+
+  /// The player's current level, derived from [lifetimeXp] (pure flair).
+  int get level => levelForXp(lifetimeXp);
 
   EngagementState copyWith({
     int? dailyActiveStreak,
@@ -51,6 +70,9 @@ class EngagementState {
     Cosmetic? selectedCosmetic,
     Set<Cosmetic>? unlockedCosmetics,
     int? freezeTokens,
+    int? coins,
+    int? lifetimeXp,
+    Almanac? almanac,
   }) =>
       EngagementState(
         dailyActiveStreak: dailyActiveStreak ?? this.dailyActiveStreak,
@@ -61,6 +83,9 @@ class EngagementState {
         selectedCosmetic: selectedCosmetic ?? this.selectedCosmetic,
         unlockedCosmetics: unlockedCosmetics ?? this.unlockedCosmetics,
         freezeTokens: freezeTokens ?? this.freezeTokens,
+        coins: coins ?? this.coins,
+        lifetimeXp: lifetimeXp ?? this.lifetimeXp,
+        almanac: almanac ?? this.almanac,
       );
 }
 
@@ -90,6 +115,7 @@ class EngagementCubit extends Cubit<EngagementState> {
     final profile = storage.loadProfile();
     final unlocked = _decodeAchievements(profile.unlockedAchievements);
     final adCosmetics = _decodeCosmetics(profile.adUnlockedCosmetics);
+    final purchased = _decodeCosmetics(profile.purchasedCosmetics);
     emit(EngagementState(
       dailyActiveStreak: profile.dailyActiveStreak,
       lastActiveDate: profile.lastActiveDate,
@@ -100,8 +126,12 @@ class EngagementCubit extends Cubit<EngagementState> {
         dailyActiveStreak: profile.dailyActiveStreak,
         achievements: unlocked,
         adUnlocked: adCosmetics,
+        purchased: purchased,
       ),
       freezeTokens: _maxTierFreezeTokens(),
+      coins: profile.coins,
+      lifetimeXp: profile.lifetimeXp,
+      almanac: Almanac.fromStorage(profile.almanacCounts),
     ));
   }
 
@@ -111,9 +141,20 @@ class EngagementCubit extends Cubit<EngagementState> {
   ///    consuming a freeze token to bridge a single missed day if available.
   /// 2. Recompute unlocked achievements from current progress and surface any
   ///    newly unlocked ones for the result screen.
-  /// 3. Recompute unlocked cosmetics (streak/achievement gated).
-  /// 4. Persist the updated profile.
-  Future<void> onTierCompleted({String? date}) async {
+  /// 3. Recompute unlocked cosmetics (streak/achievement/purchase gated).
+  /// 4. Fold the finished run's [score] into client-side XP and its
+  ///    [highestTier] into the Merge Almanac (Phase 2). Both are pure flair —
+  ///    they NEVER affect `BoardState.score` or replay. XP is monotonic
+  ///    (accumulates a non-negative amount); almanac counts are monotonic.
+  /// 5. Persist the updated profile.
+  ///
+  /// [score] and [highestTier] default to 0 so legacy callers (which only
+  /// advanced the streak) keep working — a 0 run adds 0 XP and no almanac count.
+  Future<void> onTierCompleted({
+    String? date,
+    int score = 0,
+    int highestTier = 0,
+  }) async {
     final today = date ?? todayProvider();
     final profile = storage.loadProfile();
 
@@ -137,16 +178,25 @@ class EngagementCubit extends Cubit<EngagementState> {
 
     // --- Cosmetics. ---
     final adCosmetics = _decodeCosmetics(profile.adUnlockedCosmetics);
+    final purchased = _decodeCosmetics(profile.purchasedCosmetics);
     final cosmetics = unlockedCosmetics(
       dailyActiveStreak: result.streak,
       achievements: allUnlocked,
       adUnlocked: adCosmetics,
+      purchased: purchased,
     );
+
+    // --- Meta-progression: XP + Almanac (Phase 2, pure client-side flair). ---
+    final lifetimeXp = profile.lifetimeXp + xpForScore(score);
+    final almanacCounts =
+        foldRunIntoAlmanac(profile.almanacCounts, highestTier);
 
     final updated = profile.copyWith(
       dailyActiveStreak: result.streak,
       lastActiveDate: today,
       unlockedAchievements: allUnlocked.map((a) => a.name).toSet(),
+      lifetimeXp: lifetimeXp,
+      almanacCounts: almanacCounts,
     );
     await storage.saveProfile(updated);
 
@@ -157,6 +207,9 @@ class EngagementCubit extends Cubit<EngagementState> {
       newlyUnlocked: fresh,
       unlockedCosmetics: cosmetics,
       freezeTokens: _maxTierFreezeTokens(),
+      coins: updated.coins,
+      lifetimeXp: lifetimeXp,
+      almanac: Almanac.fromStorage(almanacCounts),
     ));
   }
 
@@ -185,6 +238,45 @@ class EngagementCubit extends Cubit<EngagementState> {
     emit(state.copyWith(
       unlockedCosmetics: {...state.unlockedCosmetics, cosmetic},
     ));
+  }
+
+  /// Re-sync the wallet balance from storage into state (Phase 2). Coins can be
+  /// credited outside this cubit (golden tiles, loot chest), so call this before
+  /// gating a purchase so the displayed balance is current. No-op if unchanged.
+  void refreshWallet() {
+    final coins = storage.loadProfile().coins;
+    if (coins == state.coins) return;
+    emit(state.copyWith(coins: coins));
+  }
+
+  /// Purchase a [CosmeticUnlock.purchase] cosmetic with coins (Phase 2).
+  ///
+  /// Read-check-write inside a single [loadProfile]→[saveProfile] so the wallet
+  /// cannot leak value:
+  /// - rejects non-purchasable cosmetics,
+  /// - rejects overspend (`balance < price`) without debiting,
+  /// - is idempotent (a cosmetic already purchased is not debited again).
+  ///
+  /// Returns true only when a fresh purchase was made and committed.
+  Future<bool> purchaseCosmetic(Cosmetic cosmetic) async {
+    if (cosmetic.unlock != CosmeticUnlock.purchase) return false;
+    final profile = storage.loadProfile();
+    // Idempotency: already owned -> no debit, no-op.
+    if (profile.purchasedCosmetics.contains(cosmetic.name)) return false;
+    // Overspend guard: can't afford -> no debit.
+    if (profile.coins < cosmetic.price) return false;
+
+    final newCoins = profile.coins - cosmetic.price;
+    final purchased = {...profile.purchasedCosmetics, cosmetic.name};
+    await storage.saveProfile(profile.copyWith(
+      coins: newCoins,
+      purchasedCosmetics: purchased,
+    ));
+    emit(state.copyWith(
+      coins: newCoins,
+      unlockedCosmetics: {...state.unlockedCosmetics, cosmetic},
+    ));
+    return true;
   }
 
   /// Grant a streak-freeze token (e.g. from a rewarded ad). Banked on every tier
