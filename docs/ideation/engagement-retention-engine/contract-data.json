@@ -1,0 +1,120 @@
+{
+  "projectName": "Engagement & Retention Engine",
+  "slug": "engagement-retention-engine",
+  "date": "2026-06-11",
+  "status": "Draft",
+  "supersedes": null,
+  "confidence": {
+    "score": 94,
+    "dimensions": [
+      { "key": "scope", "score": 95, "label": "Scope", "reason": "Four levers locked into phases, $0 ceiling and viral hooks (duels/rivalries/share cards) explicitly chosen; referral cut." },
+      { "key": "risk", "score": 90, "label": "Risk", "reason": "Most features are on-device and cheap; economy balance and the gated endless mode carry the only real risk." },
+      { "key": "effort", "score": 88, "label": "Effort", "reason": "Sizable surface (16 features) but cleanly phased so each phase ships independently." },
+      { "key": "clarity", "score": 96, "label": "Clarity", "reason": "Problem (no variance, no accumulation, passive social) and tone (wholesome) are unambiguous." },
+      { "key": "tests", "score": 92, "label": "Tests", "reason": "Deterministic loot/golden-tile/seed logic is unit-testable against the existing engine test pattern; UI loops use the running app." }
+    ]
+  },
+  "problem": [
+    "merge_count has a polished daily ritual but it is one-and-done: a player finishes their four deterministic boards and has zero reason to reopen the app until the next UTC day. There is no variable reward to create dopamine variance, nothing accumulates across days beyond a streak number and a static achievement list, and the friends leaderboard is passive — it shows ranks but never provokes interaction.",
+    "The fix is to layer three missing psychological systems — variable reward, meta-progression, and active async social — onto the existing engine while weaponizing the deterministic shared board the game already generates. Every feature must hold the project's two hard pillars: $0 infrastructure (Supabase free tier + on-device logic, no FCM, no real-time) and a wholesome-but-effective tone (NYT/Duolingo lane, no manipulative timers or guilt)."
+  ],
+  "goals": [
+    "Create at least 4 honest daily return moments (staggered content + local notifications) so players reopen the app mid-day, not just once.",
+    "Add a variable-reward dopamine loop via a deterministic, cheat-proof, $0 Daily Loot Chest and occasional golden tiles.",
+    "Introduce a soft-currency meta-progression economy that makes the existing cosmetics screen earnable through play, plus a collection/almanac and player level.",
+    "Convert the passive friends leaderboard into active competition via async duels (deep-link, same-board, auto-compare) and rivalries.",
+    "Close core UX gaps (first-run tutorial, undo, stats calendar, colorblind-safe tiles) and keep all of it inside the $0 ceiling and wholesome tone."
+  ],
+  "successCriteria": [
+    "Opening the app shows a Daily Loot Chest claimable once per UTC day; the reward amount is derived from the daily seed and is byte-identical for every player on that date; a rewarded ad can double it.",
+    "At least one bonus board and the loot chest unlock at later times of day, and local notifications (no FCM) fire for midday content, chest-ready, and streak-guard moments.",
+    "Out-of-moves / deadlock screens display a near-miss line (e.g. '1 merge from tier 512') and, where legal, the rewarded continue.",
+    "Soft currency is earned from completion, loot, and rewarded ads, and can be spent to unlock cosmetic tile themes in the existing cosmetics screen.",
+    "A Merge Almanac/collection and a player level visibly accumulate across days and surface on the profile/leaderboard.",
+    "A player can generate a duel challenge link; a friend opening it plays the identical (date,tier) board and sees an auto-comparison of both scores.",
+    "A player can set a rival and see a persistent you-vs-them indicator on each board plus a nudge when the rival passes them.",
+    "The share output is upgraded to a rendered image card (via share_plus) in addition to the emoji block.",
+    "First-run users get an interactive tutorial; a stats calendar shows past daily results; tiles are distinguishable without color (numerals/patterns).",
+    "No feature requires paid infrastructure; flutter analyze is clean and flutter test passes including new seed/loot/economy tests."
+  ],
+  "scope": {
+    "mvp": [
+      { "item": "Daily Loot Chest — deterministic from daily seed, once/UTC-day, variable soft-currency + rare cosmetic shard, optional rewarded-ad double", "reason": "Keystone: adds variable reward, seeds the currency economy, and creates a new ad surface at $0." },
+      { "item": "Soft currency primitive + on-device wallet (earn/spend ledger in Hive)", "reason": "Every economy and cosmetic feature depends on this existing first." },
+      { "item": "Golden tiles — occasional deterministic special drop paying bonus currency on merge", "reason": "Variable reward inside the core loop, free and cheat-proof." },
+      { "item": "Staggered return moments + local notifications (midday bonus board, chest-ready, streak-guard)", "reason": "Directly fixes the one-and-done leak; $0 via flutter_local_notifications already in deps." },
+      { "item": "Near-miss framing on out-of-moves / deadlock screens", "reason": "Weaponizes the 'so close' feeling already produced by the failure states." }
+    ],
+    "full": [
+      { "item": "Earned cosmetics economy — wire cosmetics_screen to currency, unlockable tile themes", "reason": "Turns existing scaffold into a play-driven sink." },
+      { "item": "Merge Almanac / collection + mastery badges with progress bars" },
+      { "item": "Player level / XP from cumulative score, surfaced on profile + leaderboard" },
+      { "item": "Additional rewarded-ad surfaces (streak freeze, hint, reveal-next-drop)" },
+      { "item": "Richer share card — rendered image via share_plus, not just emoji" },
+      { "item": "Async duels — deep-link challenge, same (date,tier) board, auto-compare" },
+      { "item": "Rivalries — pick a rival, persistent you-vs-them, nudge on pass" },
+      { "item": "Polish: first-run tutorial, undo last merge, stats calendar, colorblind-safe tiles" }
+    ],
+    "stretch": [
+      { "item": "Endless Climb — roguelike anytime mode with meta-progression, gated on Phase 1–3 retention proving out" }
+    ],
+    "outOfScope": [
+      { "item": "Referral / invite-to-install rewards", "reason": "Install attribution is genuinely hard at $0; user deprioritized it." },
+      { "item": "FCM / managed push notifications", "reason": "Violates the $0 ceiling; local notifications cover the need." },
+      { "item": "Real-time / live multiplayer rivalries", "reason": "Async by design; live infra costs money and adds ops burden." },
+      { "item": "Hard currency, season pass, IAP store", "reason": "Monetization stance is ads + earned cosmetics only for now." },
+      { "item": "Aggressive FOMO mechanics (guilt timers, loss-aversion pressure)", "reason": "Tone locked to wholesome-but-effective." }
+    ],
+    "future": [
+      "Light IAP (remove-banner-ads, direct cosmetic purchase) once the earned economy is validated",
+      "Full F2P economy / season pass if revenue ceiling needs raising",
+      "Referral rewards if an install-attribution path becomes affordable",
+      "Seasonal events and seasonal cosmetic rewards"
+    ]
+  },
+  "execution": {
+    "strategy": "Hybrid",
+    "phases": [
+      {
+        "title": "Variable Reward & Return Moments",
+        "risk": "low",
+        "blocking": true,
+        "specPath": "docs/ideation/engagement-retention-engine/spec-phase-1.md",
+        "notes": "Daily Loot Chest (seed-derived), soft-currency wallet primitive, golden tiles, staggered local-notification return moments, near-miss framing. Foundation everything else builds on."
+      },
+      {
+        "title": "Meta-progression & Earned Cosmetics Economy",
+        "risk": "medium",
+        "blocking": false,
+        "specPath": "docs/ideation/engagement-retention-engine/spec-phase-2.md",
+        "prereqs": ["Variable Reward & Return Moments"],
+        "notes": "Currency sinks via cosmetics_screen, Merge Almanac/collection, player level/XP, extra rewarded-ad surfaces. Needs the wallet from Phase 1."
+      },
+      {
+        "title": "Async Social: Duels & Rivalries",
+        "risk": "medium",
+        "blocking": false,
+        "specPath": "docs/ideation/engagement-retention-engine/spec-phase-3.md",
+        "prereqs": ["Variable Reward & Return Moments"],
+        "notes": "Deep-link duels on the same (date,tier) board with auto-compare, rivalry you-vs-them + pass nudges, richer rendered share card. Reuses existing deep_link_service + leaderboard rows. Parallelizable with Phase 2."
+      },
+      {
+        "title": "Polish & Accessibility",
+        "risk": "low",
+        "blocking": false,
+        "specPath": "docs/ideation/engagement-retention-engine/spec-phase-4.md",
+        "notes": "First-run interactive tutorial, undo last merge, stats calendar, colorblind-safe tiles. Independent low-risk track; can run anytime in parallel."
+      },
+      {
+        "title": "Endless Climb (gated)",
+        "risk": "high",
+        "kind": "gate",
+        "blocking": false,
+        "specPath": "docs/ideation/engagement-retention-engine/spec-phase-5.md",
+        "prereqs": ["Variable Reward & Return Moments", "Meta-progression & Earned Cosmetics Economy", "Async Social: Duels & Rivalries"],
+        "notes": "Human decision gate: build the always-available roguelike loop only if Phase 1–3 daily-retention metrics justify it."
+      }
+    ],
+    "agentTeamPrompt": "After Phase 1 (Variable Reward & Return Moments) is merged, two independent tracks can run in parallel. Teammate A: implement Phase 2 (Meta-progression & Earned Cosmetics Economy) from docs/ideation/engagement-retention-engine/spec-phase-2.md. Teammate B: implement Phase 3 (Async Social: Duels & Rivalries) from docs/ideation/engagement-retention-engine/spec-phase-3.md. Phase 4 (Polish & Accessibility) is independent of all of the above and can run on a third track anytime. Both Phase 2 and Phase 3 depend only on Phase 1's soft-currency wallet + chest, not on each other. Coordinate on shared files (lib/main.dart, pubspec.yaml, lib/domain/constants.dart, lib/infrastructure/storage_service.dart, and any shared profile/leaderboard widgets) — only one teammate should modify a shared file at a time."
+  }
+}
