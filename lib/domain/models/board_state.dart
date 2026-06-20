@@ -18,6 +18,14 @@ class BoardState {
   /// verification. Persisted/restored with the snapshot. Defaults to empty.
   final List<MoveEvent> moveLog;
 
+  /// Seed-derived blocked cells (Connect-Merge). Hold no tile and break paths.
+  /// Static for the day; rides immutably through copyWith. Default empty.
+  final Set<int> walls;
+
+  /// Progress toward the day's objective (e.g. longest chain so far, or highest
+  /// tier reached). Interpreted by the active [DailyObjective]. Default 0.
+  final int objectiveProgress;
+
   const BoardState({
     required this.cells,
     required this.movesRemaining,
@@ -28,6 +36,8 @@ class BoardState {
     required this.movesMade,
     required this.status,
     this.moveLog = const [],
+    this.walls = const {},
+    this.objectiveProgress = 0,
   });
 
   BoardState copyWith({
@@ -40,6 +50,8 @@ class BoardState {
     int? movesMade,
     GameStatus? status,
     List<MoveEvent>? moveLog,
+    Set<int>? walls,
+    int? objectiveProgress,
   }) {
     return BoardState(
       cells: cells ?? this.cells,
@@ -51,13 +63,15 @@ class BoardState {
       movesMade: movesMade ?? this.movesMade,
       status: status ?? this.status,
       moveLog: moveLog ?? this.moveLog,
+      walls: walls ?? this.walls,
+      objectiveProgress: objectiveProgress ?? this.objectiveProgress,
     );
   }
 
   List<int> get emptyIndices {
     final out = <int>[];
     for (var i = 0; i < cells.length; i++) {
-      if (cells[i] == null) out.add(i);
+      if (cells[i] == null && !walls.contains(i)) out.add(i);
     }
     return out;
   }
@@ -88,6 +102,8 @@ class BoardState {
         'movesMade': movesMade,
         'status': status.name,
         'moveLog': moveLog.map((e) => e.toJson()).toList(),
+        if (walls.isNotEmpty) 'walls': walls.toList(),
+        if (objectiveProgress != 0) 'objectiveProgress': objectiveProgress,
       };
 
   static BoardState fromJson(Map<String, dynamic> j) {
@@ -112,6 +128,10 @@ class BoardState {
               .map((e) =>
                   MoveEvent.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList(),
+      walls: ((j['walls'] as List?) ?? const [])
+          .map((e) => e as int)
+          .toSet(),
+      objectiveProgress: (j['objectiveProgress'] as int?) ?? 0,
     );
   }
 }
