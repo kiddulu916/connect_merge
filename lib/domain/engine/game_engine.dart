@@ -138,4 +138,10 @@ class GameEngine {
     }
     return true;
   }
+
+  /// Points for collapsing a chain of [chainLength] tiles of [mergedTier]. The
+  /// base is the legacy `2^(mergedTier+1)` (so a 2-chain matches the old merge),
+  /// scaled by the superlinear [comboMultiplier].
+  static int comboScore(int mergedTier, int chainLength) =>
+      (1 << (mergedTier + 1)) * comboMultiplier(chainLength);
 }

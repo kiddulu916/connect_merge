@@ -188,4 +188,20 @@ void main() {
       expect(GameEngine.isValidChain(b, [0, 1]), isFalse);
     });
   });
+
+  group('Connect-Merge scoring', () {
+    test('comboScore: 2-chain equals the legacy single-merge score', () {
+      // legacy merge of two tier-3 tiles scored 1 << 4 = 16
+      expect(GameEngine.comboScore(3, 2), 1 << 4);
+    });
+
+    test('comboScore: longer chains apply the superlinear multiplier', () {
+      // tier 2 -> result value 8; multipliers 1,2,4,7,11
+      expect(GameEngine.comboScore(2, 2), 8);
+      expect(GameEngine.comboScore(2, 3), 16);
+      expect(GameEngine.comboScore(2, 4), 32);
+      expect(GameEngine.comboScore(2, 5), 56);
+      expect(GameEngine.comboScore(2, 6), 88);
+    });
+  });
 }
