@@ -3,6 +3,7 @@ import 'package:crypto/crypto.dart';
 
 import '../constants.dart';
 import '../models/board_state.dart';
+import '../models/daily_objective.dart';
 import '../models/difficulty.dart';
 import '../models/game_status.dart';
 import '../models/tile.dart';
@@ -109,4 +110,23 @@ class DailySeeder {
   /// Fresh landing stream (stream B). Advance it `board.dropIndex` times when
   /// resuming a saved game to reach the correct position.
   Prng landingPrng() => Prng(_seedB);
+
+  /// Fresh on-demand drop-tier stream (decoupled from board placement so refills
+  /// can be unbounded). Advance it in drop-index order via [dropTierAt].
+  Prng dropTierPrng() => Prng(seedForKey('$_key:drops'));
+
+  /// Tier for drop number [n], drawn from [p] (which the caller advances in
+  /// index order). Band widens by drop index, identical for all players.
+  int dropTierAt(Prng p, int n) => 1 + p.nextInt(dropCap(n));
+
+  /// Deterministic daily objective from an independent `'$_key:obj'` stream.
+  DailyObjective dailyObjective() {
+    final o = Prng(seedForKey('$_key:obj'));
+    final kind = ObjectiveKind.values[o.nextInt(ObjectiveKind.values.length)];
+    final target = switch (kind) {
+      ObjectiveKind.chainLength => 4 + o.nextInt(3), // 4..6
+      ObjectiveKind.reachTier => 6 + o.nextInt(3), // 6..8
+    };
+    return DailyObjective(kind: kind, target: target);
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:merge_count/domain/constants.dart';
 import 'package:merge_count/domain/engine/daily_seeder.dart';
+import 'package:merge_count/domain/models/daily_objective.dart';
 import 'package:merge_count/domain/models/difficulty.dart';
 
 void main() {
@@ -154,6 +155,28 @@ void main() {
         expect(start.board.cells[w], isNull);
       }
       expect(start.board.filledCount, Difficulty.legendary.startingFill);
+    });
+  });
+
+  group('Connect-Merge drops & objective', () {
+    test('drop-tier stream is deterministic and band-capped by index', () {
+      final s = DailySeeder('2026-06-20', Difficulty.medium);
+      final p1 = s.dropTierPrng();
+      final p2 = s.dropTierPrng();
+      for (var n = 0; n < 50; n++) {
+        final t1 = s.dropTierAt(p1, n);
+        final t2 = s.dropTierAt(p2, n);
+        expect(t1, t2); // same seed => same sequence
+        expect(t1 >= 1 && t1 <= dropCap(n), isTrue);
+      }
+    });
+
+    test('dailyObjective is deterministic and valid', () {
+      final s = DailySeeder('2026-06-20', Difficulty.medium);
+      final o = s.dailyObjective();
+      expect(o.target > 0, isTrue);
+      expect(s.dailyObjective().kind, o.kind);
+      expect(s.dailyObjective().target, o.target);
     });
   });
 }
