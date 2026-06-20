@@ -144,4 +144,27 @@ class GameEngine {
   /// scaled by the superlinear [comboMultiplier].
   static int comboScore(int mergedTier, int chainLength) =>
       (1 << (mergedTier + 1)) * comboMultiplier(chainLength);
+
+  /// Collapse a validated Connect-Merge [path] onto its endpoint (`path.last`):
+  /// the endpoint becomes tier+1 (keeping its id for animation continuity), all
+  /// other path cells empty, score gains the combo total, one move is spent.
+  /// Caller must have checked [isValidChain]. Mirrors [merge]: no drop, no log
+  /// (the cubit applies the refill and records the [ChainEvent]).
+  static BoardState collapseChain(BoardState s, List<int> path) {
+    final endIdx = path.last;
+    final endTile = s.cells[endIdx]!;
+    final mergedTier = endTile.tier;
+    final newTier = mergedTier + 1;
+    final cells = List<Tile?>.of(s.cells);
+    for (final idx in path) {
+      cells[idx] = null;
+    }
+    cells[endIdx] = Tile(id: endTile.id, tier: newTier);
+    return s.copyWith(
+      cells: cells,
+      score: s.score + comboScore(mergedTier, path.length),
+      movesRemaining: s.movesRemaining - 1,
+      movesMade: s.movesMade + 1,
+    );
+  }
 }

@@ -204,4 +204,36 @@ void main() {
       expect(GameEngine.comboScore(2, 6), 88);
     });
   });
+
+  group('Connect-Merge collapse', () {
+    test('collapse: endpoint climbs +1 keeping its id; others empty; scores combo', () {
+      final b = boardWith({
+        0: const Tile(id: 10, tier: 2),
+        1: const Tile(id: 11, tier: 2),
+        6: const Tile(id: 12, tier: 2), // endpoint
+      });
+      final r = GameEngine.collapseChain(b, [0, 1, 6]);
+      expect(r.cells[0], isNull);
+      expect(r.cells[1], isNull);
+      expect(r.cells[6]!.tier, 3);
+      expect(r.cells[6]!.id, 12); // endpoint id preserved for animation
+      expect(r.score, GameEngine.comboScore(2, 3)); // 16
+      expect(r.movesRemaining, kMovesPerDay - 1);
+      expect(r.movesMade, 1);
+      expect(r.filledCount, 1); // only the endpoint remains
+    });
+
+    test('collapse: a 2-path matches the legacy merge result', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 3),
+        1: const Tile(id: 2, tier: 3),
+      });
+      final chain = GameEngine.collapseChain(b, [0, 1]);
+      final legacy = GameEngine.merge(b, fromIndex: 0, toIndex: 1);
+      expect(chain.cells[1]!.tier, legacy.cells[1]!.tier);
+      expect(chain.cells[1]!.id, legacy.cells[1]!.id);
+      expect(chain.score, legacy.score);
+      expect(chain.movesRemaining, legacy.movesRemaining);
+    });
+  });
 }
