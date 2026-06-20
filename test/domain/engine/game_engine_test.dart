@@ -129,4 +129,63 @@ void main() {
       expect(gMerged.cells[1]!.golden, isFalse);
     });
   });
+
+  group('Connect-Merge path validation', () {
+    test('areOrthogonallyAdjacent: true for N/S/E/W, false for diagonal/wrap', () {
+      expect(GameEngine.areOrthogonallyAdjacent(0, 1), isTrue); // E
+      expect(GameEngine.areOrthogonallyAdjacent(0, kGridSize), isTrue); // S
+      expect(GameEngine.areOrthogonallyAdjacent(0, kGridSize + 1), isFalse); // diag
+      expect(GameEngine.areOrthogonallyAdjacent(4, 5), isFalse); // row wrap (col4->col0)
+    });
+
+    test('isValidChain: accepts a connected same-tier run', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 2),
+        1: const Tile(id: 2, tier: 2),
+        6: const Tile(id: 3, tier: 2), // index 6 = row1,col1, adjacent to 1
+      });
+      expect(GameEngine.isValidChain(b, [0, 1, 6]), isTrue);
+    });
+
+    test('isValidChain: rejects length<2, mixed tier, gaps, repeats, walls', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 2),
+        1: const Tile(id: 2, tier: 2),
+        2: const Tile(id: 3, tier: 3), // different tier
+        6: const Tile(id: 4, tier: 2),
+      });
+      expect(GameEngine.isValidChain(b, [0]), isFalse); // too short
+      expect(GameEngine.isValidChain(b, [0, 2]), isFalse); // tier mismatch
+      expect(GameEngine.isValidChain(b, [0, 6]), isFalse); // not adjacent
+      expect(GameEngine.isValidChain(b, [0, 1, 0]), isFalse); // repeat
+      final empty = boardWith({0: const Tile(id: 1, tier: 2)});
+      expect(GameEngine.isValidChain(empty, [0, 1]), isFalse); // cell 1 empty
+    });
+
+    test('isValidChain: rejects a path stepping onto a wall', () {
+      final cells = List<Tile?>.filled(kCellCount, null);
+      cells[0] = const Tile(id: 1, tier: 2);
+      cells[1] = const Tile(id: 2, tier: 2);
+      final b = BoardState(
+        cells: cells,
+        movesRemaining: 30,
+        score: 0,
+        nextTileId: 3,
+        dropIndex: 0,
+        adContinuesUsed: 0,
+        movesMade: 0,
+        status: GameStatus.playing,
+        walls: const {1},
+      );
+      expect(GameEngine.isValidChain(b, [0, 1]), isFalse);
+    });
+
+    test('isValidChain: rejects a chain at max tier', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: kMaxTier),
+        1: const Tile(id: 2, tier: kMaxTier),
+      });
+      expect(GameEngine.isValidChain(b, [0, 1]), isFalse);
+    });
+  });
 }

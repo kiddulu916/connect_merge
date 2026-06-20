@@ -107,4 +107,35 @@ class GameEngine {
     }
     return s.copyWith(status: GameStatus.playing);
   }
+
+  /// True when cells [a] and [b] are orthogonal neighbours on the grid (no
+  /// diagonals, no row wrap-around).
+  static bool areOrthogonallyAdjacent(int a, int b) {
+    final ra = a ~/ kGridSize, ca = a % kGridSize;
+    final rb = b ~/ kGridSize, cb = b % kGridSize;
+    final dr = (ra - rb).abs(), dc = (ca - cb).abs();
+    return (dr + dc) == 1;
+  }
+
+  /// A legal Connect-Merge path: length >= 2, no repeated cells, each cell holds
+  /// a live tile, all tiles share one tier below the cap, and consecutive cells
+  /// are orthogonally adjacent. Walls hold no tile, so they are rejected by the
+  /// null-cell check, but we never index a wall as a tile.
+  static bool isValidChain(BoardState s, List<int> path) {
+    if (path.length < 2) return false;
+    final seen = <int>{};
+    final first = s.cells[path.first];
+    if (first == null || first.tier >= kMaxTier || s.walls.contains(path.first)) return false;
+    final tier = first.tier;
+    for (var i = 0; i < path.length; i++) {
+      final idx = path[i];
+      if (idx < 0 || idx >= kCellCount) return false;
+      if (!seen.add(idx)) return false; // repeat
+      if (s.walls.contains(idx)) return false; // reject walls
+      final t = s.cells[idx];
+      if (t == null || t.tier != tier) return false;
+      if (i > 0 && !areOrthogonallyAdjacent(path[i - 1], idx)) return false;
+    }
+    return true;
+  }
 }
