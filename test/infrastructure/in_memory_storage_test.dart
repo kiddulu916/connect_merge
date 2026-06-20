@@ -180,4 +180,28 @@ void main() {
       expect(cleared.rivalName, isNull);
     });
   });
+
+  test('GameSnapshot carries a version that round-trips; legacy json is v1', () {
+    final cells = List<Tile?>.filled(kCellCount, null);
+    final snap = GameSnapshot(
+      date: '2026-06-20',
+      difficulty: Difficulty.easy,
+      board: BoardState(
+        cells: cells,
+        movesRemaining: 30,
+        score: 0,
+        nextTileId: 0,
+        dropIndex: 0,
+        adContinuesUsed: 0,
+        movesMade: 0,
+        status: GameStatus.playing,
+      ),
+      completed: false,
+    );
+    expect(snap.version, kSnapshotVersion);
+    expect(GameSnapshot.fromJson(snap.toJson()).version, kSnapshotVersion);
+
+    final legacy = snap.toJson()..remove('v');
+    expect(GameSnapshot.fromJson(legacy).version, 1);
+  });
 }
