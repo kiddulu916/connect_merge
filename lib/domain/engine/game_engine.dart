@@ -87,12 +87,23 @@ class GameEngine {
     return golden * kGoldenMergeBonus;
   }
 
-  /// True if any two live tiles share a tier below the cap (a legal merge).
+  /// True if any two orthogonally-adjacent live tiles share a tier below the cap
+  /// (a legal Connect-Merge of length 2). Position now matters: equal tiles that
+  /// are not adjacent do NOT count, so a player can strand tiles into a deadlock.
   static bool hasMergeAvailable(BoardState s) {
-    final seen = <int>{};
-    for (final c in s.cells) {
-      if (c == null || c.tier >= kMaxTier) continue;
-      if (!seen.add(c.tier)) return true;
+    for (var i = 0; i < kCellCount; i++) {
+      final t = s.cells[i];
+      if (t == null || t.tier >= kMaxTier) continue;
+      final row = i ~/ kGridSize, col = i % kGridSize;
+      // Check east and south neighbours only (covers every adjacency once).
+      if (col + 1 < kGridSize) {
+        final e = s.cells[i + 1];
+        if (e != null && e.tier == t.tier) return true;
+      }
+      if (row + 1 < kGridSize) {
+        final so = s.cells[i + kGridSize];
+        if (so != null && so.tier == t.tier) return true;
+      }
     }
     return false;
   }

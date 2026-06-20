@@ -60,14 +60,23 @@ void main() {
     expect(dropped!.tier, 2);
   });
 
-  test('hasMergeAvailable: false when all tiers unique => deadlock', () {
-    final dead = boardWith({
+  test('hasMergeAvailable: needs ADJACENT equal tiers, not just any pair', () {
+    // Two tier-1 tiles exist but are NOT orthogonally adjacent => deadlock.
+    final apart = boardWith({
       0: const Tile(id: 1, tier: 1),
-      1: const Tile(id: 2, tier: 2),
-      2: const Tile(id: 3, tier: 3),
+      2: const Tile(id: 2, tier: 1), // same row, gap at index 1
+      8: const Tile(id: 3, tier: 3),
     });
-    expect(GameEngine.hasMergeAvailable(dead), isFalse);
-    expect(GameEngine.evaluateStatus(dead).status, GameStatus.deadlocked);
+    expect(GameEngine.hasMergeAvailable(apart), isFalse);
+    expect(GameEngine.evaluateStatus(apart).status, GameStatus.deadlocked);
+
+    // Make them adjacent => a merge is available again.
+    final together = boardWith({
+      0: const Tile(id: 1, tier: 1),
+      1: const Tile(id: 2, tier: 1),
+    });
+    expect(GameEngine.hasMergeAvailable(together), isTrue);
+    expect(GameEngine.evaluateStatus(together).status, GameStatus.playing);
   });
 
   test('evaluateStatus: zero moves => outOfMoves even if a merge exists', () {
