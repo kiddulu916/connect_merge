@@ -103,25 +103,25 @@ void main() {
     await c.init(difficulty: Difficulty.medium);
 
     final expected = <MoveEvent>[];
-    // Try to do merges; with spatial deadlock, stop when no more adjacent pairs exist.
+    // Drive merge loop by availability: only call _findMergePair when a pair is
+    // known to exist (so it never throws in normal flow).
     var merges = 0;
-    while (c.state is GamePlaying && merges < 3) {
+    while (merges < 3) {
+      if (c.state is! GamePlaying) break;
       final board = (c.state as GamePlaying).board;
-      try {
-        final pair = _findMergePair(board);
-        expected.add(MergeEvent(from: pair.$1, to: pair.$2));
-        await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
-        merges++;
-      } catch (e) {
-        // No more adjacent pairs available (new spatial deadlock semantics)
-        break;
-      }
+      if (!GameEngine.hasMergeAvailable(board)) break;
+      final pair = _findMergePair(board);
+      expected.add(MergeEvent(from: pair.$1, to: pair.$2));
+      await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
+      merges++;
     }
-    // Verify at least one merge was recorded and the move log is correct.
+    // Verify at least one merge was recorded.
     expect(expected.isNotEmpty, isTrue);
-    if (c.state is GamePlaying) {
-      expect((c.state as GamePlaying).board.moveLog, expected);
-    }
+    // Assert moveLog unconditionally — read board from whichever state is current.
+    final boardAfterMerges = c.state is GamePlaying
+        ? (c.state as GamePlaying).board
+        : (c.state as GameOverShowScore).board;
+    expect(boardAfterMerges.moveLog, expected);
 
     // Force an out-of-moves state, then grant an ad continue.
     // The board might be deadlocked or completed; get its current state.
