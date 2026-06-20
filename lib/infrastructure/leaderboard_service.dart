@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../domain/constants.dart';
 import '../domain/models/difficulty.dart';
 import '../domain/models/leaderboard_entry.dart';
 import '../domain/models/move.dart';
@@ -74,6 +75,7 @@ class LeaderboardService {
       'date': date,
       'difficulty': difficulty.name,
       'moveLog': moveLog.map((e) => e.toJson()).toList(),
+      'season': kLeaderboardSeason,
     });
     return SubmitResult.fromJson(data);
   }
@@ -89,6 +91,7 @@ class LeaderboardService {
       'p_date': date,
       'p_diff': difficulty.name,
       'p_limit': limit,
+      'p_season': kLeaderboardSeason,
     });
     return rows
         .map((e) =>
@@ -109,6 +112,7 @@ class LeaderboardService {
       'p_diff': difficulty.name,
       'p_from': from,
       'p_to': to,
+      'p_season': kLeaderboardSeason,
     });
     return rows.map((e) {
       final m = Map<String, dynamic>.from(e as Map);

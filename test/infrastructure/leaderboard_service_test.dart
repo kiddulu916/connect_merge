@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:merge_count/domain/constants.dart';
 import 'package:merge_count/domain/models/difficulty.dart';
 import 'package:merge_count/domain/models/move.dart';
 import 'package:merge_count/infrastructure/leaderboard_service.dart';
@@ -103,6 +104,7 @@ void main() {
         'p_date': '2026-06-07',
         'p_diff': 'legendary',
         'p_limit': 50,
+        'p_season': kLeaderboardSeason,
       });
       expect(entries.length, 2);
       expect(entries[0].rank, 1);
@@ -151,11 +153,71 @@ void main() {
         'p_diff': 'medium',
         'p_from': '2026-06-01',
         'p_to': '2026-06-07',
+        'p_season': kLeaderboardSeason,
       });
       // The RPC's `total` column maps onto LeaderboardEntry.score.
       expect(entries[0].score, 5400);
       expect(entries[0].isMe, isTrue);
       expect(entries[1].displayName, 'Bo');
+    });
+  });
+
+  group('LeaderboardService season tagging (Task 17)', () {
+    test('submitRun payload includes the current season', () async {
+      Map<String, dynamic>? capturedBody;
+      final service = LeaderboardService.withSeams(
+        invoke: (fn, body) async {
+          capturedBody = body;
+          return {'valid': true, 'score': 500, 'highestTier': 5, 'rank': 10};
+        },
+        rpc: (_, __) async => const [],
+      );
+
+      await service.submitRun(
+        date: '2026-06-20',
+        difficulty: Difficulty.medium,
+        moveLog: const [MergeEvent(from: 1, to: 2)],
+      );
+
+      expect(capturedBody!['season'], kLeaderboardSeason);
+    });
+
+    test('fetch passes the current season to the leaderboard RPC', () async {
+      Map<String, dynamic>? capturedParams;
+      final service = LeaderboardService.withSeams(
+        invoke: (_, __) async => const {},
+        rpc: (fn, params) async {
+          capturedParams = params;
+          return [];
+        },
+      );
+
+      await service.fetch(
+        difficulty: Difficulty.hard,
+        date: '2026-06-20',
+      );
+
+      expect(capturedParams!['p_season'], kLeaderboardSeason);
+    });
+
+    test('fetchPeriod passes the current season to the leaderboard_period RPC',
+        () async {
+      Map<String, dynamic>? capturedParams;
+      final service = LeaderboardService.withSeams(
+        invoke: (_, __) async => const {},
+        rpc: (fn, params) async {
+          capturedParams = params;
+          return [];
+        },
+      );
+
+      await service.fetchPeriod(
+        difficulty: Difficulty.easy,
+        from: '2026-06-01',
+        to: '2026-06-20',
+      );
+
+      expect(capturedParams!['p_season'], kLeaderboardSeason);
     });
   });
 }
