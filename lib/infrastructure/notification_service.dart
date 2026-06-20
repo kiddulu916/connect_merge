@@ -90,16 +90,14 @@ class NotificationService {
     );
     return NotificationService.withSeams(
       schedule: (n) => plugin.zonedSchedule(
-        n.id,
-        n.title,
-        n.body,
-        n.when,
-        details,
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        scheduledDate: n.when,
+        notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
       ),
-      cancel: plugin.cancel,
+      cancel: (id) => plugin.cancel(id: id),
       requestPermission: () async {
         final android = plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();

@@ -308,8 +308,8 @@ class ScoreShareScreen extends StatelessWidget {
 
   /// Native share sheet via share_plus (device). Used in production when no
   /// [shareText] seam is injected.
-  static Future<void> _nativeShare(String text) =>
-      Share.share(text, subject: 'Merge Count');
+  static Future<void> _nativeShare(String text) => SharePlus.instance
+      .share(ShareParams(text: text, subject: 'Merge Count'));
 
   Widget _xpRow() => Row(
         key: const Key('xp-row'),

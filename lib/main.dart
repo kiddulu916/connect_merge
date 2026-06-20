@@ -41,14 +41,16 @@ Future<void> main() async {
     // tz.local defaults to UTC if the device zone can't be resolved; safe.
   }
   final notifPlugin = FlutterLocalNotificationsPlugin();
-  await notifPlugin.initialize(const InitializationSettings(
-    android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-    iOS: DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
+  await notifPlugin.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
     ),
-  ));
+  );
   final notifications = NotificationService.plugin(notifPlugin);
 
   final engagement = EngagementCubit(storage: storage)..load();

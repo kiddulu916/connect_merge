@@ -12,15 +12,15 @@ dependencies:
   flutter_bloc: ^9.0.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
-  google_mobile_ads: ^8.0.0
+  google_mobile_ads: ^9.0.0
   path_provider: ^2.1.4
   crypto: ^3.0.5
   supabase_flutter: ^2.8.0
-  flutter_contacts: ^1.1.9
-  app_links: ^6.3.2
-  share_plus: ^10.1.4
-  flutter_local_notifications: ^18.0.1
-  timezone: ^0.10.0
+  flutter_contacts: ^2.2.2
+  app_links: ^7.1.2
+  share_plus: ^13.1.0
+  flutter_local_notifications: ^22.0.1
+  timezone: ^0.11.0
 
 dev_dependencies:
   flutter_test:

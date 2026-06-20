@@ -45,6 +45,7 @@ class PlatformScoreSharer extends ScoreSharer {
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/merge_count_score.png');
     await file.writeAsBytes(pngBytes, flush: true);
-    await Share.shareXFiles([XFile(file.path)], subject: 'Merge Count');
+    await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], subject: 'Merge Count'));
   }
 }

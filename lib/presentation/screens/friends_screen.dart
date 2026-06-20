@@ -112,7 +112,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
     final link = FriendsService.inviteLink(code);
     final text = 'Add me on Merge Count! $link';
     final share = widget.shareInvite ??
-        (String t) async => Share.share(t, subject: 'Merge Count invite');
+        (String t) async => SharePlus.instance
+            .share(ShareParams(text: t, subject: 'Merge Count invite'));
     await share(text);
   }
 
@@ -150,10 +151,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   /// Default contacts loader: request permission, read phones + emails.
   Future<List<String>?> _defaultLoadContacts() async {
-    final granted = await FlutterContacts.requestPermission(readonly: true);
-    if (!granted) return null;
-    final contacts =
-        await FlutterContacts.getContacts(withProperties: true);
+    final status = await FlutterContacts.permissions.request(PermissionType.read);
+    if (status != PermissionStatus.granted &&
+        status != PermissionStatus.limited) {
+      return null;
+    }
+    final contacts = await FlutterContacts.getAll(
+        properties: {ContactProperty.phone, ContactProperty.email});
     final ids = <String>[];
     for (final c in contacts) {
       for (final p in c.phones) {
