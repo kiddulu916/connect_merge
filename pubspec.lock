@@ -262,6 +262,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.1"
+  flutter_skill:
+    dependency: "direct main"
+    description:
+      name: flutter_skill
+      sha256: "8f33bd1d6ec1e7f5ef756075cd2d89101308193294cebdc8cfa1ab1c291830c7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.26"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -945,10 +953,10 @@ packages:
     dependency: transitive
     description:
       name: vm_service
-      sha256: "0016aef94fc66495ac78af5859181e3f3bf2026bd8eecc72b9565601e19ab360"
+      sha256: "0968250880a6c5fe7edc067ed0a13d4bae1577fe2771dcf3010d52c4a9d3ca14"
       url: "https://pub.dev"
     source: hosted
-    version: "15.2.0"
+    version: "14.3.1"
   web:
     dependency: transitive
     description:
