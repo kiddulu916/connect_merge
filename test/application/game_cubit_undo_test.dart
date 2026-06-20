@@ -235,6 +235,75 @@ void main() {
     });
   });
 
+  group('UNDO refunds objective-reward coins (no farming)', () {
+    // Date + difficulty where dailyObjective() == chainLength target 4,
+    // walls are {6, 14} (never touching cells 0-3), confirmed above.
+    const _objDate = '2026-06-04';
+    const _objDiff = Difficulty.medium;
+
+    /// Returns a cubit resumed on a board whose cells 0-3 are all tier-1
+    /// (a valid 4-chain) while the rest of the base board is untouched so
+    /// the game stays alive after the chain.  The chain will be the FIRST
+    /// move that meets the chainLength=4 objective.
+    Future<GameCubit> objectiveCubit(
+        Future<void> Function(int delta) onCoins) async {
+      final base = DailySeeder(_objDate, _objDiff).generate().board;
+      final cells = List<Tile?>.of(base.cells);
+      // Four orthogonally adjacent tier-1 tiles in row 0, cols 0-3.
+      cells[0] = const Tile(id: 800, tier: 1);
+      cells[1] = const Tile(id: 801, tier: 1);
+      cells[2] = const Tile(id: 802, tier: 1);
+      cells[3] = const Tile(id: 803, tier: 1);
+      await storage.saveSnapshot(GameSnapshot(
+          date: _objDate,
+          difficulty: _objDiff,
+          board: base.copyWith(cells: cells),
+          completed: false));
+      final c = GameCubit(
+          storage: storage,
+          todayProvider: () => _objDate,
+          onCoinsEarned: onCoins);
+      await c.init(difficulty: _objDiff);
+      return c;
+    }
+
+    test(
+        'objective-meeting chain credits kObjectiveRewardCoins, undo refunds '
+        'it (wallet net 0), re-play credits it exactly once', () async {
+      Future<void> onCoins(int delta) => storage.addCoins(delta);
+      final c = await objectiveCubit(onCoins);
+
+      // Sanity: objective should be chainLength=4 for this date+diff.
+      expect(c.objective.target, 4,
+          reason: 'seed mismatch — test setup requires target==4');
+
+      expect(storage.loadProfile().coins, 0);
+
+      // Play the 4-tile chain — this is the first chain that meets the
+      // objective, so it earns kObjectiveRewardCoins.
+      await c.playChain([0, 1, 2, 3]);
+      expect(c.coinsEarnedThisRun, greaterThanOrEqualTo(kObjectiveRewardCoins),
+          reason: 'objective reward must be credited');
+      final walletAfterPlay = storage.loadProfile().coins;
+      expect(walletAfterPlay, greaterThanOrEqualTo(kObjectiveRewardCoins));
+
+      // Undo — wallet must be refunded exactly to the pre-play amount (0).
+      expect(c.canUndo, isTrue);
+      await c.undo();
+      expect(storage.loadProfile().coins, 0,
+          reason: 'undo must refund the objective reward (no farming)');
+      expect(c.coinsEarnedThisRun, 0,
+          reason: 'run tally must be back to 0 after undo');
+
+      // Re-play the same chain — objective is re-earned exactly once.
+      await c.playChain([0, 1, 2, 3]);
+      expect(c.coinsEarnedThisRun, greaterThanOrEqualTo(kObjectiveRewardCoins),
+          reason: 're-play must re-credit the objective reward exactly once');
+      expect(storage.loadProfile().coins, walletAfterPlay,
+          reason: 'net wallet after undo + re-play == single objective credit');
+    });
+  });
+
   test('undo after a chain restores board, score, and drop streams', () async {
     final storage = InMemoryStorageService();
     final cubit = GameCubit(storage: storage, todayProvider: () => '2026-06-20');

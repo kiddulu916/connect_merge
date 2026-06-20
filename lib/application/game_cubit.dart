@@ -22,14 +22,22 @@ class _UndoFrame {
   final BoardState board;
   final int landingDraws;
 
-  /// Coins this merge credited to the wallet (golden bonus). Refunded on undo so
-  /// merge→undo→re-merge cannot farm coins. 0 when the merge credited nothing.
+  /// Coins this move credited to the wallet (golden bonus + objective reward if
+  /// applicable). Refunded on undo so move→undo→re-move cannot farm coins.
+  /// 0 when the move credited nothing.
   final int coinsCredited;
+
+  /// Whether this move was the one that first met the daily objective and
+  /// credited [kObjectiveRewardCoins]. When true, [_applyUndo] resets
+  /// [_objectiveMet] so the objective can be re-earned exactly once after undo
+  /// — identical anti-farming invariant as golden coins.
+  final bool objectiveCredited;
 
   const _UndoFrame({
     required this.board,
     required this.landingDraws,
     this.coinsCredited = 0,
+    this.objectiveCredited = false,
   });
 }
 
@@ -262,12 +270,11 @@ class GameCubit extends Cubit<GameState> {
       if (s.board.cells[idx]?.golden ?? false) goldenBonus += kGoldenMergeBonus;
     }
 
-    _undoStack.add(_UndoFrame(
-      board: s.board,
-      landingDraws: s.board.dropIndex,
-      coinsCredited: goldenBonus,
-    ));
-    if (_undoStack.length > kUndoStackDepth) _undoStack.removeAt(0);
+    // Capture the pre-move board for the undo frame (must happen before any
+    // mutations). The frame is pushed AFTER computing justMet so it can record
+    // the full refundable amount (golden + objective) and the objective flag.
+    final preBoard = s.board;
+    final preLandingDraws = s.board.dropIndex;
 
     final log = List<MoveEvent>.of(s.board.moveLog)..add(ChainEvent(path: path));
 
@@ -298,6 +305,18 @@ class GameCubit extends Cubit<GameState> {
     board = board.copyWith(objectiveProgress: newProgress);
 
     board = GameEngine.evaluateStatus(board);
+
+    // Push the undo frame now that we know the full economic effect of this
+    // move. The frame carries both the golden bonus and the objective reward
+    // (if just earned) so _applyUndo can refund the exact credited amount and
+    // reset the _objectiveMet flag — identical anti-farming invariant as golden.
+    _undoStack.add(_UndoFrame(
+      board: preBoard,
+      landingDraws: preLandingDraws,
+      coinsCredited: goldenBonus + (justMet ? kObjectiveRewardCoins : 0),
+      objectiveCredited: justMet,
+    ));
+    if (_undoStack.length > kUndoStackDepth) _undoStack.removeAt(0);
 
     if (goldenBonus > 0) {
       _coinsEarnedThisRun += goldenBonus;
@@ -424,13 +443,18 @@ class GameCubit extends Cubit<GameState> {
   /// together.
   Future<void> _applyUndo() async {
     final frame = _undoStack.removeLast();
-    // Refund any golden coins this merge credited, so merge→undo→re-merge can't
-    // farm coins. Floor the run tally at 0 and refund the wallet (signed delta).
+    // Refund any coins this move credited (golden bonus + objective reward),
+    // so move→undo→re-move can't farm coins. Floor the run tally at 0 and
+    // refund the wallet (signed delta).
     if (frame.coinsCredited > 0) {
       _coinsEarnedThisRun -= frame.coinsCredited;
       if (_coinsEarnedThisRun < 0) _coinsEarnedThisRun = 0;
       await onCoinsEarned?.call(-frame.coinsCredited);
     }
+    // If this frame was the one that first met the daily objective, reset the
+    // flag so it can be legitimately re-earned after the undo — exactly once,
+    // never farmed (same invariant as golden coins).
+    if (frame.objectiveCredited) _objectiveMet = false;
     // Rewind stream B and drop-tier stream to the saved position (deterministic
     // rebuild). Both streams must be rewound in lock-step to prevent PRNG desync.
     _landing = _rebuildLandingTo(frame.landingDraws);
