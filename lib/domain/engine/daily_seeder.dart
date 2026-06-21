@@ -7,6 +7,7 @@ import '../models/daily_objective.dart';
 import '../models/difficulty.dart';
 import '../models/game_status.dart';
 import '../models/tile.dart';
+import 'game_engine.dart';
 import 'prng.dart';
 
 /// Everything the day needs, derived deterministically from the date.
@@ -73,21 +74,68 @@ class DailySeeder {
   DailyStart generate() {
     final a = Prng(_seedA);
     final walls = wallIndices();
-
-    // Initial board: difficulty.startingFill tiles of tier 1-2 in
-    // deterministic cells.
-    final cells = List<Tile?>.filled(kCellCount, null);
-    var nextId = 0;
-    var placed = 0;
     final startingFill = difficulty.startingFill;
-    while (placed < startingFill) {
-      final idx = a.nextInt(kCellCount);
-      if (cells[idx] != null || walls.contains(idx)) continue; // skip walls
-      cells[idx] = Tile(id: nextId++, tier: 1 + a.nextInt(2));
-      placed++;
+
+    // Re-roll loop: keep drawing placements from stream A until the resulting
+    // board has at least one orthogonally-adjacent same-tier pair so no player
+    // ever starts on a born-deadlocked board.
+    //
+    // Determinism is preserved: same (date, difficulty) → same sequence of
+    // re-roll attempts → same first valid board for every player.
+    //
+    // Already-playable dates exit on the first attempt and consume exactly the
+    // same PRNG draws as before, so their boards are byte-identical to the
+    // pre-fix output.
+    //
+    // A hard attempt cap surfaces pathological seeds loudly (in tests) rather
+    // than hanging. It should never trigger in practice.
+    const maxAttempts = 5000;
+
+    List<Tile?> cells;
+    int nextId;
+
+    var attempts = 0;
+    while (true) {
+      attempts++;
+      if (attempts > maxAttempts) {
+        throw StateError(
+          'DailySeeder.generate: could not find a non-deadlocked placement '
+          'for $_key after $maxAttempts attempts. '
+          'This indicates a pathological seed and must be investigated.',
+        );
+      }
+
+      // Fresh placement attempt — reset counters each time so tile ids are clean.
+      cells = List<Tile?>.filled(kCellCount, null);
+      nextId = 0;
+      var placed = 0;
+      while (placed < startingFill) {
+        final idx = a.nextInt(kCellCount);
+        if (cells[idx] != null || walls.contains(idx)) continue;
+        cells[idx] = Tile(id: nextId++, tier: 1 + a.nextInt(2));
+        placed++;
+      }
+
+      // Quick validity check: build a candidate board and test adjacency.
+      final candidate = BoardState(
+        cells: cells,
+        movesRemaining: kMovesPerDay,
+        score: 0,
+        nextTileId: nextId,
+        dropIndex: 0,
+        adContinuesUsed: 0,
+        movesMade: 0,
+        status: GameStatus.playing,
+        walls: walls,
+      );
+      if (GameEngine.hasMergeAvailable(candidate)) break;
+      // Otherwise continue — stream A is already advanced; next loop attempt
+      // picks up exactly where it left off (deterministic re-roll).
     }
 
     // Drop schedule: tiers only. Band widens by drop index n.
+    // Generated AFTER placement on whatever stream-A position remains, exactly
+    // as before. The daily cubit no longer uses it but practice/server/tests do.
     final tiers = <int>[];
     for (var n = 0; n < kMaxDrops; n++) {
       tiers.add(1 + a.nextInt(dropCap(n)));

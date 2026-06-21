@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:merge_count/domain/constants.dart';
 import 'package:merge_count/domain/engine/daily_seeder.dart';
+import 'package:merge_count/domain/engine/game_engine.dart';
 import 'package:merge_count/domain/models/difficulty.dart';
 
 void main() {
@@ -176,6 +177,88 @@ void main() {
       expect(o.target > 0, isTrue);
       expect(s.dailyObjective().kind, o.kind);
       expect(s.dailyObjective().target, o.target);
+    });
+  });
+
+  group('born-deadlock prevention (I-1)', () {
+    // Checks that no generated board is born-dead (no adjacent same-tier pair).
+    // Covers all difficulties across two months + spot months to catch sparse
+    // legendary dates. At least ~40 date/difficulty combos including legendary.
+    test('no born-dead boards across 2026-06 days 1..28, all difficulties', () {
+      for (var day = 1; day <= 28; day++) {
+        final date =
+            '2026-06-${day.toString().padLeft(2, '0')}';
+        for (final d in Difficulty.values) {
+          final board = DailySeeder(date, d).generate().board;
+          expect(
+            GameEngine.hasMergeAvailable(board),
+            isTrue,
+            reason: 'Born-dead board: $date ${d.name}',
+          );
+        }
+      }
+    });
+
+    test('no born-dead boards across 2026-01 days 1..28, all difficulties', () {
+      for (var day = 1; day <= 28; day++) {
+        final date =
+            '2026-01-${day.toString().padLeft(2, '0')}';
+        for (final d in Difficulty.values) {
+          final board = DailySeeder(date, d).generate().board;
+          expect(
+            GameEngine.hasMergeAvailable(board),
+            isTrue,
+            reason: 'Born-dead board: $date ${d.name}',
+          );
+        }
+      }
+    });
+
+    test('no born-dead boards spot-check other months', () {
+      // Check a sample across 2026-02, 2026-03, 2026-05 to widen coverage.
+      for (final month in [2, 3, 5]) {
+        for (var day = 1; day <= 28; day++) {
+          final date =
+              '2026-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+          for (final d in Difficulty.values) {
+            final board = DailySeeder(date, d).generate().board;
+            expect(
+              GameEngine.hasMergeAvailable(board),
+              isTrue,
+              reason: 'Born-dead board: $date ${d.name}',
+            );
+          }
+        }
+      }
+    });
+
+    test('determinism still holds after re-roll logic', () {
+      // Same date+difficulty must always produce bit-identical cells.
+      for (final d in Difficulty.values) {
+        final a = DailySeeder('2026-06-01', d).generate();
+        final b = DailySeeder('2026-06-01', d).generate();
+        expect(a.board.toJson(), b.board.toJson(),
+            reason: 'Board not deterministic for ${d.name}');
+      }
+    });
+
+    test('filledCount == startingFill after re-roll', () {
+      for (final d in Difficulty.values) {
+        final start = DailySeeder('2026-01-02', d).generate();
+        expect(start.board.filledCount, d.startingFill,
+            reason: '${d.name} should have ${d.startingFill} tiles');
+      }
+    });
+
+    test('walls are unchanged by re-roll', () {
+      // The walls stream is independent and must not shift.
+      for (final d in Difficulty.values) {
+        final s = DailySeeder('2026-06-04', d);
+        final walls = s.wallIndices();
+        final board = s.generate().board;
+        expect(board.walls, walls,
+            reason: 'Walls changed for ${d.name}');
+      }
     });
   });
 }
