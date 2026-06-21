@@ -4,10 +4,10 @@
 
 Production still does NOT call `onSubmitRun` (`TierSelectScreen` wires it to
 `null`), so no live run reaches the server yet. The server engine has now been
-**ported to the Connect-Merge model** so it is ready to verify runs once
-`onSubmitRun` is wired. Before enabling online submit you must additionally
-**apply the DB migration, deploy the Edge Function, and run the Deno parity
-tests** (see "Remaining operational steps").
+**ported to the Connect-Merge model** and the **Deno cross-language parity tests
+pass (19/19)**, so it is verified ready to validate runs once `onSubmitRun` is
+wired. Before enabling online submit you must additionally **apply the DB
+migration and deploy the Edge Function** (see "Remaining operational steps").
 
 ---
 
@@ -47,14 +47,13 @@ so they are intentionally NOT ported to the server.
 
 Run from the repo root.
 
-1. **Run the Deno parity tests** (the cross-language determinism gate). Deno was
-   not available in the authoring environment, so this has NOT been executed yet:
+1. **Deno parity tests — ALREADY PASSING (19/19).** The cross-language
+   determinism gate has been run and is green; the board-parity tests prove the
+   TS seeder reproduces the Dart board byte-for-byte (walls + re-roll included).
+   Re-run any time (e.g. in CI) with:
    ```
    deno test supabase/functions/_shared/engine.test.ts
    ```
-   All tests must pass. The board-parity tests prove the TS seeder reproduces the
-   Dart board byte-for-byte (walls + re-roll included). If they fail, the TS port
-   diverged from Dart — do not deploy until green.
 
 2. **Apply the migration** to the linked Supabase project:
    ```
@@ -79,7 +78,7 @@ Run from the repo root.
 | Gate | State |
 |------|-------|
 | `onSubmitRun` is `null` in `TierSelectScreen` | No run reaches the server |
-| Server engine ported to Connect-Merge | Ready to verify (pending `deno test` + deploy) |
+| Server engine ported to Connect-Merge | Verified — Deno parity tests pass 19/19 |
 | `season` migration not yet applied to live DB | Apply via step 2 before go-live |
 
 All gates lift together when `onSubmitRun` is wired (step 4).
