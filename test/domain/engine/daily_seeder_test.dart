@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:merge_count/domain/constants.dart';
 import 'package:merge_count/domain/engine/daily_seeder.dart';
-import 'package:merge_count/domain/models/daily_objective.dart';
 import 'package:merge_count/domain/models/difficulty.dart';
 
 void main() {
