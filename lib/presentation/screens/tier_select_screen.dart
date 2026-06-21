@@ -12,6 +12,7 @@ import '../../application/loot_state.dart';
 import '../../application/rivalry_cubit.dart';
 import '../../domain/models/difficulty.dart';
 import '../../domain/models/duel_challenge.dart';
+import '../../domain/models/move.dart';
 import '../../infrastructure/ad_service.dart';
 import '../../infrastructure/friends_service.dart';
 import '../../infrastructure/leaderboard_service.dart';
@@ -271,6 +272,9 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                 todayProvider: widget.todayProvider,
                 onTierCompleted: _onTierCompleted,
                 onCoinsEarned: _creditCoins,
+                // Online submit (Phase 2): wired only when a leaderboard service
+                // is present. Null offline so the cubit's submit no-ops.
+                onSubmitRun: widget.leaderboard == null ? null : _submitRun,
               )..init(difficulty: difficulty),
               child: GameScreen(
                 adService: widget.adService,
@@ -425,6 +429,24 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     if (delta == 0) return;
     await widget.storage.addCoins(delta);
     _loot.load();
+  }
+
+  /// Online submit hook (Phase 2) bridging [GameCubit] to the
+  /// [LeaderboardService]. The client sends ONLY the move log; the server
+  /// replays it to compute the authoritative score and is the sole score writer.
+  /// [adContinues] is derived server-side from the log's ContinueEvents, so it
+  /// is unused here. Best-effort: the cubit calls this off the result-screen
+  /// critical path and swallows transport errors.
+  Future<void> _submitRun({
+    required String date,
+    required Difficulty difficulty,
+    required List<MoveEvent> moveLog,
+    required int adContinues,
+  }) async {
+    final service = widget.leaderboard;
+    if (service == null) return;
+    await service.submitRun(
+        date: date, difficulty: difficulty, moveLog: moveLog);
   }
 
   void _openPractice(BuildContext context, Difficulty difficulty) {

@@ -1,13 +1,17 @@
 # Phase 2 Server — Connect-Merge Replay Engine
 
-**Status: code-complete in the repo. Operational deploy steps remain (below).**
+**Status: code-complete (client + server). Only live DB migration + function
+deploy remain.**
 
-Production still does NOT call `onSubmitRun` (`TierSelectScreen` wires it to
-`null`), so no live run reaches the server yet. The server engine has now been
-**ported to the Connect-Merge model** and the **Deno cross-language parity tests
-pass (19/19)**, so it is verified ready to validate runs once `onSubmitRun` is
-wired. Before enabling online submit you must additionally **apply the DB
-migration and deploy the Edge Function** (see "Remaining operational steps").
+`onSubmitRun` is now **wired** in `TierSelectScreen` (online only), so completed
+runs will POST their move log. The server engine is **ported to Connect-Merge**
+and the **Deno parity tests pass (19/19)**.
+
+⚠️ **Until you apply the migration and deploy the Edge Function (below), live
+submissions are INERT**: the currently-deployed (pre-redesign) `submit-score`
+will reject `ChainEvent` runs with 422. The client treats submission as
+best-effort and swallows the error, so nothing crashes — but no scores are
+recorded until the deploy. Do the two steps below to make it live.
 
 ---
 
@@ -43,7 +47,7 @@ so they are intentionally NOT ported to the server.
 
 ---
 
-## Remaining operational steps (before wiring `onSubmitRun`)
+## Remaining operational steps (to make live submission work)
 
 Run from the repo root.
 
@@ -68,20 +72,23 @@ Run from the repo root.
    supabase functions deploy submit-score
    ```
 
-4. **Wire `onSubmitRun`** in `TierSelectScreen` (pass the real
-   `LeaderboardService.submitRun` instead of `null`) only after steps 1–3 pass.
+4. **Wire `onSubmitRun`** — ✅ DONE (in `TierSelectScreen._submitRun`, wired only
+   when a `LeaderboardService` is present). Becomes effective the moment steps 2–3
+   are deployed; no further client change needed.
 
 ---
 
-## Current production safety
+## Current state
 
 | Gate | State |
 |------|-------|
-| `onSubmitRun` is `null` in `TierSelectScreen` | No run reaches the server |
-| Server engine ported to Connect-Merge | Verified — Deno parity tests pass 19/19 |
-| `season` migration not yet applied to live DB | Apply via step 2 before go-live |
+| `onSubmitRun` wired in `TierSelectScreen` | ✅ Wired (online only); runs POST their move log |
+| Server engine ported to Connect-Merge | ✅ Verified — Deno parity tests pass 19/19 |
+| Edge Function deployed | ⏳ Pending `supabase functions deploy submit-score` |
+| `season` migration applied to live DB | ⏳ Pending `supabase db push` |
 
-All gates lift together when `onSubmitRun` is wired (step 4).
+Live submission starts working once the two ⏳ items are deployed. Until then,
+submissions are sent but rejected by the old function (swallowed, no crash).
 
 ---
 
