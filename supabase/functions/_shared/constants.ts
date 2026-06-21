@@ -43,3 +43,37 @@ export const STARTING_FILL: Record<Difficulty, number> = {
 export function isDifficulty(s: string): s is Difficulty {
   return (DIFFICULTIES as readonly string[]).includes(s);
 }
+
+// ---- Connect-Merge additions (must stay in lockstep with Dart) ----
+
+/**
+ * Superlinear combo multiplier for a chain of [n] tiles (port of
+ * lib/domain/constants.dart `comboMultiplier`). `n === 2` returns 1 so a 2-chain
+ * scores exactly the legacy single-merge value. Formula: 1 + (n-2)(n-1)/2.
+ */
+export function comboMultiplier(n: number): number {
+  if (n < 2) return 0;
+  return 1 + Math.floor(((n - 2) * (n - 1)) / 2);
+}
+
+/** Seed-placed wall cells per difficulty (port of Dart `wallCountFor`). */
+export const WALL_COUNT: Record<Difficulty, number> = {
+  easy: 0,
+  medium: 2,
+  hard: 3,
+  legendary: 4,
+};
+
+/**
+ * Leaderboard season (port of Dart `kLeaderboardSeason`). The Connect-Merge
+ * relaunch bumped this to 2; the server writes/filters by this constant so
+ * pre-relaunch (season 1) scores never appear (the hard reset). The server uses
+ * its OWN constant when writing — it never trusts a client-supplied season.
+ */
+export const kLeaderboardSeason = 2;
+
+/**
+ * Cap on placement re-roll attempts in the seeder before throwing (port of the
+ * Dart I-1 fix). Must match Dart so a pathological seed fails identically.
+ */
+export const kMaxPlacementAttempts = 5000;

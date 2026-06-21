@@ -1,19 +1,30 @@
-// Cross-language parity + replay-verification tests.
+// Cross-language parity + replay-verification tests (Connect-Merge).
 //
-// The "expected" values below were CAPTURED from the Dart implementation via a
-// throwaway test (test/domain/engine/_temp_vectors_test.dart, since deleted).
-// They pin the TS port to be byte-identical to Dart. If these ever drift, the
-// server board != client board and every legit run would be rejected — so these
-// assertions are the CI gate for the determinism port.
+// The "expected" board/run values below were CAPTURED from the Dart
+// implementation via a throwaway test (test/domain/engine/_temp_vectors_test.dart,
+// since deleted). They pin the TS port to be byte-identical to Dart. If these
+// ever drift, the server board != client board and every legit run would be
+// rejected — so these assertions are the CI gate for the determinism port.
 //
 // Run: deno test supabase/functions/_shared/engine.test.ts
 
 import { assertEquals, assertFalse } from "jsr:@std/assert@1";
 import { Prng } from "./prng.ts";
 import { DailySeeder, seedForKey } from "./seeder.ts";
-import { type MoveEvent, verifyRun } from "./engine.ts";
+import {
+  areOrthogonallyAdjacent,
+  type BoardState,
+  collapseChain,
+  comboScore,
+  hasMergeAvailable,
+  isValidChain,
+  type MoveEvent,
+  type Tile,
+  verifyRun,
+} from "./engine.ts";
+import { kCellCount } from "./constants.ts";
 
-// ---- Captured Dart vectors ----
+// ---- Captured Dart vectors (PRNG/seedForKey unchanged by the redesign) ----
 
 const DART_SEED_KEY_2026_06_07_LEGENDARY = 550419188;
 
@@ -44,79 +55,53 @@ const DART_PRNG: Record<string, number[]> = {
   ],
 };
 
-// (2026-06-07, legendary) initial board: index -> {id, tier} or null.
-const DART_LEGENDARY_CELLS: ({ id: number; tier: number } | null)[] = [
-  null, null, null, null, null,
-  null, null, null, null, null,
-  null, { id: 1, tier: 1 }, null, { id: 3, tier: 2 }, null,
-  null, null, null, { id: 0, tier: 2 }, null,
-  null, { id: 2, tier: 1 }, null, null, null,
-];
+// ---- Captured Connect-Merge board + run vectors (2026-06-07) ----
+
+// legendary: walls + re-rolled placement.
+const DART_LEGENDARY_WALLS = [1, 17, 19, 20];
+const DART_LEGENDARY_CELLS: (Tile | null)[] = (() => {
+  const c: (Tile | null)[] = new Array(kCellCount).fill(null);
+  c[11] = { id: 1, tier: 1 };
+  c[13] = { id: 3, tier: 2 };
+  c[18] = { id: 0, tier: 2 };
+  c[21] = { id: 2, tier: 1 };
+  return c;
+})();
 const DART_LEGENDARY_NEXT_TILE_ID = 4;
-const DART_LEGENDARY_DROP_TIERS = [
-  1, 1, 2, 2, 2, 1, 3, 1, 3, 1, 2, 3, 2, 2, 1, 1, 1, 1, 5, 1, 4, 3, 1, 4, 1, 3,
-  6, 1, 5, 1, 5, 6, 1, 4, 5, 3, 1, 3, 1,
-];
+// Greedy 2-chain run -> immediate deadlock on the sparse board.
+const DART_LEGIT_LEGENDARY: MoveEvent[] = [{ type: "chain", path: [13, 18] }];
+const DART_LEGIT_LEGENDARY_SCORE = 8;
+const DART_LEGIT_LEGENDARY_TIER = 3;
 
-// Captured legit run (legendary, greedy -> deadlock at 6 merges, score 48).
-const DART_LEGIT_LEGENDARY: MoveEvent[] = [
-  { type: "merge", from: 21, to: 11 },
-  { type: "merge", from: 13, to: 11 },
-  { type: "merge", from: 3, to: 0 },
-  { type: "merge", from: 18, to: 0 },
-  { type: "merge", from: 23, to: 20 },
-  { type: "merge", from: 11, to: 0 },
-];
-const DART_LEGIT_LEGENDARY_SCORE = 48;
-const DART_LEGIT_LEGENDARY_TIER = 4;
-
-// Captured legit run (easy, full 30 moves + 3 continues, score 752, tier 6).
+// easy: no walls (WALL_COUNT.easy === 0).
+const DART_EASY_SEED = 628821332;
+const DART_EASY_CELLS: (Tile | null)[] = (() => {
+  const c: (Tile | null)[] = new Array(kCellCount).fill(null);
+  c[5] = { id: 0, tier: 1 };
+  c[7] = { id: 2, tier: 2 };
+  c[8] = { id: 9, tier: 2 };
+  c[11] = { id: 3, tier: 1 };
+  c[12] = { id: 5, tier: 1 };
+  c[13] = { id: 6, tier: 2 };
+  c[14] = { id: 1, tier: 2 };
+  c[15] = { id: 7, tier: 2 };
+  c[21] = { id: 8, tier: 1 };
+  c[24] = { id: 4, tier: 1 };
+  return c;
+})();
+const DART_EASY_NEXT_TILE_ID = 10;
+// Greedy 2-chain run captured from Dart (paths applied to the evolving board).
 const DART_LEGIT_EASY: MoveEvent[] = [
-  { type: "merge", from: 11, to: 5 },
-  { type: "merge", from: 20, to: 12 },
-  { type: "merge", from: 24, to: 21 },
-  { type: "merge", from: 7, to: 5 },
-  { type: "merge", from: 12, to: 8 },
-  { type: "merge", from: 14, to: 13 },
-  { type: "merge", from: 16, to: 9 },
-  { type: "merge", from: 15, to: 9 },
-  { type: "merge", from: 18, to: 3 },
-  { type: "merge", from: 21, to: 20 },
-  { type: "merge", from: 5, to: 3 },
-  { type: "merge", from: 9, to: 8 },
-  { type: "merge", from: 23, to: 10 },
-  { type: "merge", from: 22, to: 10 },
-  { type: "merge", from: 18, to: 12 },
-  { type: "merge", from: 13, to: 10 },
-  { type: "merge", from: 19, to: 14 },
-  { type: "merge", from: 12, to: 7 },
-  { type: "merge", from: 20, to: 7 },
-  { type: "merge", from: 6, to: 0 },
-  { type: "merge", from: 11, to: 0 },
-  { type: "merge", from: 21, to: 0 },
-  { type: "merge", from: 3, to: 0 },
-  { type: "merge", from: 8, to: 7 },
-  { type: "merge", from: 14, to: 10 },
-  { type: "merge", from: 4, to: 0 },
-  { type: "merge", from: 19, to: 2 },
-  { type: "merge", from: 13, to: 2 },
-  { type: "merge", from: 20, to: 2 },
-  { type: "merge", from: 23, to: 2 },
-  { type: "continue" },
-  { type: "merge", from: 7, to: 2 },
-  { type: "merge", from: 8, to: 3 },
-  { type: "merge", from: 17, to: 3 },
-  { type: "continue" },
-  { type: "merge", from: 12, to: 3 },
-  { type: "merge", from: 10, to: 3 },
-  { type: "merge", from: 18, to: 1 },
-  { type: "continue" },
-  { type: "merge", from: 23, to: 16 },
-  { type: "merge", from: 9, to: 7 },
-  { type: "merge", from: 7, to: 6 },
+  { type: "chain", path: [7, 8] },
+  { type: "chain", path: [11, 12] },
+  { type: "chain", path: [12, 13] },
+  { type: "chain", path: [8, 13] },
+  { type: "chain", path: [15, 20] },
+  { type: "chain", path: [17, 18] },
+  { type: "chain", path: [19, 24] },
 ];
-const DART_LEGIT_EASY_SCORE = 752;
-const DART_LEGIT_EASY_TIER = 6;
+const DART_LEGIT_EASY_SCORE = 56;
+const DART_LEGIT_EASY_TIER = 4;
 
 // ---- PRNG parity ----
 
@@ -135,17 +120,26 @@ Deno.test("PRNG matches Dart vectors byte-for-byte", () => {
 });
 
 Deno.test("seedForKey matches Dart byte-order reduction", async () => {
-  const seed = await seedForKey("2026-06-07:legendary");
-  assertEquals(seed, DART_SEED_KEY_2026_06_07_LEGENDARY);
+  assertEquals(await seedForKey("2026-06-07:legendary"), DART_SEED_KEY_2026_06_07_LEGENDARY);
+  assertEquals(await seedForKey("2026-06-07:easy"), DART_EASY_SEED);
 });
 
-// ---- Board parity ----
+// ---- Board parity (walls + re-roll) ----
 
-Deno.test("legendary board for 2026-06-07 matches Dart", async () => {
+Deno.test("legendary board for 2026-06-07 matches Dart (walls + re-roll)", async () => {
   const start = await new DailySeeder("2026-06-07", "legendary").generate();
   assertEquals(start.board.cells, DART_LEGENDARY_CELLS);
   assertEquals(start.board.nextTileId, DART_LEGENDARY_NEXT_TILE_ID);
-  assertEquals(start.dropTiers, DART_LEGENDARY_DROP_TIERS);
+  assertEquals([...start.board.walls].sort((a, b) => a - b), DART_LEGENDARY_WALLS);
+  // A re-rolled board is, by construction, never born-deadlocked.
+  assertEquals(hasMergeAvailable(start.board), true);
+});
+
+Deno.test("easy board for 2026-06-07 matches Dart (no walls)", async () => {
+  const start = await new DailySeeder("2026-06-07", "easy").generate();
+  assertEquals(start.board.cells, DART_EASY_CELLS);
+  assertEquals(start.board.nextTileId, DART_EASY_NEXT_TILE_ID);
+  assertEquals(start.board.walls.size, 0);
 });
 
 // ---- Replay parity ----
@@ -157,7 +151,7 @@ Deno.test("verifyRun on captured legit legendary run matches Dart score", async 
   assertEquals(r.highestTier, DART_LEGIT_LEGENDARY_TIER);
 });
 
-Deno.test("verifyRun on captured legit easy run (30 moves + 3 continues) matches Dart", async () => {
+Deno.test("verifyRun on captured legit easy run matches Dart score", async () => {
   const r = await verifyRun("2026-06-07", "easy", DART_LEGIT_EASY);
   assertEquals(r.valid, true);
   assertEquals(r.score, DART_LEGIT_EASY_SCORE);
@@ -165,71 +159,128 @@ Deno.test("verifyRun on captured legit easy run (30 moves + 3 continues) matches
 });
 
 Deno.test("verifyRun accepts the spec short-form {t:...} event shape", async () => {
-  const shortForm = DART_LEGIT_LEGENDARY.map((e) =>
-    e.type === "merge" ? { t: "merge", from: e.from, to: e.to } : { t: "continue" }
+  const shortForm = DART_LEGIT_EASY.map((e) =>
+    e.type === "chain" ? { t: "chain", path: e.path } : { t: "continue" }
   );
-  const r = await verifyRun("2026-06-07", "legendary", shortForm);
+  const r = await verifyRun("2026-06-07", "easy", shortForm);
   assertEquals(r.valid, true);
-  assertEquals(r.score, DART_LEGIT_LEGENDARY_SCORE);
+  assertEquals(r.score, DART_LEGIT_EASY_SCORE);
 });
 
 // ---- Tamper rejection ----
 
-Deno.test("rejects an illegal merge (cells empty / mismatched tier)", async () => {
+Deno.test("rejects an illegal chain (cells empty after the legit run)", async () => {
   const tampered: MoveEvent[] = [
     ...DART_LEGIT_LEGENDARY,
-    { type: "merge", from: 7, to: 9 }, // both empty after the legit run
+    { type: "chain", path: [7, 9] }, // empty cells
   ];
-  const r = await verifyRun("2026-06-07", "legendary", tampered);
+  assertFalse((await verifyRun("2026-06-07", "legendary", tampered)).valid);
+});
+
+Deno.test("rejects a chain of distinct tiers", async () => {
+  // easy initial: cell 12 (tier1) is orthogonally adjacent to cell 13 (tier2).
+  const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [12, 13] }]);
   assertFalse(r.valid);
 });
 
-Deno.test("rejects a merge of distinct tiers", async () => {
-  // First board move: cell 11 (tier1) into cell 13 (tier2) is illegal.
-  const r = await verifyRun("2026-06-07", "legendary", [
-    { type: "merge", from: 11, to: 13 },
-  ]);
-  assertFalse(r.valid);
-});
-
-Deno.test("rejects more continues than the daily cap (4 > 3)", async () => {
-  // Take the legit easy run up to its 3rd continue, then inject a 4th continue.
-  const idx4thRegion = DART_LEGIT_EASY.findIndex(
-    (_e, i) => DART_LEGIT_EASY.slice(0, i + 1).filter((x) => x.type === "continue").length === 3,
-  );
-  const upTo3 = DART_LEGIT_EASY.slice(0, idx4thRegion + 1);
-  const overCap: MoveEvent[] = [...upTo3, { type: "continue" }];
-  const r = await verifyRun("2026-06-07", "easy", overCap);
-  // The injected continue is illegal because the board is still 'playing'
-  // (status != outOfMoves) immediately after a continue OR exceeds the cap.
+Deno.test("rejects a non-adjacent chain", async () => {
+  // easy initial: cells 11 and 13 are same-ish row but not orthogonally adjacent.
+  const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [11, 13] }]);
   assertFalse(r.valid);
 });
 
 Deno.test("rejects a continue while still playing (not out of moves)", async () => {
   const r = await verifyRun("2026-06-07", "easy", [
-    { type: "merge", from: 11, to: 5 },
+    { type: "chain", path: [7, 8] },
     { type: "continue" }, // illegal: board is still playing
   ]);
   assertFalse(r.valid);
 });
 
-Deno.test("swapped-tier log yields a different score (or rejection)", async () => {
-  // Replay the easy legit log against the LEGENDARY board: the cells differ, so
-  // most merges become illegal -> rejected (definitely not the easy score).
-  const r = await verifyRun("2026-06-07", "legendary", DART_LEGIT_EASY);
-  if (r.valid) {
-    assertFalse(r.score === DART_LEGIT_EASY_SCORE);
-  } else {
-    assertFalse(r.valid);
-  }
-});
-
 Deno.test("rejects an invalid difficulty", async () => {
-  const r = await verifyRun("2026-06-07", "impossible", DART_LEGIT_LEGENDARY);
-  assertFalse(r.valid);
+  assertFalse((await verifyRun("2026-06-07", "impossible", DART_LEGIT_LEGENDARY)).valid);
 });
 
 Deno.test("rejects a malformed move log", async () => {
-  const r = await verifyRun("2026-06-07", "legendary", [{ type: "teleport" }]);
-  assertFalse(r.valid);
+  assertFalse((await verifyRun("2026-06-07", "legendary", [{ type: "teleport" }])).valid);
+  assertFalse((await verifyRun("2026-06-07", "legendary", [{ type: "chain" }])).valid);
+  assertFalse((await verifyRun("2026-06-07", "legendary", [{ type: "chain", path: [1] }])).valid);
+});
+
+// ---- Pure unit tests (formula-pinned, no Dart capture needed) ----
+
+function boardWith(
+  tiles: Record<number, Tile>,
+  walls: number[] = [],
+): BoardState {
+  const cells: (Tile | null)[] = new Array(kCellCount).fill(null);
+  for (const [k, v] of Object.entries(tiles)) cells[Number(k)] = v;
+  return {
+    cells,
+    walls: new Set(walls),
+    movesRemaining: 30,
+    score: 0,
+    nextTileId: 100,
+    dropIndex: 0,
+    adContinuesUsed: 0,
+    movesMade: 0,
+    status: "playing",
+  };
+}
+
+Deno.test("comboScore: 2-chain equals legacy single-merge; superlinear beyond", () => {
+  assertEquals(comboScore(3, 2), 1 << 4); // legacy parity
+  assertEquals(comboScore(2, 2), 8);
+  assertEquals(comboScore(2, 3), 16);
+  assertEquals(comboScore(2, 4), 32);
+  assertEquals(comboScore(2, 5), 56);
+  assertEquals(comboScore(2, 6), 88);
+});
+
+Deno.test("areOrthogonallyAdjacent: N/S/E/W only, no diagonal/wrap", () => {
+  assertEquals(areOrthogonallyAdjacent(0, 1), true);
+  assertEquals(areOrthogonallyAdjacent(0, 5), true);
+  assertEquals(areOrthogonallyAdjacent(0, 6), false);
+  assertEquals(areOrthogonallyAdjacent(4, 5), false); // row wrap
+});
+
+Deno.test("isValidChain: accepts a connected same-tier run, rejects bad paths", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 2 },
+    1: { id: 2, tier: 2 },
+    6: { id: 3, tier: 2 }, // index 6 adjacent to 1
+    2: { id: 4, tier: 3 },
+  });
+  assertEquals(isValidChain(b, [0, 1, 6]), true);
+  assertFalse(isValidChain(b, [0])); // too short
+  assertFalse(isValidChain(b, [0, 2])); // tier mismatch
+  assertFalse(isValidChain(b, [0, 6])); // not adjacent
+  assertFalse(isValidChain(b, [0, 1, 0])); // repeat
+  assertFalse(isValidChain(b, [0, 5])); // cell 5 empty
+});
+
+Deno.test("isValidChain: rejects a path onto a wall cell", () => {
+  const b = boardWith({ 0: { id: 1, tier: 2 } }, [1]);
+  assertFalse(isValidChain(b, [0, 1])); // cell 1 is a wall (no tile)
+});
+
+Deno.test("collapseChain: endpoint +1 keeps id, others empty, scores combo", () => {
+  const b = boardWith({
+    0: { id: 10, tier: 2 },
+    1: { id: 11, tier: 2 },
+    6: { id: 12, tier: 2 }, // endpoint
+  });
+  const r = collapseChain(b, [0, 1, 6]);
+  assertEquals(r.cells[0], null);
+  assertEquals(r.cells[1], null);
+  assertEquals(r.cells[6], { id: 12, tier: 3 });
+  assertEquals(r.score, comboScore(2, 3)); // 16
+  assertEquals(r.movesRemaining, 29);
+});
+
+Deno.test("hasMergeAvailable: needs ADJACENT equal tiles (spatial deadlock)", () => {
+  const apart = boardWith({ 0: { id: 1, tier: 1 }, 2: { id: 2, tier: 1 } });
+  assertFalse(hasMergeAvailable(apart));
+  const together = boardWith({ 0: { id: 1, tier: 1 }, 1: { id: 2, tier: 1 } });
+  assertEquals(hasMergeAvailable(together), true);
 });

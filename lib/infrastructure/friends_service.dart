@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../domain/constants.dart';
 import '../domain/models/difficulty.dart';
 import '../domain/models/friend.dart';
 import '../domain/models/leaderboard_entry.dart';
@@ -102,6 +103,7 @@ class FriendsService {
     final res = await _rpc('friends_leaderboard', {
       'p_date': date,
       'p_diff': difficulty.name,
+      'p_season': kLeaderboardSeason,
     });
     final rows = (res as List?) ?? const [];
     return rows

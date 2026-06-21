@@ -1,106 +1,88 @@
-# Phase 2 Server Prerequisites — Connect-Merge Replay Engine
+# Phase 2 Server — Connect-Merge Replay Engine
 
-**Status: Phase 2 prerequisite — not a live bug.**
+**Status: code-complete in the repo. Operational deploy steps remain (below).**
 
-Production currently does NOT call `onSubmitRun` (the `TierSelectScreen` wires
-it to `null`), so no live run ever reaches the server today. The items below
-MUST be completed before `onSubmitRun` is wired and online daily-score
-submission is enabled.
-
----
-
-## Context
-
-The server-side replay engine lives at:
-
-```
-supabase/functions/_shared/engine.ts
-```
-
-It is still at the **pre-redesign (pairwise-merge) state** and does not
-understand the Connect-Merge move model. Wiring `onSubmitRun` before porting
-the engine would allow any client to submit an unverifiable score.
+Production still does NOT call `onSubmitRun` (`TierSelectScreen` wires it to
+`null`), so no live run reaches the server yet. The server engine has now been
+**ported to the Connect-Merge model** so it is ready to verify runs once
+`onSubmitRun` is wired. Before enabling online submit you must additionally
+**apply the DB migration, deploy the Edge Function, and run the Deno parity
+tests** (see "Remaining operational steps").
 
 ---
 
-## Required Server Changes
+## What was implemented (this PR)
 
-### 1. Parse `ChainEvent` (ordered cell-index path)
+The server mirror at `supabase/functions/_shared/` was ported from the
+pre-redesign pairwise-merge model to Connect-Merge:
 
-The client move log now emits `ChainEvent` (an ordered list of cell indices)
-instead of the legacy `{from, to}` pair. The server must parse this new event
-shape in addition to (or replacing) the legacy `merge`/`continue` events.
+| # | Change | File |
+|---|--------|------|
+| 1 | Parse `ChainEvent` (ordered cell-index path) + `continue` | `engine.ts` (`parseEvent`) |
+| 2 | Path geometry validation (orthogonal adjacency, same tier < cap, simple path, no walls) | `engine.ts` (`isValidChain`, `areOrthogonallyAdjacent`) |
+| 3 | On-demand drop-tier stream `"$date:$difficulty:drops"` (replaces the bounded list) | `seeder.ts` (`dropTierPrng`, `dropTierAt`) |
+| 4 | Multi-drop top-up-to-`startingFill` refill after each chain | `engine.ts` (`verifyRun`) |
+| 5 | Spatial `hasMergeAvailable` (adjacent equal tiles only) | `engine.ts` |
+| 6 | `collapseChain` + `comboScore` (`(1<<(tier+1)) * comboMultiplier(len)`) | `engine.ts`, `constants.ts` |
+| 7 | Seed-derived walls + born-deadlock re-roll (cap `kMaxPlacementAttempts = 5000`, throws on exceed) — must match the client exactly | `seeder.ts` (`wallIndices`, `generate`), `constants.ts` (`WALL_COUNT`) |
+| 8 | `season` column + read-RPC filters + Edge-Function write/read | `migrations/0006_connect_merge_season.sql`, `submit-score/index.ts`, `constants.ts` (`kLeaderboardSeason`) |
 
-### 2. Validate Path Geometry
+Determinism is pinned by `supabase/functions/_shared/engine.test.ts`, whose
+board/run vectors were freshly captured from the Dart engine (the PRNG and
+`seedForKey` vectors are unchanged). The board-parity tests (`legendary`/`easy`
+for `2026-06-07`) are the CI gate: if the TS board ≠ the Dart board, they fail.
 
-For each `ChainEvent` path the server must verify:
+The client also now sends `p_season` on **all three** read RPCs
+(`leaderboard`, `leaderboard_period`, and `friends_leaderboard` — the last was
+missed in the original Task 17 change) so the hard reset is complete.
 
-- All consecutive cell pairs are **orthogonally adjacent** (no diagonals, no
-  row wrap-around).
-- All cells in the path hold a live tile of the **same tier** that is **below
-  `kMaxTier`**.
-- The path is **simple** (no repeated cell indices).
-- No path cell is a **wall** cell for that date+difficulty.
-
-### 3. Replace Bounded `dropTiers` List with On-Demand Stream
-
-The legacy engine consumed a pre-generated `dropTiers[n]` list of length
-`kMaxDrops`. The redesigned client uses an **unbounded on-demand stream**
-(`dropTierPrng` / `dropTierAt`) keyed as `"$date:$difficulty:drops"`. The
-server must replicate this stream to verify refill tiers rather than indexing a
-fixed list.
-
-### 4. Multi-Drop Top-Up Refill (not single drop)
-
-After each `ChainEvent` the client refills the board back up to `startingFill`
-occupied cells, applying **one drop per freed cell** (a chain of length L frees
-L−1 cells, then the endpoint upgrades, net −(L−1) cells that must each be
-refilled). The server must replicate this multi-drop refill logic rather than
-applying a single drop per move.
-
-### 5. Spatial `hasMergeAvailable`
-
-The deadlock check is now **spatial**: two orthogonally-adjacent tiles of the
-same tier below cap constitute a valid move. Non-adjacent equal-tier tiles do
-NOT count. The server must use the spatial check to correctly detect and record
-deadlock outcomes.
-
-### 6. `collapseChain` + `comboScore`
-
-The server must implement `collapseChain` (clears all path cells, upgrades the
-endpoint) and `comboScore` (`(1 << (tier+1)) * comboMultiplier(len)`) to
-reproduce the client's score increments and detect any score-inflation cheat.
-
-### 7. Born-Dead Re-Roll (match client I-1 fix)
-
-`DailySeeder.generate()` now re-rolls the initial placement (consuming further
-draws from stream A) until the resulting board has at least one adjacent
-same-tier pair (`hasMergeAvailable`). The server seeder **must replicate this
-re-roll loop** with the same cap (`maxAttempts = 5000`) and the same
-`StateError` on cap-exceeded. Any divergence here will cause the server to
-reconstruct a different initial board than the client, failing replay
-verification for every affected date.
-
-### 8. Supabase `season` Column Migration + RPC/Edge-Function Filter
-
-Task 17 added `kLeaderboardSeason = 2` (the hard reset constant) and requires
-the Supabase `scores` table to carry a `season` integer column. The leaderboard
-RPC and Edge Functions must filter by `season = kLeaderboardSeason` so
-pre-relaunch scores never appear. This migration and filter must be applied
-before the leaderboard goes live, and the `season` value must be submitted with
-every score.
+### Server scope note
+The server only reconstructs what affects **score + board geometry**. Golden
+tiles, the daily objective, coins, and XP never touch `score` or the `moveLog`,
+so they are intentionally NOT ported to the server.
 
 ---
 
-## Current Production Safety
+## Remaining operational steps (before wiring `onSubmitRun`)
+
+Run from the repo root.
+
+1. **Run the Deno parity tests** (the cross-language determinism gate). Deno was
+   not available in the authoring environment, so this has NOT been executed yet:
+   ```
+   deno test supabase/functions/_shared/engine.test.ts
+   ```
+   All tests must pass. The board-parity tests prove the TS seeder reproduces the
+   Dart board byte-for-byte (walls + re-roll included). If they fail, the TS port
+   diverged from Dart — do not deploy until green.
+
+2. **Apply the migration** to the linked Supabase project:
+   ```
+   supabase db push
+   ```
+   (or run `supabase/migrations/0006_connect_merge_season.sql` against the DB).
+   This adds `scores.season` (existing rows default to season 1) and recreates
+   the three read RPCs with a `p_season` filter.
+
+3. **Deploy the Edge Function** (now stamps + filters by `season`):
+   ```
+   supabase functions deploy submit-score
+   ```
+
+4. **Wire `onSubmitRun`** in `TierSelectScreen` (pass the real
+   `LeaderboardService.submitRun` instead of `null`) only after steps 1–3 pass.
+
+---
+
+## Current production safety
 
 | Gate | State |
 |------|-------|
 | `onSubmitRun` is `null` in `TierSelectScreen` | No run reaches the server |
-| Server engine is pre-redesign | Would reject / misverify any Connect-Merge run |
-| `season` column not migrated | Pre-relaunch scores could leak into leaderboard |
+| Server engine ported to Connect-Merge | Ready to verify (pending `deno test` + deploy) |
+| `season` migration not yet applied to live DB | Apply via step 2 before go-live |
 
-All three gates must be lifted together in Phase 2.
+All gates lift together when `onSubmitRun` is wired (step 4).
 
 ---
 
@@ -108,7 +90,11 @@ All three gates must be lifted together in Phase 2.
 
 - Client seeder: `lib/domain/engine/daily_seeder.dart`
 - Client engine: `lib/domain/engine/game_engine.dart`
+- Server seeder: `supabase/functions/_shared/seeder.ts`
 - Server engine: `supabase/functions/_shared/engine.ts`
-- Constants: `lib/domain/constants.dart` (`kLeaderboardSeason`, `kMaxTier`,
-  `kMovesPerDay`, `kMaxDrops`, `comboMultiplier`, `dropCap`)
+- Server parity tests: `supabase/functions/_shared/engine.test.ts`
+- Submit Edge Function: `supabase/functions/submit-score/index.ts`
+- Season migration: `supabase/migrations/0006_connect_merge_season.sql`
+- Constants (both sides): `lib/domain/constants.dart`,
+  `supabase/functions/_shared/constants.ts`
 - Move model: `lib/domain/models/move.dart` (`ChainEvent`)

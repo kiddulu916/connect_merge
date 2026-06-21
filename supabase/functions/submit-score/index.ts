@@ -13,7 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
 import { verifyRun } from "../_shared/engine.ts";
-import { isDifficulty } from "../_shared/constants.ts";
+import { isDifficulty, kLeaderboardSeason } from "../_shared/constants.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
     .eq("player_id", userId)
     .eq("utc_date", date)
     .eq("difficulty", difficulty)
+    .eq("season", kLeaderboardSeason)
     .maybeSingle();
 
   // Keep the higher of the existing best vs this run.
@@ -111,6 +112,7 @@ Deno.serve(async (req) => {
         player_id: userId,
         utc_date: date,
         difficulty,
+        season: kLeaderboardSeason,
         score: result.score,
         highest_tier: result.highestTier,
       },
@@ -128,6 +130,7 @@ Deno.serve(async (req) => {
     .select("*", { count: "exact", head: true })
     .eq("utc_date", date)
     .eq("difficulty", difficulty)
+    .eq("season", kLeaderboardSeason)
     .gt("score", keepScore);
 
   const rank = (higherCount ?? 0) + 1;

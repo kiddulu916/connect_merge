@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:merge_count/domain/constants.dart';
 import 'package:merge_count/domain/models/difficulty.dart';
 import 'package:merge_count/domain/models/friend.dart';
 import 'package:merge_count/infrastructure/friends_service.dart';
@@ -109,7 +110,8 @@ void main() {
       final rows = await s.friendsLeaderboard(
           difficulty: Difficulty.hard, date: '2026-06-07');
       expect(fn, 'friends_leaderboard');
-      expect(params, {'p_date': '2026-06-07', 'p_diff': 'hard'});
+      expect(params,
+          {'p_date': '2026-06-07', 'p_diff': 'hard', 'p_season': kLeaderboardSeason});
       expect(rows.length, 2);
       expect(rows[0].isMe, isTrue);
       expect(rows[1].displayName, 'Pat');
