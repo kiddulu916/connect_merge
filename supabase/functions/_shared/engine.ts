@@ -15,8 +15,6 @@ import {
   type Difficulty,
   isDifficulty,
   kAdMoveReward,
-  kCellCount,
-  kGridSize,
   kMaxAdContinuesPerDay,
   kMaxTier,
   STARTING_FILL,
@@ -39,6 +37,7 @@ export interface BoardState {
   adContinuesUsed: number;
   movesMade: number;
   status: GameStatus;
+  gridSize: number;
 }
 
 // Move events (mirror lib/domain/models/move.dart). Accept both the spec's
@@ -62,9 +61,9 @@ export interface VerifyResult {
 // ---- pure rules (port of GameEngine) ----
 
 /** True when cells [a] and [b] are orthogonal neighbours (no diag, no wrap). */
-export function areOrthogonallyAdjacent(a: number, b: number): boolean {
-  const ra = Math.floor(a / kGridSize), ca = a % kGridSize;
-  const rb = Math.floor(b / kGridSize), cb = b % kGridSize;
+export function areOrthogonallyAdjacent(a: number, b: number, gridSize: number): boolean {
+  const ra = Math.floor(a / gridSize), ca = a % gridSize;
+  const rb = Math.floor(b / gridSize), cb = b % gridSize;
   return Math.abs(ra - rb) + Math.abs(ca - cb) === 1;
 }
 
@@ -83,12 +82,12 @@ export function isValidChain(s: BoardState, path: number[]): boolean {
   const tier = first.tier;
   for (let i = 0; i < path.length; i++) {
     const idx = path[i];
-    if (idx < 0 || idx >= kCellCount) return false;
+    if (idx < 0 || idx >= s.cells.length) return false;
     if (seen.has(idx)) return false;
     seen.add(idx);
     const t = s.cells[idx];
     if (t === null || t === undefined || t.tier !== tier) return false;
-    if (i > 0 && !areOrthogonallyAdjacent(path[i - 1], idx)) return false;
+    if (i > 0 && !areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) return false;
   }
   return true;
 }
@@ -154,17 +153,18 @@ export function applyDrop(s: BoardState, tier: number, landing: Prng): BoardStat
  * (spatial deadlock — non-adjacent equal tiles do NOT count).
  */
 export function hasMergeAvailable(s: BoardState): boolean {
-  for (let i = 0; i < kCellCount; i++) {
+  const gs = s.gridSize;
+  for (let i = 0; i < s.cells.length; i++) {
     const t = s.cells[i];
     if (t === null || t.tier >= kMaxTier) continue;
-    const row = Math.floor(i / kGridSize);
-    const col = i % kGridSize;
-    if (col + 1 < kGridSize) {
+    const row = Math.floor(i / gs);
+    const col = i % gs;
+    if (col + 1 < gs) {
       const e = s.cells[i + 1];
       if (e !== null && e.tier === t.tier) return true;
     }
-    if (row + 1 < kGridSize) {
-      const so = s.cells[i + kGridSize];
+    if (row + 1 < gs) {
+      const so = s.cells[i + gs];
       if (so !== null && so.tier === t.tier) return true;
     }
   }
@@ -249,8 +249,12 @@ export async function verifyRun(
       if (board.status !== "playing") return REJECT;
       if (!isValidChain(board, ev.path)) return REJECT;
       board = collapseChain(board, ev.path);
-      // Top the board back up to the difficulty's starting fill.
-      while (filledCount(board) < startingFill && emptyIndices(board).length > 0) {
+      // Mirror GameCubit new refill loop (Task 4): fill to startingFill AND
+      // guarantee hasMergeAvailable, or stop when board is full.
+      while (emptyIndices(board).length > 0) {
+        const needsFill = filledCount(board) < startingFill;
+        const needsMerge = !hasMergeAvailable(board);
+        if (!needsFill && !needsMerge) break;
         const tier = seeder.dropTierAt(dropPrng, board.dropIndex);
         board = applyDrop(board, tier, landing);
       }

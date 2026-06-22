@@ -57,51 +57,96 @@ const DART_PRNG: Record<string, number[]> = {
 
 // ---- Captured Connect-Merge board + run vectors (2026-06-07) ----
 
-// legendary: walls + re-rolled placement.
-const DART_LEGENDARY_WALLS = [1, 17, 19, 20];
+// legendary: 6×6 grid (36 cells), 6 walls, 15 starting tiles.
+const DART_LEGENDARY_WALLS = [0, 1, 5, 6, 17, 26];
 const DART_LEGENDARY_CELLS: (Tile | null)[] = (() => {
-  const c: (Tile | null)[] = new Array(kCellCount).fill(null);
-  c[11] = { id: 1, tier: 1 };
-  c[13] = { id: 3, tier: 2 };
-  c[18] = { id: 0, tier: 2 };
-  c[21] = { id: 2, tier: 1 };
+  const c: (Tile | null)[] = new Array(36).fill(null);
+  c[3]  = { id: 4,  tier: 2 };
+  c[7]  = { id: 1,  tier: 1 };
+  c[12] = { id: 11, tier: 1 };
+  c[15] = { id: 5,  tier: 1 };
+  c[16] = { id: 3,  tier: 1 };
+  c[20] = { id: 10, tier: 2 };
+  c[23] = { id: 13, tier: 1 };
+  c[24] = { id: 12, tier: 1 };
+  c[25] = { id: 0,  tier: 2 };
+  c[27] = { id: 14, tier: 1 };
+  c[28] = { id: 2,  tier: 2 };
+  c[29] = { id: 6,  tier: 1 };
+  c[30] = { id: 9,  tier: 1 };
+  c[32] = { id: 8,  tier: 1 };
+  c[34] = { id: 7,  tier: 2 };
   return c;
 })();
-const DART_LEGENDARY_NEXT_TILE_ID = 4;
-// Greedy 2-chain run -> immediate deadlock on the sparse board.
-const DART_LEGIT_LEGENDARY: MoveEvent[] = [{ type: "chain", path: [13, 18] }];
-const DART_LEGIT_LEGENDARY_SCORE = 8;
+const DART_LEGENDARY_NEXT_TILE_ID = 15;
+// Greedy 3-chain run captured from TS seeder (paths applied to the evolving board).
+const DART_LEGIT_LEGENDARY: MoveEvent[] = [
+  { type: "chain", path: [15, 16] },
+  { type: "chain", path: [10, 16] },
+  { type: "chain", path: [23, 29] },
+];
+const DART_LEGIT_LEGENDARY_SCORE = 16;
 const DART_LEGIT_LEGENDARY_TIER = 3;
 
-// easy: no walls (WALL_COUNT.easy === 0).
+// easy: 8×8 grid (64 cells), 2 walls, 40 starting tiles.
 const DART_EASY_SEED = 628821332;
 const DART_EASY_CELLS: (Tile | null)[] = (() => {
-  const c: (Tile | null)[] = new Array(kCellCount).fill(null);
-  c[5] = { id: 0, tier: 1 };
-  c[7] = { id: 2, tier: 2 };
-  c[8] = { id: 9, tier: 2 };
-  c[11] = { id: 3, tier: 1 };
-  c[12] = { id: 5, tier: 1 };
-  c[13] = { id: 6, tier: 2 };
-  c[14] = { id: 1, tier: 2 };
-  c[15] = { id: 7, tier: 2 };
-  c[21] = { id: 8, tier: 1 };
-  c[24] = { id: 4, tier: 1 };
+  const c: (Tile | null)[] = new Array(64).fill(null);
+  c[0]  = { id: 13, tier: 1 };
+  c[1]  = { id: 12, tier: 1 };
+  c[4]  = { id: 37, tier: 1 };
+  c[5]  = { id: 5,  tier: 1 };
+  c[6]  = { id: 4,  tier: 2 };
+  c[9]  = { id: 1,  tier: 2 };
+  c[11] = { id: 11, tier: 2 };
+  c[13] = { id: 36, tier: 2 };
+  c[14] = { id: 16, tier: 1 };
+  c[17] = { id: 19, tier: 2 };
+  c[18] = { id: 22, tier: 1 };
+  c[19] = { id: 18, tier: 2 };
+  c[21] = { id: 15, tier: 2 };
+  c[22] = { id: 30, tier: 1 };
+  c[26] = { id: 23, tier: 2 };
+  c[27] = { id: 20, tier: 1 };
+  c[29] = { id: 35, tier: 1 };
+  c[30] = { id: 39, tier: 1 };
+  c[31] = { id: 25, tier: 1 };
+  c[32] = { id: 17, tier: 1 };
+  c[33] = { id: 8,  tier: 1 };
+  c[34] = { id: 32, tier: 1 };
+  c[35] = { id: 27, tier: 2 };
+  c[36] = { id: 2,  tier: 2 };
+  c[38] = { id: 6,  tier: 2 };
+  c[40] = { id: 26, tier: 1 };
+  c[41] = { id: 10, tier: 1 };
+  c[44] = { id: 31, tier: 1 };
+  c[45] = { id: 7,  tier: 2 };
+  c[46] = { id: 0,  tier: 1 };
+  c[47] = { id: 14, tier: 2 };
+  c[49] = { id: 33, tier: 1 };
+  c[50] = { id: 24, tier: 2 };
+  c[52] = { id: 34, tier: 1 };
+  c[54] = { id: 21, tier: 2 };
+  c[56] = { id: 29, tier: 1 };
+  c[57] = { id: 3,  tier: 1 };
+  c[58] = { id: 38, tier: 1 };
+  c[59] = { id: 9,  tier: 2 };
+  c[62] = { id: 28, tier: 2 };
   return c;
 })();
-const DART_EASY_NEXT_TILE_ID = 10;
-// Greedy 2-chain run captured from Dart (paths applied to the evolving board).
+const DART_EASY_NEXT_TILE_ID = 40;
+// Greedy 2-chain run captured from TS seeder (paths applied to the evolving board).
 const DART_LEGIT_EASY: MoveEvent[] = [
-  { type: "chain", path: [7, 8] },
-  { type: "chain", path: [11, 12] },
-  { type: "chain", path: [12, 13] },
-  { type: "chain", path: [8, 13] },
-  { type: "chain", path: [15, 20] },
-  { type: "chain", path: [17, 18] },
-  { type: "chain", path: [19, 24] },
+  { type: "chain", path: [0, 1] },
+  { type: "chain", path: [1, 9] },
+  { type: "chain", path: [4, 5] },
+  { type: "chain", path: [5, 6] },
+  { type: "chain", path: [11, 19] },
+  { type: "chain", path: [13, 21] },
+  { type: "chain", path: [14, 22] },
 ];
-const DART_LEGIT_EASY_SCORE = 56;
-const DART_LEGIT_EASY_TIER = 4;
+const DART_LEGIT_EASY_SCORE = 44;
+const DART_LEGIT_EASY_TIER = 3;
 
 // ---- PRNG parity ----
 
@@ -135,11 +180,11 @@ Deno.test("legendary board for 2026-06-07 matches Dart (walls + re-roll)", async
   assertEquals(hasMergeAvailable(start.board), true);
 });
 
-Deno.test("easy board for 2026-06-07 matches Dart (no walls)", async () => {
+Deno.test("easy board for 2026-06-07 matches Dart (walls + placement)", async () => {
   const start = await new DailySeeder("2026-06-07", "easy").generate();
   assertEquals(start.board.cells, DART_EASY_CELLS);
   assertEquals(start.board.nextTileId, DART_EASY_NEXT_TILE_ID);
-  assertEquals(start.board.walls.size, 0);
+  assertEquals([...start.board.walls].sort((a, b) => a - b), [25, 42]);
 });
 
 // ---- Replay parity ----
@@ -169,29 +214,29 @@ Deno.test("verifyRun accepts the spec short-form {t:...} event shape", async () 
 
 // ---- Tamper rejection ----
 
-Deno.test("rejects an illegal chain (cells empty after the legit run)", async () => {
+Deno.test("rejects an illegal chain (wall cells, always empty)", async () => {
   const tampered: MoveEvent[] = [
     ...DART_LEGIT_LEGENDARY,
-    { type: "chain", path: [7, 9] }, // empty cells
+    { type: "chain", path: [0, 1] }, // wall cells — always empty
   ];
   assertFalse((await verifyRun("2026-06-07", "legendary", tampered)).valid);
 });
 
 Deno.test("rejects a chain of distinct tiers", async () => {
-  // easy initial: cell 12 (tier1) is orthogonally adjacent to cell 13 (tier2).
-  const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [12, 13] }]);
+  // easy initial: cell 5 (tier1) is orthogonally adjacent to cell 6 (tier2).
+  const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [5, 6] }]);
   assertFalse(r.valid);
 });
 
 Deno.test("rejects a non-adjacent chain", async () => {
-  // easy initial: cells 11 and 13 are same-ish row but not orthogonally adjacent.
-  const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [11, 13] }]);
+  // easy initial: cells 9 and 11 share tier 2 and are in the same row but not adjacent (gap=2).
+  const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [9, 11] }]);
   assertFalse(r.valid);
 });
 
 Deno.test("rejects a continue while still playing (not out of moves)", async () => {
   const r = await verifyRun("2026-06-07", "easy", [
-    { type: "chain", path: [7, 8] },
+    { type: "chain", path: [0, 1] }, // valid first move
     { type: "continue" }, // illegal: board is still playing
   ]);
   assertFalse(r.valid);
@@ -225,6 +270,7 @@ function boardWith(
     adContinuesUsed: 0,
     movesMade: 0,
     status: "playing",
+    gridSize: 5,
   };
 }
 
@@ -238,10 +284,10 @@ Deno.test("comboScore: 2-chain equals legacy single-merge; superlinear beyond", 
 });
 
 Deno.test("areOrthogonallyAdjacent: N/S/E/W only, no diagonal/wrap", () => {
-  assertEquals(areOrthogonallyAdjacent(0, 1), true);
-  assertEquals(areOrthogonallyAdjacent(0, 5), true);
-  assertEquals(areOrthogonallyAdjacent(0, 6), false);
-  assertEquals(areOrthogonallyAdjacent(4, 5), false); // row wrap
+  assertEquals(areOrthogonallyAdjacent(0, 1, 5), true);
+  assertEquals(areOrthogonallyAdjacent(0, 5, 5), true);
+  assertEquals(areOrthogonallyAdjacent(0, 6, 5), false);
+  assertEquals(areOrthogonallyAdjacent(4, 5, 5), false); // row wrap
 });
 
 Deno.test("isValidChain: accepts a connected same-tier run, rejects bad paths", () => {

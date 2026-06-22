@@ -16,8 +16,7 @@ import { Prng } from "./prng.ts";
 import {
   type Difficulty,
   dropCap,
-  kCellCount,
-  kGridSize,
+  GRID_SIZE,
   kMaxPlacementAttempts,
   kMaxTier,
   kMovesPerDay,
@@ -48,18 +47,19 @@ export async function seedForKey(key: string): Promise<number> {
  * used during placement re-roll. Inlined here to avoid a seeder<->engine import
  * cycle (engine.ts imports DailySeeder). Scans east+south neighbours once each.
  */
-function hasAdjacentSameTier(cells: (Tile | null)[]): boolean {
-  for (let i = 0; i < kCellCount; i++) {
+function hasAdjacentSameTier(cells: (Tile | null)[], gridSize: number): boolean {
+  const cellCount = cells.length;
+  for (let i = 0; i < cellCount; i++) {
     const t = cells[i];
     if (t === null || t.tier >= kMaxTier) continue;
-    const row = Math.floor(i / kGridSize);
-    const col = i % kGridSize;
-    if (col + 1 < kGridSize) {
+    const row = Math.floor(i / gridSize);
+    const col = i % gridSize;
+    if (col + 1 < gridSize) {
       const e = cells[i + 1];
       if (e !== null && e.tier === t.tier) return true;
     }
-    if (row + 1 < kGridSize) {
-      const s = cells[i + kGridSize];
+    if (row + 1 < gridSize) {
+      const s = cells[i + gridSize];
       if (s !== null && s.tier === t.tier) return true;
     }
   }
@@ -91,10 +91,12 @@ export class DailySeeder {
   async wallIndices(): Promise<Set<number>> {
     const count = WALL_COUNT[this.difficulty];
     if (count === 0) return new Set();
+    const gridSize = GRID_SIZE[this.difficulty];
+    const cellCount = gridSize * gridSize;
     const w = new Prng(await seedForKey(`${this.key}:walls`));
     const out = new Set<number>();
     while (out.size < count) {
-      out.add(w.nextInt(kCellCount)); // rejection sampling; deterministic
+      out.add(w.nextInt(cellCount));
     }
     return out;
   }
@@ -103,6 +105,8 @@ export class DailySeeder {
     const a = new Prng(await this.seedA());
     const walls = await this.wallIndices();
     const startingFill = STARTING_FILL[this.difficulty];
+    const gridSize = GRID_SIZE[this.difficulty];
+    const cellCount = gridSize * gridSize;
 
     // Re-roll placement until the board has at least one adjacent same-tier pair
     // (avoids a born-deadlocked, unplayable day under the spatial deadlock rule).
@@ -118,16 +122,16 @@ export class DailySeeder {
             `after ${kMaxPlacementAttempts} attempts`,
         );
       }
-      cells = new Array(kCellCount).fill(null);
+      cells = new Array(cellCount).fill(null);
       nextId = 0;
       let placed = 0;
       while (placed < startingFill) {
-        const idx = a.nextInt(kCellCount);
+        const idx = a.nextInt(cellCount);
         if (cells[idx] !== null || walls.has(idx)) continue; // skip walls
         cells[idx] = { id: nextId++, tier: 1 + a.nextInt(2) };
         placed += 1;
       }
-      if (hasAdjacentSameTier(cells)) break;
+      if (hasAdjacentSameTier(cells, gridSize)) break;
     }
 
     const board: BoardState = {
@@ -140,6 +144,7 @@ export class DailySeeder {
       adContinuesUsed: 0,
       movesMade: 0,
       status: "playing",
+      gridSize,
     };
     return { board };
   }

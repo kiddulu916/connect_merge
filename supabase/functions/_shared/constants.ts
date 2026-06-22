@@ -32,12 +32,20 @@ export function dropCap(n: number): number {
 export const DIFFICULTIES = ["easy", "medium", "hard", "legendary"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
-/** Number of tiles placed on the board at the start of the day, per tier. */
+/** Number of tiles placed on the board at the start of the day, per difficulty. */
 export const STARTING_FILL: Record<Difficulty, number> = {
-  easy: 10,
-  medium: 8,
+  easy: 40,
+  medium: 25,
+  hard: 20,
+  legendary: 15,
+};
+
+/** Grid side length per difficulty (port of Difficulty.gridSize in Dart). */
+export const GRID_SIZE: Record<Difficulty, number> = {
+  easy: 8,
+  medium: 7,
   hard: 6,
-  legendary: 4,
+  legendary: 6,
 };
 
 export function isDifficulty(s: string): s is Difficulty {
@@ -58,10 +66,10 @@ export function comboMultiplier(n: number): number {
 
 /** Seed-placed wall cells per difficulty (port of Dart `wallCountFor`). */
 export const WALL_COUNT: Record<Difficulty, number> = {
-  easy: 0,
-  medium: 2,
-  hard: 3,
-  legendary: 4,
+  easy: 2,
+  medium: 4,
+  hard: 5,
+  legendary: 6,
 };
 
 /**
