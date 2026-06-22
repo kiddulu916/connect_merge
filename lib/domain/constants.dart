@@ -147,8 +147,7 @@ const int kSnapshotVersion = 3;
 /// filter leaderboard reads, so pre-relaunch scores never appear (hard reset).
 const int kLeaderboardSeason = 2;
 
-/// Seed-placed wall cells per difficulty (block tiles, break paths). Easy has
-/// none; tighter boards get more. Tuning knob.
+/// Seed-placed wall cells per difficulty (block tiles, break paths). Scales up with difficulty. Tuning knob.
 int wallCountFor(Difficulty d) => switch (d) {
       Difficulty.easy => 2,
       Difficulty.medium => 4,

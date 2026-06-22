@@ -1,3 +1,7 @@
+/// Difficulty tiers for the daily puzzle.
+///
+/// [name] (`easy`/`medium`/`hard`/`legendary`) is the stable seed-key and
+/// storage-key token — it must never be localized. Use [label] for display.
 enum Difficulty {
   easy(gridSize: 8, startingFill: 40, label: 'Easy'),
   medium(gridSize: 7, startingFill: 25, label: 'Medium'),

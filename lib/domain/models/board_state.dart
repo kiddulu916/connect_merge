@@ -2,7 +2,7 @@ import 'game_status.dart';
 import 'move.dart';
 import 'tile.dart';
 
-/// Immutable snapshot of a daily board. Row-major: index = row * kGridSize + col.
+/// Immutable snapshot of a daily board. Row-major: index = row * gridSize + col.
 class BoardState {
   final List<Tile?> cells; // length kCellCount
   final int movesRemaining;
