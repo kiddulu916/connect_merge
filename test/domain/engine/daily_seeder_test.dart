@@ -37,23 +37,33 @@ void main() {
     }
   });
 
-  test('tile counts are 10/8/6/4 for easy/medium/hard/legendary', () {
+  test('tile counts are 40/25/20/15 for easy/medium/hard/legendary', () {
     expect(const DailySeeder('2026-06-06', Difficulty.easy)
         .generate()
         .board
-        .filledCount, 10);
+        .filledCount, 40);
     expect(const DailySeeder('2026-06-06', Difficulty.medium)
         .generate()
         .board
-        .filledCount, 8);
+        .filledCount, 25);
     expect(const DailySeeder('2026-06-06', Difficulty.hard)
         .generate()
         .board
-        .filledCount, 6);
+        .filledCount, 20);
     expect(const DailySeeder('2026-06-06', Difficulty.legendary)
         .generate()
         .board
-        .filledCount, 4);
+        .filledCount, 15);
+  });
+
+  test('generated board has correct gridSize and cell count per difficulty', () {
+    for (final d in Difficulty.values) {
+      final board = DailySeeder('2026-06-06', d).generate().board;
+      expect(board.gridSize, d.gridSize,
+          reason: '${d.name} board.gridSize should be ${d.gridSize}');
+      expect(board.cells.length, d.cellCount,
+          reason: '${d.name} cells.length should be ${d.cellCount}');
+    }
   });
 
   test('drop schedule has kMaxDrops tiers, each within its band', () {
@@ -143,8 +153,9 @@ void main() {
       expect(s.wallIndices(), DailySeeder('2026-06-20', Difficulty.hard).wallIndices());
     });
 
-    test('easy has no walls', () {
-      expect(DailySeeder('2026-06-20', Difficulty.easy).wallIndices(), isEmpty);
+    test('easy has wallCountFor(easy) walls (currently 2)', () {
+      final walls = DailySeeder('2026-06-20', Difficulty.easy).wallIndices();
+      expect(walls.length, wallCountFor(Difficulty.easy));
     });
 
     test('generated board carries walls and never places a tile on one', () {

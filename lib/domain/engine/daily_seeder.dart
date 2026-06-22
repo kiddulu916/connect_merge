@@ -66,7 +66,7 @@ class DailySeeder {
     final w = Prng(seedForKey('$_key:walls'));
     final out = <int>{};
     while (out.length < count) {
-      out.add(w.nextInt(kCellCount)); // rejection sampling; deterministic
+      out.add(w.nextInt(difficulty.cellCount)); // rejection sampling; deterministic
     }
     return out;
   }
@@ -75,6 +75,7 @@ class DailySeeder {
     final a = Prng(_seedA);
     final walls = wallIndices();
     final startingFill = difficulty.startingFill;
+    final cellCount = difficulty.cellCount;
 
     // Re-roll loop: keep drawing placements from stream A until the resulting
     // board has at least one orthogonally-adjacent same-tier pair so no player
@@ -106,11 +107,11 @@ class DailySeeder {
       }
 
       // Fresh placement attempt — reset counters each time so tile ids are clean.
-      cells = List<Tile?>.filled(kCellCount, null);
+      cells = List<Tile?>.filled(cellCount, null);
       nextId = 0;
       var placed = 0;
       while (placed < startingFill) {
-        final idx = a.nextInt(kCellCount);
+        final idx = a.nextInt(cellCount);
         if (cells[idx] != null || walls.contains(idx)) continue;
         cells[idx] = Tile(id: nextId++, tier: 1 + a.nextInt(2));
         placed++;
@@ -127,6 +128,7 @@ class DailySeeder {
         movesMade: 0,
         status: GameStatus.playing,
         walls: walls,
+        gridSize: difficulty.gridSize,
       );
       if (GameEngine.hasMergeAvailable(candidate)) break;
       // Otherwise continue — stream A is already advanced; next loop attempt
@@ -151,6 +153,7 @@ class DailySeeder {
       movesMade: 0,
       status: GameStatus.playing,
       walls: walls,
+      gridSize: difficulty.gridSize,
     );
     return DailyStart(board, tiers);
   }

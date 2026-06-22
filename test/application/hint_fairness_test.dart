@@ -49,12 +49,15 @@ void main() {
     test('hint reveal equals what the seed will actually drop next', () async {
       const date = '2026-06-07';
       const diff = Difficulty.hard;
-      final expectedTiers = const DailySeeder(date, diff).generate().dropTiers;
+      // The cubit uses dropTierPrng() (the independent ':drops' stream), not
+      // generate().dropTiers (stream A tail). Peek at index 0 directly.
+      const seeder = DailySeeder(date, diff);
+      final expectedTier = seeder.dropTierAt(seeder.dropTierPrng(), 0);
 
       final c = make(date);
       await c.init(difficulty: diff);
       final revealed = c.revealNextDropAfterReward();
-      expect(revealed, expectedTiers[0]);
+      expect(revealed, expectedTier);
     });
 
     test('per-day cap: at most kMaxHintsPerDay hints are granted', () async {

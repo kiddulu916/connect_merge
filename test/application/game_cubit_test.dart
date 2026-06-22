@@ -32,11 +32,11 @@ void main() {
   test('different tiers start with their own tile counts', () async {
     final easy = make('2026-06-06');
     await easy.init(difficulty: Difficulty.easy);
-    expect((easy.state as GamePlaying).board.filledCount, 10);
+    expect((easy.state as GamePlaying).board.filledCount, Difficulty.easy.startingFill);
 
     final legendary = make('2026-06-06');
     await legendary.init(difficulty: Difficulty.legendary);
-    expect((legendary.state as GamePlaying).board.filledCount, 4);
+    expect((legendary.state as GamePlaying).board.filledCount, Difficulty.legendary.startingFill);
   });
 
   test('uses the UTC date provider by default', () {
