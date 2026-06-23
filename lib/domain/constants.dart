@@ -153,4 +153,24 @@ int wallCountFor(Difficulty d) => switch (d) {
       Difficulty.medium => 4,
       Difficulty.hard => 5,
       Difficulty.legendary => 6,
+      Difficulty.challenge => 0, // walls set by rule override (wallMaze uses 8)
     };
+
+/// Combo Rush challenge rule: doubled multiplier for chains of length >= 3;
+/// N=2 chains score normally (multiplier stays at 1).
+int comboRushMultiplier(int n) {
+  if (n < 3) return comboMultiplier(n);
+  return comboMultiplier(n) * 2;
+}
+
+/// Challenge mode: move budget under the Budget Cut rule.
+const int kChallengeMoves = 15;
+
+/// Challenge mode: wall count for the Wall Maze rule.
+const int kChallengeWallMazeCount = 8;
+
+/// Challenge mode: dense starting fill (Dense Start rule).
+const int kChallengeDenseFill = 14;
+
+/// Challenge mode: sparse starting fill (Sparse Start rule).
+const int kChallengeSparseFill = 3;

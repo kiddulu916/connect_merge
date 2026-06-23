@@ -36,12 +36,13 @@ void main() {
     expect(Difficulty.legendary.name, 'legendary');
   });
 
-  test('there are exactly four tiers ordered easy -> legendary', () {
+  test('there are exactly five tiers ordered easy -> challenge', () {
     expect(Difficulty.values, [
       Difficulty.easy,
       Difficulty.medium,
       Difficulty.hard,
       Difficulty.legendary,
+      Difficulty.challenge,
     ]);
   });
 }
