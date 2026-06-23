@@ -117,7 +117,7 @@ void main() {
         'ranking — only the local comparison sees it', () {
       // Simulate a hand-edited link claiming an impossible score.
       final forged =
-          DuelChallenge.fromString('mergecount://duel/2026-06-11/hard/999999/Mallory');
+          DuelChallenge.fromString('connectmerge://duel/2026-06-11/hard/999999/Mallory');
       expect(forged, isNotNull);
       final c = makeToday()..receiveChallenge(forged!);
       // The recipient's real run on the SAME board loses to the fake target,

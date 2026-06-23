@@ -168,7 +168,7 @@ void main() {
     await tester.tap(find.byKey(const Key('invite-button')));
     await tester.pumpAndSettle();
 
-    expect(shared, contains('mergecount://invite/MYCODE12'));
+    expect(shared, contains('connectmerge://invite/MYCODE12'));
   });
 
   test('Friend.fromJson handles snake_case and camelCase', () {

@@ -5,9 +5,9 @@ import 'package:merge_count/infrastructure/deep_link_service.dart';
 
 void main() {
   group('DeepLinkService.parseInviteCode', () {
-    test('parses custom scheme mergecount://invite/<code>', () {
+    test('parses custom scheme connectmerge://invite/<code>', () {
       expect(
-        DeepLinkService.parseInviteCodeString('mergecount://invite/ABCD2345'),
+        DeepLinkService.parseInviteCodeString('connectmerge://invite/ABCD2345'),
         'ABCD2345',
       );
     });
@@ -22,7 +22,7 @@ void main() {
 
     test('returns null for non-invite custom-scheme links', () {
       expect(
-        DeepLinkService.parseInviteCodeString('mergecount://other/thing'),
+        DeepLinkService.parseInviteCodeString('connectmerge://other/thing'),
         isNull,
       );
     });
@@ -36,8 +36,8 @@ void main() {
 
     test('returns null when code segment is missing', () {
       expect(
-          DeepLinkService.parseInviteCodeString('mergecount://invite/'), isNull);
-      expect(DeepLinkService.parseInviteCodeString('mergecount://invite'),
+          DeepLinkService.parseInviteCodeString('connectmerge://invite/'), isNull);
+      expect(DeepLinkService.parseInviteCodeString('connectmerge://invite'),
           isNull);
     });
 
@@ -49,7 +49,7 @@ void main() {
     test('does NOT mis-parse a duel link as an invite code', () {
       expect(
         DeepLinkService.parseInviteCodeString(
-            'mergecount://duel/2026-06-11/hard/4096/Ann'),
+            'connectmerge://duel/2026-06-11/hard/4096/Ann'),
         isNull,
       );
     });
@@ -122,21 +122,21 @@ void main() {
   group('DuelChallenge.fromUri malformed / legacy', () {
     test('an invite link is NOT a duel', () {
       expect(
-        DeepLinkService.parseDuelString('mergecount://invite/ABCD2345'),
+        DeepLinkService.parseDuelString('connectmerge://invite/ABCD2345'),
         isNull,
       );
     });
 
     test('missing segments return null', () {
       expect(
-        DeepLinkService.parseDuelString('mergecount://duel/2026-06-11/hard'),
+        DeepLinkService.parseDuelString('connectmerge://duel/2026-06-11/hard'),
         isNull,
       );
     });
 
     test('bad date shape returns null', () {
       expect(
-        DeepLinkService.parseDuelString('mergecount://duel/yesterday/hard/10/Ann'),
+        DeepLinkService.parseDuelString('connectmerge://duel/yesterday/hard/10/Ann'),
         isNull,
       );
     });
@@ -144,18 +144,18 @@ void main() {
     test('unknown difficulty returns null', () {
       expect(
         DeepLinkService.parseDuelString(
-            'mergecount://duel/2026-06-11/impossible/10/Ann'),
+            'connectmerge://duel/2026-06-11/impossible/10/Ann'),
         isNull,
       );
     });
 
     test('non-numeric / negative score returns null', () {
       expect(
-        DeepLinkService.parseDuelString('mergecount://duel/2026-06-11/hard/x/Ann'),
+        DeepLinkService.parseDuelString('connectmerge://duel/2026-06-11/hard/x/Ann'),
         isNull,
       );
       expect(
-        DeepLinkService.parseDuelString('mergecount://duel/2026-06-11/hard/-5/Ann'),
+        DeepLinkService.parseDuelString('connectmerge://duel/2026-06-11/hard/-5/Ann'),
         isNull,
       );
     });
