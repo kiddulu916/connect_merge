@@ -375,6 +375,57 @@ class EngagementCubit extends Cubit<EngagementState> {
     ));
   }
 
+  // ---------------------------------------------------------------------------
+  // Challenge payout helpers
+  // ---------------------------------------------------------------------------
+
+  static int _challengeCoinForRank(int rank) {
+    if (rank == 1) return 150;
+    if (rank <= 3) return 100;
+    if (rank <= 10) return 50;
+    return 0;
+  }
+
+  /// Check if the player placed top-10 in yesterday's challenge leaderboard.
+  /// [fetchFn] matches [LeaderboardService.fetch]'s signature.
+  Future<void> checkChallengePayouts(
+    Future<List<LeaderboardEntry>> Function({
+      required Difficulty difficulty,
+      required String date,
+    }) fetchFn,
+  ) async {
+    final today = todayProvider();
+    final yesterday = DateTime.parse(today)
+        .subtract(const Duration(days: 1))
+        .toIso8601String()
+        .substring(0, 10);
+
+    final profile = storage.loadProfile();
+    if (profile.lastChallengeCheckDate == yesterday) return; // already checked
+
+    int coins = 0;
+    try {
+      final entries = await fetchFn(
+        difficulty: Difficulty.challenge,
+        date: yesterday,
+      );
+      final myEntry = entries.where((e) => e.isMe).firstOrNull;
+      if (myEntry != null) {
+        coins = _challengeCoinForRank(myEntry.rank);
+      }
+    } catch (_) {
+      return; // network failure: skip; retry on next app open
+    }
+
+    final updatedProfile = profile.copyWith(
+      lastChallengeCheckDate: yesterday,
+      coins: profile.coins + coins,
+    );
+    await storage.saveProfile(updatedProfile);
+
+    emit(state.copyWith(coins: updatedProfile.coins));
+  }
+
   /// Grant a streak-freeze token (e.g. from a rewarded ad). Banked on every tier
   /// up to [kMaxFreezeTokens] each, so a missed day is shielded regardless of
   /// which tier the player resumes. Returns whether anything was granted.

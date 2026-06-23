@@ -85,8 +85,10 @@ Future<void> main() async {
   }
 
   // Weekly prizes: check on every app open (idempotent, no-op if checked this week).
+  // Challenge payouts: check yesterday's challenge leaderboard for top-10 finish.
   if (leaderboard != null) {
     unawaited(engagement.checkWeeklyPrizes(leaderboard.fetchPeriod));
+    unawaited(engagement.checkChallengePayouts(leaderboard.fetch));
   }
 
   // Deep links: invites (mergecount://invite/<code>) AND duels
