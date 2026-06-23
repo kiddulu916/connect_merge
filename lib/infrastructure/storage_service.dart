@@ -2,6 +2,7 @@ import '../domain/constants.dart';
 import '../domain/models/board_state.dart';
 import '../domain/models/day_result.dart';
 import '../domain/models/difficulty.dart';
+import '../domain/models/weekly_prize.dart';
 
 /// A persisted in-progress (or finished) day for a single difficulty tier.
 class GameSnapshot {
@@ -177,6 +178,18 @@ class PlayerProfile {
   /// distinguishable without hue. Migration-free default false.
   final bool colorblindMode;
 
+  /// ISO week-start Monday of the last weekly prize check. Guards once-per-week
+  /// claiming. Migration-free default null.
+  final String? lastWeeklyPrizeDate;
+
+  /// Permanent history of weekly top-3 finishes, serialised as raw JSON list.
+  /// Migration-free default empty.
+  final List<WeeklyPrize> weeklyPrizes;
+
+  /// UTC date of the last challenge payout check (`YYYY-MM-DD`). Guards
+  /// once-per-day claiming. Migration-free default null.
+  final String? lastChallengeCheckDate;
+
   const PlayerProfile({
     this.dailyActiveStreak = 0,
     this.lastActiveDate,
@@ -196,6 +209,9 @@ class PlayerProfile {
     this.lastSeenRivalScoreByTier = const {},
     this.tutorialSeen = false,
     this.colorblindMode = false,
+    this.lastWeeklyPrizeDate,
+    this.weeklyPrizes = const [],
+    this.lastChallengeCheckDate,
   });
 
   static const empty = PlayerProfile();
@@ -220,6 +236,11 @@ class PlayerProfile {
     Map<String, int>? lastSeenRivalScoreByTier,
     bool? tutorialSeen,
     bool? colorblindMode,
+    String? lastWeeklyPrizeDate,
+    bool clearLastWeeklyPrizeDate = false,
+    List<WeeklyPrize>? weeklyPrizes,
+    String? lastChallengeCheckDate,
+    bool clearLastChallengeCheckDate = false,
   }) =>
       PlayerProfile(
         dailyActiveStreak: dailyActiveStreak ?? this.dailyActiveStreak,
@@ -243,6 +264,13 @@ class PlayerProfile {
             lastSeenRivalScoreByTier ?? this.lastSeenRivalScoreByTier,
         tutorialSeen: tutorialSeen ?? this.tutorialSeen,
         colorblindMode: colorblindMode ?? this.colorblindMode,
+        lastWeeklyPrizeDate: clearLastWeeklyPrizeDate
+            ? null
+            : (lastWeeklyPrizeDate ?? this.lastWeeklyPrizeDate),
+        weeklyPrizes: weeklyPrizes ?? this.weeklyPrizes,
+        lastChallengeCheckDate: clearLastChallengeCheckDate
+            ? null
+            : (lastChallengeCheckDate ?? this.lastChallengeCheckDate),
       );
 
   Map<String, dynamic> toJson() => {
@@ -264,6 +292,9 @@ class PlayerProfile {
         'lastSeenRivalScoreByTier': lastSeenRivalScoreByTier,
         'tutorialSeen': tutorialSeen,
         'colorblindMode': colorblindMode,
+        'lastWeeklyPrizeDate': lastWeeklyPrizeDate,
+        'weeklyPrizes': weeklyPrizes.map((p) => p.toJson()).toList(),
+        'lastChallengeCheckDate': lastChallengeCheckDate,
       };
 
   static PlayerProfile fromJson(Map<String, dynamic> j) => PlayerProfile(
@@ -300,6 +331,12 @@ class PlayerProfile {
         // Absent in pre-Phase-4 profiles: migration-free defaults.
         tutorialSeen: (j['tutorialSeen'] as bool?) ?? false,
         colorblindMode: (j['colorblindMode'] as bool?) ?? false,
+        // Absent in pre-weekly-prize profiles: migration-free defaults.
+        lastWeeklyPrizeDate: j['lastWeeklyPrizeDate'] as String?,
+        weeklyPrizes: ((j['weeklyPrizes'] as List?) ?? const [])
+            .map((e) => WeeklyPrize.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        lastChallengeCheckDate: j['lastChallengeCheckDate'] as String?,
       );
 }
 
