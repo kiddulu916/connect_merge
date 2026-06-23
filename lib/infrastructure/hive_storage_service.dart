@@ -15,7 +15,7 @@ import 'storage_service.dart';
 ///  - snapshot: `"$date:${difficulty.name}"`
 ///  - stats:    `"stats:${difficulty.name}"`
 class HiveStorageService implements StorageService {
-  static const _boxName = 'merge_count';
+  static const _boxName = 'connect_merge';
 
   late Box<String> _box;
 

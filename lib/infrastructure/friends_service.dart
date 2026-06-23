@@ -78,7 +78,7 @@ class FriendsService {
   }
 
   /// Build the deep link a friend taps to add you.
-  static String inviteLink(String code) => 'mergecount://invite/$code';
+  static String inviteLink(String code) => 'connectmerge://invite/$code';
 
   /// Build the https fallback invite link.
   static String inviteHttpsLink(String code) =>

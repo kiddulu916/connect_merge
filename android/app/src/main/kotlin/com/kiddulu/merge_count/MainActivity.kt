@@ -9,7 +9,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
-    private val channelName = "merge_count/facebook_share"
+    private val channelName = "connect_merge/facebook_share"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

@@ -41,7 +41,7 @@ class DuelChallenge {
 
   /// Encode this challenge as a custom-scheme deep link.
   Uri toUri() => Uri.parse(
-        'mergecount://duel/$date/${difficulty.name}/$challengerScore/'
+        'connectmerge://duel/$date/${difficulty.name}/$challengerScore/'
         '${Uri.encodeComponent(challengerName)}',
       );
 
@@ -57,7 +57,7 @@ class DuelChallenge {
   /// parsing coexists with invite parsing.
   static DuelChallenge? fromUri(Uri uri) {
     List<String> segs;
-    if (uri.scheme == 'mergecount') {
+    if (uri.scheme == 'connectmerge') {
       if (uri.host != 'duel') return null;
       segs = uri.pathSegments.where((s) => s.isNotEmpty).toList();
     } else if (uri.scheme == 'https' || uri.scheme == 'http') {

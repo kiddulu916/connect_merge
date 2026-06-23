@@ -8,9 +8,9 @@ import '../domain/models/duel_challenge.dart';
 /// callbacks.
 ///
 /// Supported forms:
-///   mergecount://invite/<code>           (custom scheme)
+///   connectmerge://invite/<code>           (custom scheme)
 ///   https://mergecount.app/invite/<code>  (App Links / Universal Links fallback)
-///   `mergecount://duel/<date>/<diff>/<score>/<name>`            (custom scheme)
+///   `connectmerge://duel/<date>/<diff>/<score>/<name>`            (custom scheme)
 ///   `https://mergecount.app/duel/<date>/<diff>/<score>/<name>`   (https fallback)
 ///
 /// The PURE parts — [parseInviteCode] and [DuelChallenge.fromUri] — are fully
@@ -52,8 +52,8 @@ class DeepLinkService {
   /// Pure parser: extract the invite code from a deep-link [uri], or null if it
   /// isn't an invite link. Accepts both the custom scheme and the https path.
   static String? parseInviteCode(Uri uri) {
-    // mergecount://invite/<code>  → host == 'invite', first path segment is code.
-    if (uri.scheme == 'mergecount') {
+    // connectmerge://invite/<code>  → host == 'invite', first path segment is code.
+    if (uri.scheme == 'connectmerge') {
       if (uri.host == 'invite') {
         final segs = uri.pathSegments.where((s) => s.isNotEmpty).toList();
         if (segs.isNotEmpty) return segs.first;

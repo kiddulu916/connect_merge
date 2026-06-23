@@ -23,7 +23,7 @@ class PlatformScoreSharer extends ScoreSharer {
   const PlatformScoreSharer();
 
   static const MethodChannel _channel =
-      MethodChannel('merge_count/facebook_share');
+      MethodChannel('connect_merge/facebook_share');
 
   @override
   Future<bool> shareToFacebook(Uint8List pngBytes) async {
@@ -43,9 +43,9 @@ class PlatformScoreSharer extends ScoreSharer {
   @override
   Future<void> shareToSheet(Uint8List pngBytes) async {
     final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/merge_count_score.png');
+    final file = File('${dir.path}/connect_merge_score.png');
     await file.writeAsBytes(pngBytes, flush: true);
     await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path)], subject: 'Merge Count'));
+        ShareParams(files: [XFile(file.path)], subject: 'Connect Merge'));
   }
 }
