@@ -26,11 +26,6 @@ const int kMaxAdContinuesPerDay = 3;
 /// purely an ad-frequency control, not a fairness lever.
 const int kMaxHintsPerDay = 3;
 
-/// Daily cap on rewarded streak-freeze grants (Phase 4). One token bridges one
-/// missed UTC day; banked tokens are additionally capped by
-/// kMaxStreakFreezeTokens in storage.
-const int kMaxFreezeGrantsPerDay = 1;
-
 /// Phase 4 — undo. Free undos a player gets per tier-day before a rewarded ad is
 /// required for further undos. The undo only rewinds local board/PRNG/move-log
 /// state to keep the run replay-consistent; it never alters the seed-fixed drop
@@ -129,9 +124,6 @@ int comboMultiplier(int n) {
 
 /// Number of the next drop tiers shown openly in the planning queue.
 const int kDropQueueVisible = 3;
-
-/// How many drops ahead the rewarded ad-hint reveals (beyond the free queue).
-const int kAdHintLookahead = 3;
 
 /// Flat coin reward for completing the daily objective (client-side wallet
 /// only — never touches score). Tuning knob.

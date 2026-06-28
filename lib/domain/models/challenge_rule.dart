@@ -21,13 +21,4 @@ extension ChallengeRuleLabel on ChallengeRule {
         ChallengeRule.wallMaze => 'Wall Maze',
         ChallengeRule.comboRush => 'Combo Rush',
       };
-
-  String get description => switch (this) {
-        ChallengeRule.budgetCut => 'Only 15 moves. Make each one count.',
-        ChallengeRule.longChainsOnly => 'Chains must be 3+ tiles. No quick pairs.',
-        ChallengeRule.denseStart => 'Board starts nearly full. Plan ahead.',
-        ChallengeRule.sparseStart => 'Board starts almost empty. Build your way up.',
-        ChallengeRule.wallMaze => '8 walls block your paths. Navigate carefully.',
-        ChallengeRule.comboRush => 'Chains of 3+ score double. Chain everything.',
-      };
 }
