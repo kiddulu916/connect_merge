@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens for Merge Count.
+/// Design tokens for Connect Merge.
 ///
 /// Single source of truth for color, spacing and radius. Screens should
 /// reference these semantic names instead of hardcoding hex / opacity values,

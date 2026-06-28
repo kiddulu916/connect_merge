@@ -24,7 +24,7 @@ void main() {
     final out = ShareGridBuilder.build(date: '2026-06-06', board: board);
     final lines = out.split('\n');
 
-    expect(lines[0], 'Merge Count 2026-06-06');
+    expect(lines[0], 'Connect Merge 2026-06-06');
     expect(lines[1], contains('Score 4096'));
     expect(lines[1], contains('24 moves'));
     expect(lines.length, 2 + kGridSize); // 2 header + 5 grid rows

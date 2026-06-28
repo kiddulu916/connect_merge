@@ -9,9 +9,9 @@ import '../domain/models/duel_challenge.dart';
 ///
 /// Supported forms:
 ///   connectmerge://invite/<code>           (custom scheme)
-///   https://mergecount.app/invite/<code>  (App Links / Universal Links fallback)
+///   https://connectmerge.app/invite/<code>  (App Links / Universal Links fallback)
 ///   `connectmerge://duel/<date>/<diff>/<score>/<name>`            (custom scheme)
-///   `https://mergecount.app/duel/<date>/<diff>/<score>/<name>`   (https fallback)
+///   `https://connectmerge.app/duel/<date>/<diff>/<score>/<name>`   (https fallback)
 ///
 /// The PURE parts — [parseInviteCode] and [DuelChallenge.fromUri] — are fully
 /// unit-tested. The app_links wiring (cold-start `getInitialLink` + warm

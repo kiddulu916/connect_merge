@@ -292,7 +292,7 @@ class ScoreShareScreen extends StatelessWidget {
   /// A plain-text fallback summary of the result, used when the rendered card
   /// can't be captured.
   String _textSummary() {
-    final buf = StringBuffer('Merge Count — ${difficulty.label}: '
+    final buf = StringBuffer('Connect Merge — ${difficulty.label}: '
         'scored ${board.score} (best tile ${1 << board.highestTier})');
     if (stats.streak > 0) buf.write(', streak ${stats.streak}');
     return buf.toString();
@@ -301,7 +301,7 @@ class ScoreShareScreen extends StatelessWidget {
   Future<void> _invite(BuildContext context) async {
     final code = friendCode;
     if (code == null) return;
-    final text = 'Add me on Merge Count! ${FriendsService.inviteLink(code)}';
+    final text = 'Add me on Connect Merge! ${FriendsService.inviteLink(code)}';
     final share = shareText ?? _nativeShare;
     await share(text);
   }
@@ -309,7 +309,7 @@ class ScoreShareScreen extends StatelessWidget {
   /// Native share sheet via share_plus (device). Used in production when no
   /// [shareText] seam is injected.
   static Future<void> _nativeShare(String text) => SharePlus.instance
-      .share(ShareParams(text: text, subject: 'Merge Count'));
+      .share(ShareParams(text: text, subject: 'Connect Merge'));
 
   Widget _xpRow() => Row(
         key: const Key('xp-row'),

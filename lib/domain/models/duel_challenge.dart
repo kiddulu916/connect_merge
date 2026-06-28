@@ -11,8 +11,8 @@ import 'difficulty.dart';
 /// leaderboard row.
 ///
 /// Link forms (mirrors [DeepLinkService] invite handling):
-///   `mergecount://duel/<date>/<diff>/<score>/<name>`
-///   `https://mergecount.app/duel/<date>/<diff>/<score>/<name>`
+///   `connectmerge://duel/<date>/<diff>/<score>/<name>`
+///   `https://connectmerge.app/duel/<date>/<diff>/<score>/<name>`
 ///
 /// The trailing `<name>` segment is percent-encoded so unicode and `/` survive
 /// the round-trip intact.
@@ -37,7 +37,7 @@ class DuelChallenge {
   });
 
   /// The https host used for the App Links / Universal Links fallback form.
-  static const String _httpsHost = 'mergecount.app';
+  static const String _httpsHost = 'connectmerge.app';
 
   /// Encode this challenge as a custom-scheme deep link.
   Uri toUri() => Uri.parse(

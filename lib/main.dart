@@ -92,8 +92,8 @@ Future<void> main() async {
     unawaited(engagement.checkChallengePayouts(leaderboard.fetch));
   }
 
-  // Deep links: invites (mergecount://invite/<code>) AND duels
-  // (mergecount://duel/...). Duels need no backend (the challenge rides in the
+  // Deep links: invites (connectmerge://invite/<code>) AND duels
+  // (connectmerge://duel/...). Duels need no backend (the challenge rides in the
   // link), so the service is started whenever EITHER is usable — i.e. always.
   // Captures cold-start links so a redeem/challenge isn't lost before the app is
   // ready; the app replays the pending code/duel once it's ready.

@@ -51,7 +51,7 @@ void main() {
     });
     test('builds the https fallback', () {
       expect(FriendsService.inviteHttpsLink('ABCD2345'),
-          'https://mergecount.app/invite/ABCD2345');
+          'https://connectmerge.app/invite/ABCD2345');
     });
   });
 

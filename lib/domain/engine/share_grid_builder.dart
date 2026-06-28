@@ -8,7 +8,7 @@ class ShareGridBuilder {
     final gs = board.gridSize;
     final best = board.highestTier;
     final sb = StringBuffer()
-      ..writeln('Merge Count $date')
+      ..writeln('Connect Merge $date')
       ..writeln(
           'Score ${board.score} · Best ${emojiForTier(best)}${1 << best} · ${board.movesMade} moves');
 

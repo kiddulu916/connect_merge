@@ -15,7 +15,7 @@ void main() {
     test('parses https fallback', () {
       expect(
         DeepLinkService.parseInviteCodeString(
-            'https://mergecount.app/invite/WXYZ7654'),
+            'https://connectmerge.app/invite/WXYZ7654'),
         'WXYZ7654',
       );
     });
