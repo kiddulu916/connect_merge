@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/presentation/widgets/drop_queue_rail.dart';
+import 'package:connect_merge/presentation/widgets/drop_queue_rail.dart';
 
 void main() {
   testWidgets('renders one chip per upcoming tier with its value', (tester) async {

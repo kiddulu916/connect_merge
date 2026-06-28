@@ -1,6 +1,6 @@
-import 'package:merge_count/infrastructure/storage_service.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/weekly_prize.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/weekly_prize.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

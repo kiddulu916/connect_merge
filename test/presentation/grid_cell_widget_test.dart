@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/models/tile.dart';
-import 'package:merge_count/presentation/widgets/grid_cell_widget.dart';
+import 'package:connect_merge/domain/models/tile.dart';
+import 'package:connect_merge/presentation/widgets/grid_cell_widget.dart';
 
 void main() {
   testWidgets('renders the tile value 2^tier', (tester) async {

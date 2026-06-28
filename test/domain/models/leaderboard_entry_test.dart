@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/models/leaderboard_entry.dart';
+import 'package:connect_merge/domain/models/leaderboard_entry.dart';
 
 void main() {
   group('LeaderboardEntry.fromJson', () {

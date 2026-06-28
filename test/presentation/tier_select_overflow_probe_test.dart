@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/models/board_state.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/game_status.dart';
-import 'package:merge_count/domain/models/tile.dart';
-import 'package:merge_count/infrastructure/ad_service.dart';
-import 'package:merge_count/infrastructure/friends_service.dart';
-import 'package:merge_count/infrastructure/leaderboard_service.dart';
-import 'package:merge_count/infrastructure/storage_service.dart';
-import 'package:merge_count/presentation/screens/tier_select_screen.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/models/board_state.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/game_status.dart';
+import 'package:connect_merge/domain/models/tile.dart';
+import 'package:connect_merge/infrastructure/ad_service.dart';
+import 'package:connect_merge/infrastructure/friends_service.dart';
+import 'package:connect_merge/infrastructure/leaderboard_service.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
+import 'package:connect_merge/presentation/screens/tier_select_screen.dart';
 
 /// Regression guard: render the screen at 375px wide (small phone) with the
 /// worst-case tier-card layout — online (per-tier leaderboard icon shown) AND

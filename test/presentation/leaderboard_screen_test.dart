@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/models/leaderboard_entry.dart';
-import 'package:merge_count/infrastructure/leaderboard_service.dart';
-import 'package:merge_count/presentation/screens/leaderboard_screen.dart';
+import 'package:connect_merge/domain/models/leaderboard_entry.dart';
+import 'package:connect_merge/infrastructure/leaderboard_service.dart';
+import 'package:connect_merge/presentation/screens/leaderboard_screen.dart';
 
 LeaderboardService _serviceReturning(List<LeaderboardEntry> entries) {
   return LeaderboardService.withSeams(

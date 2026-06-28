@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/infrastructure/contacts_hasher.dart';
+import 'package:connect_merge/infrastructure/contacts_hasher.dart';
 
 String _sha(String s) => sha256.convert(utf8.encode(s)).toString();
 

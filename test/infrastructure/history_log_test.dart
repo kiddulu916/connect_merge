@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/models/day_result.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/infrastructure/hive_storage_service.dart';
-import 'package:merge_count/infrastructure/storage_service.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/models/day_result.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/infrastructure/hive_storage_service.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
 
 DayResult result(String date,
         {Difficulty difficulty = Difficulty.medium,

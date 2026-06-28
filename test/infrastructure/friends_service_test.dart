@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/friend.dart';
-import 'package:merge_count/infrastructure/friends_service.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/friend.dart';
+import 'package:connect_merge/infrastructure/friends_service.dart';
 
 String _sha(String s) => sha256.convert(utf8.encode(s)).toString();
 

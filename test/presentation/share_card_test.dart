@@ -2,13 +2,13 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/models/board_state.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/game_status.dart';
-import 'package:merge_count/domain/models/tile.dart';
-import 'package:merge_count/infrastructure/share_card_renderer.dart';
-import 'package:merge_count/presentation/widgets/share_card.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/models/board_state.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/game_status.dart';
+import 'package:connect_merge/domain/models/tile.dart';
+import 'package:connect_merge/infrastructure/share_card_renderer.dart';
+import 'package:connect_merge/presentation/widgets/share_card.dart';
 
 BoardState _board(List<Tile?> cells, {int score = 1234}) => BoardState(
       cells: cells,

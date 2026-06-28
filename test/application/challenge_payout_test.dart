@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/application/engagement_cubit.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/leaderboard_entry.dart';
-import 'package:merge_count/infrastructure/storage_service.dart';
+import 'package:connect_merge/application/engagement_cubit.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/leaderboard_entry.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
 
 LeaderboardEntry _entry(int rank, bool isMe) =>
     LeaderboardEntry(rank: rank, displayName: 'P', score: 100, isMe: isMe);

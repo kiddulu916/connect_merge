@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
 
 void main() {
   test('starting tile counts are 40/25/20/15', () {

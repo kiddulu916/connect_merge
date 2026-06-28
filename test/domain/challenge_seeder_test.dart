@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/engine/daily_seeder.dart';
-import 'package:merge_count/domain/models/challenge_rule.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/engine/game_engine.dart';
+import 'package:connect_merge/domain/engine/daily_seeder.dart';
+import 'package:connect_merge/domain/models/challenge_rule.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/engine/game_engine.dart';
 
 void main() {
   group('DailySeeder.challengeRule', () {

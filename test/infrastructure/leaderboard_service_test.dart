@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/move.dart';
-import 'package:merge_count/infrastructure/leaderboard_service.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/move.dart';
+import 'package:connect_merge/infrastructure/leaderboard_service.dart';
 
 void main() {
   group('LeaderboardService.submitRun', () {

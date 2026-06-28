@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/models/friend.dart';
-import 'package:merge_count/infrastructure/friends_service.dart';
-import 'package:merge_count/presentation/screens/friends_screen.dart';
+import 'package:connect_merge/domain/models/friend.dart';
+import 'package:connect_merge/infrastructure/friends_service.dart';
+import 'package:connect_merge/presentation/screens/friends_screen.dart';
 
 FriendsService _service({
   RpcResultFn? rpc,

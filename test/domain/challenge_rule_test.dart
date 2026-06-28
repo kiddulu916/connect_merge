@@ -1,7 +1,7 @@
-import 'package:merge_count/domain/models/challenge_rule.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/weekly_prize.dart';
-import 'package:merge_count/domain/constants.dart';
+import 'package:connect_merge/domain/models/challenge_rule.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/weekly_prize.dart';
+import 'package:connect_merge/domain/constants.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

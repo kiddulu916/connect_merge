@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/infrastructure/ad_config.dart';
+import 'package:connect_merge/infrastructure/ad_config.dart';
 
 void main() {
   test('ships with real ad unit IDs (useTestAds is false)', () {

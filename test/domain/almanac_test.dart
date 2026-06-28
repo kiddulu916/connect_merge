@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/engine/almanac_progress.dart';
-import 'package:merge_count/domain/models/almanac.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/engine/almanac_progress.dart';
+import 'package:connect_merge/domain/models/almanac.dart';
 
 void main() {
   group('Almanac model (pure)', () {

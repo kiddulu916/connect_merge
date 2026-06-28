@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/application/loot_cubit.dart';
-import 'package:merge_count/application/loot_state.dart';
-import 'package:merge_count/domain/engine/daily_loot.dart';
-import 'package:merge_count/infrastructure/storage_service.dart';
+import 'package:connect_merge/application/loot_cubit.dart';
+import 'package:connect_merge/application/loot_state.dart';
+import 'package:connect_merge/domain/engine/daily_loot.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
 
 void main() {
   late InMemoryStorageService storage;

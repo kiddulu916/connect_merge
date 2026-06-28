@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/presentation/widgets/moves_counter.dart';
+import 'package:connect_merge/presentation/widgets/moves_counter.dart';
 
 void main() {
   testWidgets('shows moves remaining and score', (tester) async {

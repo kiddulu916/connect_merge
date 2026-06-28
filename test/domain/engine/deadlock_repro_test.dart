@@ -7,13 +7,13 @@
 // the BEST case a perfect player could achieve — if even that deadlocks fast,
 // the balance is broken.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/engine/daily_seeder.dart';
-import 'package:merge_count/domain/engine/game_engine.dart';
-import 'package:merge_count/domain/engine/prng.dart';
-import 'package:merge_count/domain/models/board_state.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/game_status.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/engine/daily_seeder.dart';
+import 'package:connect_merge/domain/engine/game_engine.dart';
+import 'package:connect_merge/domain/engine/prng.dart';
+import 'package:connect_merge/domain/models/board_state.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/game_status.dart';
 
 /// Find the longest same-tier orthogonally-adjacent simple path on the board,
 /// via greedy DFS from every live tile. Returns [] if no chain (length>=2).

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/models/daily_objective.dart';
+import 'package:connect_merge/domain/models/daily_objective.dart';
 
 void main() {
   test('chainLength objective tracks the max chain seen', () {

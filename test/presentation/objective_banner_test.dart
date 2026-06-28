@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/models/daily_objective.dart';
-import 'package:merge_count/presentation/widgets/objective_banner.dart';
+import 'package:connect_merge/domain/models/daily_objective.dart';
+import 'package:connect_merge/presentation/widgets/objective_banner.dart';
 
 void main() {
   testWidgets('shows label and progress, and a done state when met',

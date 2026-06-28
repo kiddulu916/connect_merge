@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/application/engagement_cubit.dart';
-import 'package:merge_count/domain/models/achievement.dart';
-import 'package:merge_count/domain/models/cosmetic.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/streak.dart';
-import 'package:merge_count/infrastructure/storage_service.dart';
+import 'package:connect_merge/application/engagement_cubit.dart';
+import 'package:connect_merge/domain/models/achievement.dart';
+import 'package:connect_merge/domain/models/cosmetic.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/streak.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
 
 void main() {
   group('nextStreak (pure)', () {

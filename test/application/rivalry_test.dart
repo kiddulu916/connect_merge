@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/application/rivalry_cubit.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/infrastructure/storage_service.dart';
+import 'package:connect_merge/application/rivalry_cubit.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
 
 void main() {
   group('RivalryCubit.rivalPassedMe (pure)', () {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/engine/prng.dart';
+import 'package:connect_merge/domain/engine/prng.dart';
 
 void main() {
   test('same seed yields identical sequence (reproducible)', () {

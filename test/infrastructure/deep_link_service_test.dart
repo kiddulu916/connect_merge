@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/duel_challenge.dart';
-import 'package:merge_count/infrastructure/deep_link_service.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/duel_challenge.dart';
+import 'package:connect_merge/infrastructure/deep_link_service.dart';
 
 void main() {
   group('DeepLinkService.parseInviteCode', () {

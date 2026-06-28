@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/engine/game_engine.dart';
-import 'package:merge_count/domain/engine/prng.dart';
-import 'package:merge_count/domain/models/board_state.dart';
-import 'package:merge_count/domain/models/game_status.dart';
-import 'package:merge_count/domain/models/tile.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/engine/game_engine.dart';
+import 'package:connect_merge/domain/engine/prng.dart';
+import 'package:connect_merge/domain/models/board_state.dart';
+import 'package:connect_merge/domain/models/game_status.dart';
+import 'package:connect_merge/domain/models/tile.dart';
 
 BoardState boardWith(Map<int, Tile> tiles, {int moves = kMovesPerDay}) {
   final cells = List<Tile?>.filled(kCellCount, null);

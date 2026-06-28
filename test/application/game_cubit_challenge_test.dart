@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/application/game_cubit.dart';
-import 'package:merge_count/application/game_state.dart';
-import 'package:merge_count/domain/models/challenge_rule.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/infrastructure/storage_service.dart';
+import 'package:connect_merge/application/game_cubit.dart';
+import 'package:connect_merge/application/game_state.dart';
+import 'package:connect_merge/domain/models/challenge_rule.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
 
 void main() {
   late InMemoryStorageService storage;

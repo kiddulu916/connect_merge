@@ -1,15 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/application/game_cubit.dart';
-import 'package:merge_count/application/game_state.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/engine/daily_seeder.dart';
-import 'package:merge_count/domain/engine/game_engine.dart';
-import 'package:merge_count/domain/models/board_state.dart';
-import 'package:merge_count/domain/models/difficulty.dart';
-import 'package:merge_count/domain/models/game_status.dart';
-import 'package:merge_count/domain/models/move.dart';
-import 'package:merge_count/domain/models/tile.dart';
-import 'package:merge_count/infrastructure/storage_service.dart';
+import 'package:connect_merge/application/game_cubit.dart';
+import 'package:connect_merge/application/game_state.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/engine/daily_seeder.dart';
+import 'package:connect_merge/domain/engine/game_engine.dart';
+import 'package:connect_merge/domain/models/board_state.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/game_status.dart';
+import 'package:connect_merge/domain/models/move.dart';
+import 'package:connect_merge/domain/models/tile.dart';
+import 'package:connect_merge/infrastructure/storage_service.dart';
 
 /// The replay-relevant shape of a cell: id + tier only. The server verifier
 /// (and the `replay` helper below) reconstruct tiers + positions but NOT the

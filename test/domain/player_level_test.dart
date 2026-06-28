@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:merge_count/domain/constants.dart';
-import 'package:merge_count/domain/models/player_level.dart';
+import 'package:connect_merge/domain/constants.dart';
+import 'package:connect_merge/domain/models/player_level.dart';
 
 void main() {
   group('xpForScore', () {
