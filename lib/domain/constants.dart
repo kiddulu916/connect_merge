@@ -3,8 +3,6 @@ library;
 
 import 'models/difficulty.dart';
 
-// Legacy constant — 5×5 test boards only. All game code now uses
-// board.gridSize / board.cells.length or difficulty.gridSize / difficulty.cellCount.
 const int kGridSize = 5;
 const int kCellCount = kGridSize * kGridSize; // 25
 

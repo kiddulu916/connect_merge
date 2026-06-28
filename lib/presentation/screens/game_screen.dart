@@ -172,8 +172,8 @@ class _GameScreenState extends State<GameScreen> {
     }
     final cubit = context.read<GameCubit>();
 
-    // Phase 2 meta-progression flair. XP/level reflect the post-completion
-    // engagement state (the completion hook fires before this screen builds).
+    // XP/level reflect the post-completion engagement state (the completion
+    // hook fires before this screen builds).
     final xpGained = xpForScore(board.score);
     final level = engagement?.state.level ?? 0;
     final lifetimeXp = engagement?.state.lifetimeXp ?? 0;

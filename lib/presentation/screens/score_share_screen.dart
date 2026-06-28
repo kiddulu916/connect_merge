@@ -150,7 +150,6 @@ class ScoreShareScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-              // The richer rendered share card (Phase 3) is the captured image.
               // Personal-only flair (near-miss, level-up, achievements) stays
               // OUTSIDE the boundary so the shared PNG is a clean flex card.
               RepaintBoundary(

@@ -409,15 +409,14 @@ class GameCubit extends Cubit<GameState> {
     final firstCompletionToday =
         storage.loadStats(_difficulty).lastCompletedDate != _date;
     final stats = await _recordCompletion(board);
-    // Flat completion reward (Phase 2), credited once per locked day via the
-    // wallet hook — never touches score. Tracked so it can be doubled.
+    // Flat completion reward, credited once per locked day via the wallet hook
+    // — never touches score. Tracked so it can be doubled.
     if (firstCompletionToday && kCompletionCoinReward > 0) {
       _coinsEarnedThisRun += kCompletionCoinReward;
       await onCoinsEarned?.call(kCompletionCoinReward);
     }
-    // Record the day's result in the append-only history (Phase 4), once per
-    // locked tier-day (same guard as the stats fold). The run is now locked,
-    // so clear the rewindable history too.
+    // Record the day's result in the append-only history, once per locked
+    // tier-day (same guard as the stats fold). Clear the rewindable history too.
     if (firstCompletionToday) {
       await storage.appendResult(DayResult(
         date: _date,

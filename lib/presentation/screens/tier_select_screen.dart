@@ -283,8 +283,8 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                 todayProvider: widget.todayProvider,
                 onTierCompleted: _onTierCompleted,
                 onCoinsEarned: _creditCoins,
-                // Online submit (Phase 2): wired only when a leaderboard service
-                // is present. Null offline so the cubit's submit no-ops.
+                // Wired only when a leaderboard service is present; null offline
+                // so the cubit's submit no-ops.
                 onSubmitRun: widget.leaderboard == null ? null : _submitRun,
               )..init(difficulty: difficulty),
               child: GameScreen(

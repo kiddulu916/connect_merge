@@ -95,7 +95,6 @@ class LifetimeStats {
         lastCompletedDate: j['lastCompletedDate'] as String?,
         bestScore: j['bestScore'] as int,
         bestTier: j['bestTier'] as int,
-        // Absent in pre-Phase-4 stats: default to 0 (migration-free).
         streakFreezeTokens: (j['streakFreezeTokens'] as int?) ?? 0,
       );
 }
@@ -334,26 +333,21 @@ class PlayerProfile {
         reminderMinutes: (j['reminderMinutes'] as int?) ?? 19 * 60,
         bestRankByDifficulty: ((j['bestRankByDifficulty'] as Map?) ?? const {})
             .map((k, v) => MapEntry(k as String, (v as num).toInt())),
-        // Absent in pre-Phase-1 profiles: migration-free defaults.
         coins: (j['coins'] as int?) ?? 0,
         lastLootClaimDate: j['lastLootClaimDate'] as String?,
-        // Absent in pre-Phase-2 profiles: migration-free defaults.
         purchasedCosmetics: ((j['purchasedCosmetics'] as List?) ?? const [])
             .map((e) => e as String)
             .toSet(),
         lifetimeXp: (j['lifetimeXp'] as int?) ?? 0,
         almanacCounts: ((j['almanacCounts'] as Map?) ?? const {})
             .map((k, v) => MapEntry(k as String, (v as num).toInt())),
-        // Absent in pre-Phase-3 profiles: migration-free defaults.
         rivalId: j['rivalId'] as String?,
         rivalName: j['rivalName'] as String?,
         lastSeenRivalScoreByTier:
             ((j['lastSeenRivalScoreByTier'] as Map?) ?? const {})
                 .map((k, v) => MapEntry(k as String, (v as num).toInt())),
-        // Absent in pre-Phase-4 profiles: migration-free defaults.
         tutorialSeen: (j['tutorialSeen'] as bool?) ?? false,
         colorblindMode: (j['colorblindMode'] as bool?) ?? false,
-        // Absent in pre-weekly-prize profiles: migration-free defaults.
         lastWeeklyPrizeDate: j['lastWeeklyPrizeDate'] as String?,
         weeklyPrizes: ((j['weeklyPrizes'] as List?) ?? const [])
             .map((e) => WeeklyPrize.fromJson(Map<String, dynamic>.from(e as Map)))

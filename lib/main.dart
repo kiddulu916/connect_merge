@@ -33,9 +33,8 @@ Future<void> main() async {
   final adService = AdService();
   await adService.init();
 
-  // Phase 4 retention layer. Notifications are LOCAL only (\$0, no FCM). We init
-  // the plugin + timezone here but request OS permission lazily (after the first
-  // completion), never at cold launch.
+  // Notifications are LOCAL only ($0, no FCM). Init the plugin + timezone here
+  // but request OS permission lazily (after the first completion), never at cold launch.
   tzdata.initializeTimeZones();
   try {
     tz.setLocalLocation(tz.getLocation(tz.local.name));
@@ -57,14 +56,14 @@ Future<void> main() async {
 
   final engagement = EngagementCubit(storage: storage)..load();
 
-  // Phase 3 social layer. Both are profile-backed + offline-safe: the rival
-  // relationship persists locally and duels carry their payload in the link, so
-  // neither needs a backend ($0). Hydrate the rival from storage now.
+  // Both are profile-backed + offline-safe: the rival relationship persists
+  // locally and duels carry their payload in the link, so neither needs a backend ($0).
+  // Hydrate the rival from storage now.
   final rivalry = RivalryCubit(storage: storage)..load();
   final duels = DuelCubit(todayProvider: utcToday);
 
-  // Online layer (Phase 2). Degrades gracefully: if Supabase isn't configured
-  // (no --dart-define) or anon sign-in fails, the game still runs offline.
+  // Degrades gracefully: if Supabase isn't configured (no --dart-define) or
+  // anon sign-in fails, the game still runs offline.
   AuthService? auth;
   LeaderboardService? leaderboard;
   FriendsService? friends;

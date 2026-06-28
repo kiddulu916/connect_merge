@@ -195,7 +195,7 @@ class EngagementCubit extends Cubit<EngagementState> {
       purchased: purchased,
     );
 
-    // --- Meta-progression: XP + Almanac (Phase 2, pure client-side flair). ---
+    // --- Meta-progression: XP + Almanac (pure client-side flair). ---
     final lifetimeXp = profile.lifetimeXp + xpForScore(score);
     final almanacCounts =
         foldRunIntoAlmanac(profile.almanacCounts, highestTier);

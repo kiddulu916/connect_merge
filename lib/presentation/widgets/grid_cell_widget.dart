@@ -35,8 +35,8 @@ class GridCellWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: TilePalette.colorFor(cosmetic, t?.tier ?? 0),
         borderRadius: BorderRadius.circular(size * 0.16),
-        // Golden tiles (Phase 1) get a warm sparkle border so the in-loop
-        // variable reward reads instantly. Purely visual.
+        // Golden tiles get a warm sparkle border so the in-loop variable reward
+        // reads instantly. Purely visual.
         border: golden
             ? Border.all(color: Colors.amberAccent, width: size * 0.06)
             : null,
