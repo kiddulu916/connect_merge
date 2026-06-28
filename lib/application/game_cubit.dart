@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../domain/constants.dart';
+import '../domain/date_utils.dart' as date_utils;
 import '../domain/engine/daily_seeder.dart';
 import '../domain/engine/game_engine.dart';
 import '../domain/engine/prng.dart';
@@ -43,12 +44,13 @@ class _UndoFrame {
 }
 
 /// Formats a DateTime as the canonical YYYY-MM-DD seeding key.
-String formatDate(DateTime d) =>
-    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+/// Delegates to [domain/date_utils.dart]; kept here so callers that already
+/// `import 'game_cubit.dart' show formatDate` continue to compile unchanged.
+String formatDate(DateTime d) => date_utils.formatDate(d);
 
 /// The canonical UTC date string used for seeding and storage everywhere.
-/// A single helper avoids local/UTC mixing (off-by-one near midnight).
-String utcToday() => formatDate(DateTime.now().toUtc());
+/// Delegates to [domain/date_utils.dart]; kept here for backward compatibility.
+String utcToday() => date_utils.utcToday();
 
 /// Orchestrates the daily game for one difficulty tier. **Call [init] before any
 /// other method** — `merge`/`grantAdReward` rely on fields set up there (they

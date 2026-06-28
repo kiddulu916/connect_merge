@@ -1,4 +1,4 @@
-import '../../application/game_cubit.dart' show formatDate;
+import '../date_utils.dart' show formatDate;
 
 /// Result of a pure streak transition: the new streak value and whether a freeze
 /// token was consumed to bridge a one-day gap.
