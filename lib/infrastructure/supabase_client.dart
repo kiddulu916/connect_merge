@@ -21,9 +21,8 @@ Future<bool> initSupabase() async {
   if (!SupabaseConfig.isConfigured) return false;
   await Supabase.initialize(
     url: SupabaseConfig.url,
-    // The anon (publishable) key arrives via --dart-define SUPABASE_ANON_KEY.
-    // ignore: deprecated_member_use
-    anonKey: SupabaseConfig.anonKey,
+    // The publishable (anon) key arrives via --dart-define SUPABASE_ANON_KEY.
+    publishableKey: SupabaseConfig.anonKey,
   );
   return true;
 }
