@@ -10,7 +10,7 @@ import '../domain/models/player_level.dart';
 import '../domain/models/streak.dart';
 import '../domain/models/weekly_prize.dart';
 import '../infrastructure/storage_service.dart';
-import 'game_cubit.dart' show utcToday;
+import 'game_cubit.dart' show formatDate, utcToday;
 
 /// Immutable view of the player's retention state for the UI.
 class EngagementState {
@@ -314,10 +314,7 @@ class EngagementCubit extends Cubit<EngagementState> {
     }) fetchFn,
   ) async {
     final today = todayProvider();
-    final yesterday = DateTime.parse(today)
-        .subtract(const Duration(days: 1))
-        .toIso8601String()
-        .substring(0, 10);
+    final yesterday = previousUtcDay(today);
 
     final profile = storage.loadProfile();
     if (profile.lastDailyPrizeDate == yesterday) return;
@@ -448,7 +445,7 @@ class EngagementCubit extends Cubit<EngagementState> {
     final month = int.parse(parts[1]);
     // Last day = day 0 of next month.
     final last = DateTime.utc(year, month + 1, 0);
-    return '${last.year.toString().padLeft(4, '0')}-${last.month.toString().padLeft(2, '0')}-${last.day.toString().padLeft(2, '0')}';
+    return formatDate(last);
   }
 
   /// Check if the player placed top-3 in last calendar month's leaderboard for
@@ -516,10 +513,7 @@ class EngagementCubit extends Cubit<EngagementState> {
     }) fetchFn,
   ) async {
     final today = todayProvider();
-    final yesterday = DateTime.parse(today)
-        .subtract(const Duration(days: 1))
-        .toIso8601String()
-        .substring(0, 10);
+    final yesterday = previousUtcDay(today);
 
     final profile = storage.loadProfile();
     if (profile.lastChallengeCheckDate == yesterday) return; // already checked

@@ -34,18 +34,15 @@ extension LeaderboardPeriodX on LeaderboardPeriod {
         // Calendar week: Monday of the current ISO week → today.
         // Matches the [from, to] range used by checkWeeklyPrizes.
         final daysSinceMonday = (t.weekday - 1) % 7;
-        return (_fmt(t.subtract(Duration(days: daysSinceMonday))), today);
+        return (formatDate(t.subtract(Duration(days: daysSinceMonday))), today);
       case LeaderboardPeriod.monthly:
         // Calendar month: 1st of the current month → today.
-        return (_fmt(DateTime.utc(t.year, t.month, 1)), today);
+        return (formatDate(DateTime.utc(t.year, t.month, 1)), today);
       case LeaderboardPeriod.allTime:
         // Launch floor; well before any real score exists.
         return ('2020-01-01', today);
     }
   }
-
-  static String _fmt(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
 
 /// Per-tier daily leaderboard with tier tabs and a Global / Friends toggle.
