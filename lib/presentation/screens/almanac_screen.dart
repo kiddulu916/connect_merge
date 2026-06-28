@@ -5,6 +5,7 @@ import '../../domain/models/almanac.dart';
 import '../../domain/models/cosmetic.dart';
 import '../../domain/models/player_level.dart';
 import '../theme/tile_palette.dart';
+import '../theme/tokens.dart';
 import '../widgets/level_badge.dart';
 
 /// The Merge Almanac — a fillable "book" of every tile tier, how many times the
@@ -31,9 +32,9 @@ class AlmanacScreen extends StatelessWidget {
     final level = levelForXp(lifetimeXp);
     final entries = almanac.entries.reversed.toList(); // highest tier first
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12141C),
+        backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
         title: const Text('Merge Almanac'),
       ),
@@ -54,7 +55,7 @@ class AlmanacScreen extends StatelessWidget {
       key: const Key('almanac-header'),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -102,7 +103,7 @@ class AlmanacScreen extends StatelessWidget {
         key: Key('almanac-tier-${e.tier}'),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1B1E2A),
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: mastered ? Colors.amberAccent : Colors.white12,

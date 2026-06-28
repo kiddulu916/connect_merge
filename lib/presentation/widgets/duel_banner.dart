@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/duel_challenge.dart';
+import '../theme/tokens.dart';
 
 /// "You were challenged — play this board" call-to-action (Phase 3).
 ///
@@ -38,7 +39,7 @@ class DuelBanner extends StatelessWidget {
       key: const Key('duel-banner'),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.cyanAccent, width: 1.5),
       ),

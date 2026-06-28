@@ -6,6 +6,7 @@ import '../../domain/models/leaderboard_entry.dart';
 import '../../domain/models/weekly_prize.dart';
 import '../../infrastructure/friends_service.dart';
 import '../../infrastructure/leaderboard_service.dart';
+import '../theme/tokens.dart';
 import '../widgets/leaderboard_row.dart';
 
 /// Which board the user is viewing within a tier.
@@ -108,9 +109,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   Widget build(BuildContext context) {
     final showToggle = widget.friendsService != null;
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12141C),
+        backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
         title: const Text('Leaderboard'),
         bottom: TabBar(

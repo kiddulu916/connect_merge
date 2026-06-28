@@ -4,6 +4,7 @@ import '../../application/game_cubit.dart' show formatDate;
 import '../../domain/models/day_result.dart';
 import '../../domain/models/difficulty.dart';
 import '../theme/tile_palette.dart';
+import '../theme/tokens.dart';
 
 /// Wordle-style month grid of past daily results (Phase 4). Pure presentation:
 /// the caller passes the full append-only [history] (from
@@ -68,7 +69,7 @@ class _StatsCalendarScreenState extends State<StatsCalendarScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1B1E2A),
+        backgroundColor: AppColors.surface,
         title: Text(r.date, style: const TextStyle(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -106,9 +107,9 @@ class _StatsCalendarScreenState extends State<StatsCalendarScreen> {
     final totalCells = leading + daysInMonth;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12141C),
+        backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
         title: const Text('Stats calendar'),
       ),
@@ -210,7 +211,7 @@ class _DayCell extends StatelessWidget {
     // A higher tier gets a stronger (more opaque) tint.
     final color = hasResult
         ? TilePalette.colorForTier(r.highestTier)
-        : const Color(0xFF1B1E2A);
+        : AppColors.surface;
     final opacity =
         hasResult ? (0.45 + 0.05 * r.highestTier).clamp(0.45, 1.0) : 1.0;
     return GestureDetector(

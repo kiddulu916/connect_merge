@@ -6,6 +6,7 @@ import '../../application/rivalry_cubit.dart';
 import '../../domain/models/difficulty.dart';
 import '../../domain/models/friend.dart';
 import '../../infrastructure/friends_service.dart';
+import '../theme/tokens.dart';
 import '../widgets/friends_leaderboard.dart';
 
 /// Friends hub: your friend code + invite, add-by-code, optional contacts
@@ -173,9 +174,9 @@ class _FriendsScreenState extends State<FriendsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12141C),
+        backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
         title: const Text('Friends'),
       ),

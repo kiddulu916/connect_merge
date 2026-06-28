@@ -20,6 +20,7 @@ import '../widgets/hint_button.dart';
 import '../widgets/moves_counter.dart';
 import '../widgets/objective_banner.dart';
 import '../widgets/rewarded_dialog.dart';
+import '../theme/tokens.dart';
 import '../widgets/streak_banner.dart';
 import 'score_share_screen.dart';
 import 'stats_calendar_screen.dart';
@@ -105,7 +106,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Stack(
           children: [

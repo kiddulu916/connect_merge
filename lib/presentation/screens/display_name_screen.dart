@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../infrastructure/auth_service.dart';
+import '../theme/tokens.dart';
 
 /// First-run display-name capture. Persists the player's name (and an optional
 /// emoji avatar) before they can appear on a leaderboard. Names are non-unique
@@ -60,7 +61,7 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -88,7 +89,7 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
                   hintText: 'Your name',
                   hintStyle: const TextStyle(color: Colors.white30),
                   filled: true,
-                  fillColor: const Color(0xFF1B1E2A),
+                  fillColor: AppColors.surface,
                   counterStyle: const TextStyle(color: Colors.white38),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -114,7 +115,7 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
                         decoration: BoxDecoration(
                           color: _avatar == a
                               ? Colors.deepPurpleAccent
-                              : const Color(0xFF1B1E2A),
+                              : AppColors.surface,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.center,

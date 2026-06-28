@@ -5,6 +5,7 @@ import '../../domain/models/cosmetic.dart';
 import '../../domain/models/difficulty.dart';
 import '../../domain/models/tile.dart';
 import '../theme/tile_palette.dart';
+import '../theme/tokens.dart';
 import 'level_badge.dart';
 
 /// The rendered, screenshot-worthy result card (Phase 3 richer share card).
@@ -60,7 +61,7 @@ class ShareCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1B1E2A), Color(0xFF12141C)],
+          colors: [AppColors.surface, AppColors.background],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white12),

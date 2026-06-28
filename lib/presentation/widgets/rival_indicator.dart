@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../application/rivalry_cubit.dart';
+import '../theme/tokens.dart';
 
 /// Persistent you-vs-rival chip (Phase 3), shown on the game / result screens.
 ///
@@ -34,7 +35,7 @@ class RivalIndicator extends StatelessWidget {
       key: const Key('rival-indicator'),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: accent.withValues(alpha: 0.6)),
       ),

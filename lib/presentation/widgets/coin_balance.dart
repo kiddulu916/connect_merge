@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/tokens.dart';
+
 /// A small wallet-balance pill reused across screens (Phase 1).
 class CoinBalance extends StatelessWidget {
   final int coins;
@@ -12,7 +14,7 @@ class CoinBalance extends StatelessWidget {
       key: const Key('coin-balance'),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.5)),
       ),

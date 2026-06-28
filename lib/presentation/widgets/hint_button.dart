@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/tokens.dart';
+
 /// Rewarded "reveal the next drop" hint button. Pure presentation: the parent
 /// decides whether a hint is available ([enabled]) and what happens on tap
 /// ([onTap] — show the rewarded ad, then reveal via
@@ -34,7 +36,7 @@ class HintReveal extends StatelessWidget {
       key: const Key('hint-reveal'),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text('Next drop: ${1 << tier}',

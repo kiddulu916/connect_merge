@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/tokens.dart';
+
 /// Compact headline-streak banner with an optional rewarded streak-freeze CTA.
 /// Pure presentation — the parent supplies the current streak/token count and
 /// the freeze callback (which wires the rewarded ad + [EngagementCubit]).
@@ -24,7 +26,7 @@ class StreakBanner extends StatelessWidget {
       key: const Key('streak-banner'),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(

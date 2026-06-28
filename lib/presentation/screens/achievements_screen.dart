@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/achievement.dart';
+import '../theme/tokens.dart';
 
 /// A grid of all achievements, showing locked vs unlocked state. Pure
 /// presentation: the caller passes the currently-unlocked set (from
@@ -13,9 +14,9 @@ class AchievementsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12141C),
+        backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
         title: const Text('Achievements'),
       ),
@@ -47,7 +48,7 @@ class _Badge extends StatelessWidget {
       key: Key('badge-${achievement.name}'),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isUnlocked ? Colors.amberAccent : Colors.white12,

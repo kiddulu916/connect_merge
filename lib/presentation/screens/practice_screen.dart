@@ -9,6 +9,7 @@ import '../../domain/models/game_status.dart';
 import '../../infrastructure/ad_service.dart';
 import '../../infrastructure/practice_seeder.dart';
 import '../widgets/banner_slot.dart';
+import '../theme/tokens.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/moves_counter.dart';
 
@@ -84,9 +85,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
   Widget build(BuildContext context) {
     final done = _board.status != GameStatus.playing;
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12141C),
+        backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
         title: const Text('Practice'),
       ),

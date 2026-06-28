@@ -12,6 +12,7 @@ import '../../infrastructure/friends_service.dart';
 import '../../infrastructure/score_sharer.dart';
 import '../../infrastructure/share_card_renderer.dart';
 import '../../infrastructure/storage_service.dart';
+import '../theme/tokens.dart';
 import '../widgets/level_badge.dart';
 import '../widgets/share_card.dart';
 
@@ -134,7 +135,7 @@ class ScoreShareScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         // Scrollable so the richer card + flair never overflow on short screens
         // (the card alone is tall); the LayoutBuilder keeps it vertically
@@ -332,7 +333,7 @@ class ScoreShareScreen extends StatelessWidget {
         key: const Key('level-up-banner'),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF1B1E2A),
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.amberAccent, width: 1.5),
         ),
@@ -352,7 +353,7 @@ class ScoreShareScreen extends StatelessWidget {
         key: const Key('newly-unlocked-banner'),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1B1E2A),
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.amberAccent, width: 1.5),
         ),

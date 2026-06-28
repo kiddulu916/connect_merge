@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../application/loot_cubit.dart';
 import '../../application/loot_state.dart';
 import '../../infrastructure/ad_service.dart';
+import '../theme/tokens.dart';
 import '../widgets/coin_balance.dart';
 
 /// The Daily Loot Chest screen: tap a sealed chest to reveal the day's
@@ -34,9 +35,9 @@ class LootChestScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF12141C),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12141C),
+        backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
         title: const Text('Daily Chest'),
       ),

@@ -5,6 +5,7 @@ import '../../application/engagement_cubit.dart';
 import '../../domain/models/cosmetic.dart';
 import '../../infrastructure/ad_service.dart';
 import '../theme/tile_palette.dart';
+import '../theme/tokens.dart';
 import '../widgets/coin_balance.dart';
 import '../widgets/price_tag.dart';
 
@@ -40,9 +41,9 @@ class _CosmeticsScreenState extends State<CosmeticsScreen> {
       bloc: widget.engagement,
       builder: (context, state) {
         return Scaffold(
-          backgroundColor: const Color(0xFF12141C),
+          backgroundColor: AppColors.background,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF12141C),
+            backgroundColor: AppColors.background,
             foregroundColor: Colors.white,
             title: const Text('Tile Themes'),
             actions: [
@@ -134,7 +135,7 @@ class _CosmeticTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: const Color(0xFF1B1E2A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           key: Key('cosmetic-${cosmetic.name}'),
