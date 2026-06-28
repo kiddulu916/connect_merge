@@ -1,12 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Contacts is OPT-IN and used ONLY to find friends already on Merge Count.
+    <!-- Contacts is OPT-IN and used ONLY to find friends already on Connect Merge.
          Raw phone numbers / emails NEVER leave the device — they are normalized
          and SHA256-hashed on-device, and only hashes are checked against
          opted-in players. Denying this permission keeps friend codes fully
          usable. -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <application
-        android:label="Merge Count"
+        android:label="Connect Merge"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <meta-data
@@ -33,21 +33,21 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Invite deep links: mergecount://invite/<code> -->
+            <!-- Invite deep links: connectmerge://invite/<code> -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="mergecount" android:host="invite"/>
+                <data android:scheme="connectmerge" android:host="invite"/>
             </intent-filter>
-            <!-- App Links (https) fallback: https://mergecount.app/invite/<code>.
+            <!-- App Links (https) fallback: https://connectmerge.app/invite/<code>.
                  autoVerify requires a hosted assetlinks.json; left enabled so it
                  can be verified once the domain is configured (see Open Items). -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="mergecount.app"
+                <data android:scheme="https" android:host="connectmerge.app"
                       android:pathPrefix="/invite"/>
             </intent-filter>
         </activity>
