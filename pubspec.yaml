@@ -27,6 +27,34 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/icon.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#060818"
+  adaptive_icon_foreground: "assets/images/icon.png"
+  min_sdk_android: 21
+  web:
+    generate: false
+  windows:
+    generate: false
+  macos:
+    generate: false
+
+flutter_native_splash:
+  color: "#060818"
+  image: "assets/images/icon.png"
+  android_12:
+    color: "#060818"
+    image: "assets/images/icon.png"
+    icon_background_color: "#060818"
+  fullscreen: false
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
