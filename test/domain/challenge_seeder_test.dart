@@ -8,17 +8,17 @@ import 'package:connect_merge/domain/engine/game_engine.dart';
 void main() {
   group('DailySeeder.challengeRule', () {
     test('same date always returns the same rule (deterministic)', () {
-      final s1 = DailySeeder('2026-06-23', Difficulty.challenge);
-      final s2 = DailySeeder('2026-06-23', Difficulty.challenge);
+      const s1 = DailySeeder('2026-06-23', Difficulty.challenge);
+      const s2 = DailySeeder('2026-06-23', Difficulty.challenge);
       expect(s1.challengeRule, equals(s2.challengeRule));
     });
 
     test('different dates can return different rules', () {
       // Not guaranteed to differ, but tests that the indexing is date-bound.
       final rules = {
-        DailySeeder('2026-06-23', Difficulty.challenge).challengeRule,
-        DailySeeder('2026-06-24', Difficulty.challenge).challengeRule,
-        DailySeeder('2026-06-25', Difficulty.challenge).challengeRule,
+        const DailySeeder('2026-06-23', Difficulty.challenge).challengeRule,
+        const DailySeeder('2026-06-24', Difficulty.challenge).challengeRule,
+        const DailySeeder('2026-06-25', Difficulty.challenge).challengeRule,
       };
       // At least one valid ChallengeRule returned.
       expect(rules.every((r) => ChallengeRule.values.contains(r)), isTrue);
@@ -27,13 +27,13 @@ void main() {
 
   group('DailySeeder.generate with overrides', () {
     test('budgetCut: board has movesRemaining = 15', () {
-      final seeder = DailySeeder('2026-06-23', Difficulty.challenge);
+      const seeder = DailySeeder('2026-06-23', Difficulty.challenge);
       final start = seeder.generate(movesOverride: kChallengeMoves);
       expect(start.board.movesRemaining, equals(kChallengeMoves));
     });
 
     test('denseStart: board has correct fill', () {
-      final seeder = DailySeeder('2026-06-23', Difficulty.challenge);
+      const seeder = DailySeeder('2026-06-23', Difficulty.challenge);
       final start = seeder.generate(startingFillOverride: kChallengeDenseFill);
       final filled = start.board.cells.where((c) => c != null).length;
       // Dense fill may be adjusted slightly by the deadlock-safe re-roll,
@@ -42,7 +42,7 @@ void main() {
     });
 
     test('wallMaze: board has 8 wall cells', () {
-      final seeder = DailySeeder('2026-06-23', Difficulty.challenge);
+      const seeder = DailySeeder('2026-06-23', Difficulty.challenge);
       final start = seeder.generate(wallCountOverride: kChallengeWallMazeCount);
       expect(start.board.walls.length, equals(kChallengeWallMazeCount));
     });
@@ -52,7 +52,7 @@ void main() {
     test('N=2 chain scores same with or without comboRush override', () {
       // Build a minimal 2-tile board for a chain test.
       // Use Difficulty.hard (6x6).
-      final seeder = DailySeeder('2026-06-23', Difficulty.hard);
+      const seeder = DailySeeder('2026-06-23', Difficulty.hard);
       final start = seeder.generate();
       // Find any adjacent pair.
       final board = start.board;
@@ -72,7 +72,7 @@ void main() {
       if (a == null) return; // no adjacent pair on this seed; test passes vacuously
 
       final normalScore =
-          GameEngine.collapseChain(board, [a!, b!]).score - board.score;
+          GameEngine.collapseChain(board, [a, b!]).score - board.score;
       final rushScore = GameEngine.collapseChain(
         board,
         [a, b],

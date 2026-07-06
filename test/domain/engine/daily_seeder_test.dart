@@ -148,18 +148,18 @@ void main() {
 
   group('Connect-Merge seeding', () {
     test('wallIndices is deterministic and sized per difficulty', () {
-      final s = DailySeeder('2026-06-20', Difficulty.hard);
+      const s = DailySeeder('2026-06-20', Difficulty.hard);
       expect(s.wallIndices().length, wallCountFor(Difficulty.hard));
-      expect(s.wallIndices(), DailySeeder('2026-06-20', Difficulty.hard).wallIndices());
+      expect(s.wallIndices(), const DailySeeder('2026-06-20', Difficulty.hard).wallIndices());
     });
 
     test('easy has wallCountFor(easy) walls (currently 2)', () {
-      final walls = DailySeeder('2026-06-20', Difficulty.easy).wallIndices();
+      final walls = const DailySeeder('2026-06-20', Difficulty.easy).wallIndices();
       expect(walls.length, wallCountFor(Difficulty.easy));
     });
 
     test('generated board carries walls and never places a tile on one', () {
-      final s = DailySeeder('2026-06-20', Difficulty.legendary);
+      const s = DailySeeder('2026-06-20', Difficulty.legendary);
       final start = s.generate();
       expect(start.board.walls, s.wallIndices());
       for (final w in start.board.walls) {
@@ -171,7 +171,7 @@ void main() {
 
   group('Connect-Merge drops & objective', () {
     test('drop-tier stream is deterministic and band-capped by index', () {
-      final s = DailySeeder('2026-06-20', Difficulty.medium);
+      const s = DailySeeder('2026-06-20', Difficulty.medium);
       final p1 = s.dropTierPrng();
       final p2 = s.dropTierPrng();
       for (var n = 0; n < 50; n++) {
@@ -183,7 +183,7 @@ void main() {
     });
 
     test('dailyObjective is deterministic and valid', () {
-      final s = DailySeeder('2026-06-20', Difficulty.medium);
+      const s = DailySeeder('2026-06-20', Difficulty.medium);
       final o = s.dailyObjective();
       expect(o.target > 0, isTrue);
       expect(s.dailyObjective().kind, o.kind);

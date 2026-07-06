@@ -238,8 +238,8 @@ void main() {
   group('UNDO refunds objective-reward coins (no farming)', () {
     // Date + difficulty where dailyObjective() == chainLength target 4,
     // walls are {6, 14} (never touching cells 0-3), confirmed above.
-    const _objDate = '2026-06-04';
-    const _objDiff = Difficulty.medium;
+    const objDate = '2026-06-04';
+    const objDiff = Difficulty.medium;
 
     /// Returns a cubit resumed on a board whose cells 0-3 are all tier-1
     /// (a valid 4-chain) while the rest of the base board is untouched so
@@ -247,7 +247,7 @@ void main() {
     /// move that meets the chainLength=4 objective.
     Future<GameCubit> objectiveCubit(
         Future<void> Function(int delta) onCoins) async {
-      final base = DailySeeder(_objDate, _objDiff).generate().board;
+      final base = const DailySeeder(objDate, objDiff).generate().board;
       final cells = List<Tile?>.of(base.cells);
       // Four orthogonally adjacent tier-1 tiles in row 0, cols 0-3.
       cells[0] = const Tile(id: 800, tier: 1);
@@ -255,15 +255,15 @@ void main() {
       cells[2] = const Tile(id: 802, tier: 1);
       cells[3] = const Tile(id: 803, tier: 1);
       await storage.saveSnapshot(GameSnapshot(
-          date: _objDate,
-          difficulty: _objDiff,
+          date: objDate,
+          difficulty: objDiff,
           board: base.copyWith(cells: cells),
           completed: false));
       final c = GameCubit(
           storage: storage,
-          todayProvider: () => _objDate,
+          todayProvider: () => objDate,
           onCoinsEarned: onCoins);
-      await c.init(difficulty: _objDiff);
+      await c.init(difficulty: objDiff);
       return c;
     }
 

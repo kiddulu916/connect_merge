@@ -45,7 +45,7 @@ void main() {
     }
     if (a == null) return; // no adjacent pair on this seed; vacuous pass
     final scoreBefore = board.score;
-    await cubit.playChain([a!, b!]);
+    await cubit.playChain([a, b!]);
     // Score should be unchanged (move rejected).
     if (cubit.state is GamePlaying) {
       expect((cubit.state as GamePlaying).board.score, equals(scoreBefore));
