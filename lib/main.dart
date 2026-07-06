@@ -13,6 +13,7 @@ import 'application/rivalry_cubit.dart';
 import 'domain/models/duel_challenge.dart';
 import 'domain/models/friend.dart';
 import 'infrastructure/ad_service.dart';
+import 'infrastructure/consent_service.dart';
 import 'infrastructure/auth_service.dart';
 import 'infrastructure/deep_link_service.dart';
 import 'infrastructure/friends_service.dart';
@@ -31,7 +32,7 @@ Future<void> main() async {
   await storage.init();
 
   final adService = AdService();
-  await adService.init();
+  await adService.init(ConsentService());
 
   // Notifications are LOCAL only ($0, no FCM). Init the plugin + timezone here
   // but request OS permission lazily (after the first completion), never at cold launch.
