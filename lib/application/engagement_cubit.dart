@@ -349,24 +349,36 @@ class EngagementCubit extends Cubit<EngagementState> {
   // Weekly prize helpers
   // ---------------------------------------------------------------------------
 
-  /// Returns the Monday of the most recent completed ISO week (last Monday in UTC).
-  /// "Last Monday" = today if today IS Monday, else the preceding Monday.
-  static String _lastMonday(String today) {
+  /// Returns the Monday of the ISO week that contains [today].
+  /// Monday=1 through Sunday=7 in Dart's weekday numbering.
+  static String _thisWeekMonday(String today) {
     final d = DateTime.parse(today);
-    // weekday: Mon=1 ... Sun=7
     final daysSinceMonday = (d.weekday - 1) % 7;
     final monday = d.subtract(Duration(days: daysSinceMonday));
     return monday.toIso8601String().substring(0, 10);
   }
 
-  static String _lastSunday(String monday) {
+  /// Returns the Sunday that is 6 days after [monday].
+  static String _weekSunday(String monday) {
     final m = DateTime.parse(monday);
     return m.add(const Duration(days: 6)).toIso8601String().substring(0, 10);
   }
 
+  /// Returns the Monday of the most recently COMPLETED ISO week (Mon–Sun that
+  /// ended before today). Mirrors the monthly prize logic: prizes are awarded
+  /// once the period has fully closed, so the full week's data is available.
+  static String _prevWeekMonday(String today) {
+    final thisMonday = _thisWeekMonday(today);
+    final d = DateTime.parse(thisMonday);
+    // DateTime.utc handles month/year rollover correctly (e.g. Jun-1 - 7 = May 25).
+    return formatDate(DateTime.utc(d.year, d.month, d.day - 7));
+  }
+
   /// Check if the player placed top-3 in last week's leaderboard for any tier.
+  /// "Last week" = the Mon–Sun period that COMPLETED before today; prizes are
+  /// awarded once per completed week (not per week-start) so the full 7-day
+  /// data set is always available when the check runs.
   /// Idempotent: the `lastWeeklyPrizeDate` guard prevents double-granting.
-  /// [fetchPeriod] is the transport seam — matches [LeaderboardService.fetchPeriod]'s signature.
   Future<void> checkWeeklyPrizes(
     Future<List<LeaderboardEntry>> Function({
       required Difficulty difficulty,
@@ -375,11 +387,11 @@ class EngagementCubit extends Cubit<EngagementState> {
     }) fetchPeriod,
   ) async {
     final today = todayProvider();
-    final lastMonday = _lastMonday(today);
-    final lastSunday = _lastSunday(lastMonday);
+    final weekFrom = _prevWeekMonday(today); // previous week's Monday
+    final weekTo = _weekSunday(weekFrom);    // previous week's Sunday
 
     final profile = storage.loadProfile();
-    if (profile.lastWeeklyPrizeDate == lastMonday) return; // already checked this week
+    if (profile.lastWeeklyPrizeDate == weekFrom) return;
 
     int? bestRank; // best (lowest) rank across all non-challenge tiers
     final newCrowns = <WeeklyPrize>[];
@@ -389,8 +401,8 @@ class EngagementCubit extends Cubit<EngagementState> {
       try {
         final entries = await fetchPeriod(
           difficulty: difficulty,
-          from: lastMonday,
-          to: lastSunday,
+          from: weekFrom,
+          to: weekTo,
         );
         final myEntry = entries.where((e) => e.isMe).firstOrNull;
         if (myEntry == null) continue;
@@ -400,7 +412,7 @@ class EngagementCubit extends Cubit<EngagementState> {
             bestRank = myEntry.rank;
           }
           newCrowns.add(WeeklyPrize(
-            weekStart: lastMonday,
+            weekStart: weekFrom,
             tier: difficulty,
             rank: myEntry.rank,
           ));
@@ -410,11 +422,11 @@ class EngagementCubit extends Cubit<EngagementState> {
       }
     }
 
-    // Award coins once for the best rank achieved across all tiers this week.
+    // Award coins once for the best rank achieved across all tiers last week.
     final totalCoins = bestRank != null ? (_weeklyCoins[bestRank] ?? 0) : 0;
 
     final updatedProfile = profile.copyWith(
-      lastWeeklyPrizeDate: lastMonday,
+      lastWeeklyPrizeDate: weekFrom,
       weeklyPrizes: [...profile.weeklyPrizes, ...newCrowns],
       coins: profile.coins + totalCoins,
     );
