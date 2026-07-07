@@ -11,6 +11,7 @@
 import { Prng } from "./prng.ts";
 import { challengeRule, DailySeeder } from "./seeder.ts";
 import {
+  ascendBonus,
   comboMultiplier,
   comboRushMultiplier,
   type Difficulty,
@@ -74,27 +75,32 @@ export function areOrthogonallyAdjacent(a: number, b: number, gridSize: number):
 }
 
 /**
- * A legal Connect-Merge path: length >= 2, no repeats, every cell holds a live
- * tile sharing one tier below the cap, consecutive cells orthogonally adjacent.
- * Walls hold no tile, so they are rejected by the null-cell check.
+ * A legal Connect-Merge path: length >= 2, no repeats, every cell holds a
+ * live tile, consecutive cells orthogonally adjacent, and each step's tier is
+ * either equal to or exactly one higher than the previous tile's tier (never
+ * descends, never skips a tier). Since the path is thus non-decreasing, the
+ * final tile is always the peak, and it alone must sit below the cap. Walls
+ * hold no tile, so they are rejected by the null-cell check.
  */
 export function isValidChain(s: BoardState, path: number[]): boolean {
   if (!Array.isArray(path) || path.length < 2) return false;
   const seen = new Set<number>();
-  const first = s.cells[path[0]];
-  if (first === undefined || first === null || first.tier >= kMaxTier) {
-    return false;
-  }
-  const tier = first.tier;
+  let prev: Tile | null = null;
   for (let i = 0; i < path.length; i++) {
     const idx = path[i];
     if (idx < 0 || idx >= s.cells.length) return false;
     if (seen.has(idx)) return false;
     seen.add(idx);
     const t = s.cells[idx];
-    if (t === null || t === undefined || t.tier !== tier) return false;
-    if (i > 0 && !areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) return false;
+    if (t === null || t === undefined) return false;
+    if (prev !== null) {
+      const delta = t.tier - prev.tier;
+      if (delta < 0 || delta > 1) return false;
+      if (!areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) return false;
+    }
+    prev = t;
   }
+  if (prev === null || prev.tier >= kMaxTier) return false;
   return true;
 }
 
@@ -106,9 +112,10 @@ export function comboScore(mergedTier: number, chainLength: number): number {
 /**
  * Collapse a validated path onto its endpoint (path.last): endpoint becomes
  * tier+1 keeping its id, all other path cells empty, score gains the combo
- * total, one move spent. Caller must have checked isValidChain.
- * Optional `multiplierFn` overrides the default `comboMultiplier` (used by
- * challenge rules such as comboRush).
+ * total PLUS an ascendBonus for every ascend transition in the path, one
+ * move spent. Caller must have checked isValidChain. Optional `multiplierFn`
+ * overrides the default `comboMultiplier` (used by challenge rules such as
+ * comboRush).
  */
 export function collapseChain(
   s: BoardState,
@@ -119,13 +126,21 @@ export function collapseChain(
   const end = s.cells[endIdx]!;
   const mergedTier = end.tier;
   const fn = multiplierFn ?? comboMultiplier;
+  let ascendTotal = 0;
+  for (let i = 1; i < path.length; i++) {
+    const prevTier = s.cells[path[i - 1]]!.tier;
+    const curTier = s.cells[path[i]]!.tier;
+    if (curTier === prevTier + 1) {
+      ascendTotal += ascendBonus(curTier);
+    }
+  }
   const cells = s.cells.slice();
   for (const idx of path) cells[idx] = null;
   cells[endIdx] = { id: end.id, tier: mergedTier + 1 };
   return {
     ...s,
     cells,
-    score: s.score + (1 << (mergedTier + 1)) * fn(path.length),
+    score: s.score + (1 << (mergedTier + 1)) * fn(path.length) + ascendTotal,
     movesRemaining: s.movesRemaining - 1,
     movesMade: s.movesMade + 1,
   };
@@ -162,23 +177,36 @@ export function applyDrop(s: BoardState, tier: number, landing: Prng): BoardStat
 }
 
 /**
- * True if any two orthogonally-adjacent live tiles share a tier below the cap
- * (spatial deadlock — non-adjacent equal tiles do NOT count).
+ * True if two adjacent tiles could legally merge in SOME direction: their
+ * tiers differ by at most one, and the higher of the two is below the cap
+ * (the higher tile is always the merge destination).
+ */
+function pairMergeable(a: Tile, b: Tile): boolean {
+  const delta = Math.abs(a.tier - b.tier);
+  if (delta > 1) return false;
+  const higher = a.tier > b.tier ? a.tier : b.tier;
+  return higher < kMaxTier;
+}
+
+/**
+ * True if any two orthogonally-adjacent live tiles could legally merge in
+ * SOME direction (spatial deadlock — non-adjacent mergeable tiles do NOT
+ * count).
  */
 export function hasMergeAvailable(s: BoardState): boolean {
   const gs = s.gridSize;
   for (let i = 0; i < s.cells.length; i++) {
     const t = s.cells[i];
-    if (t === null || t.tier >= kMaxTier) continue;
+    if (t === null) continue;
     const row = Math.floor(i / gs);
     const col = i % gs;
     if (col + 1 < gs) {
       const e = s.cells[i + 1];
-      if (e !== null && e.tier === t.tier) return true;
+      if (e !== null && pairMergeable(t, e)) return true;
     }
     if (row + 1 < gs) {
       const so = s.cells[i + gs];
-      if (so !== null && so.tier === t.tier) return true;
+      if (so !== null && pairMergeable(t, so)) return true;
     }
   }
   return false;

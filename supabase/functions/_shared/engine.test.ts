@@ -22,7 +22,7 @@ import {
   type Tile,
   verifyRun,
 } from "./engine.ts";
-import { comboRushMultiplier, comboMultiplier, kCellCount } from "./constants.ts";
+import { ascendBonus, comboRushMultiplier, comboMultiplier, kCellCount, kMaxTier } from "./constants.ts";
 
 // ---- Captured Dart vectors (PRNG/seedForKey unchanged by the redesign) ----
 
@@ -222,10 +222,12 @@ Deno.test("rejects an illegal chain (wall cells, always empty)", async () => {
   assertFalse((await verifyRun("2026-06-07", "legendary", tampered)).valid);
 });
 
-Deno.test("rejects a chain of distinct tiers", async () => {
-  // easy initial: cell 5 (tier1) is orthogonally adjacent to cell 6 (tier2).
+Deno.test("accepts an ascending chain (adjacent tiles one tier apart)", async () => {
+  // easy initial: cell 5 (tier1) is orthogonally adjacent to cell 6 (tier2) —
+  // this is now a legal ascend-by-1 chain, not a rejection case.
   const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [5, 6] }]);
-  assertFalse(r.valid);
+  assertEquals(r.valid, true);
+  assertEquals(r.score, comboScore(2, 2) + ascendBonus(2));
 });
 
 Deno.test("rejects a non-adjacent chain", async () => {
@@ -295,14 +297,42 @@ Deno.test("isValidChain: accepts a connected same-tier run, rejects bad paths", 
     0: { id: 1, tier: 2 },
     1: { id: 2, tier: 2 },
     6: { id: 3, tier: 2 }, // index 6 adjacent to 1
-    2: { id: 4, tier: 3 },
   });
   assertEquals(isValidChain(b, [0, 1, 6]), true);
   assertFalse(isValidChain(b, [0])); // too short
-  assertFalse(isValidChain(b, [0, 2])); // tier mismatch
-  assertFalse(isValidChain(b, [0, 6])); // not adjacent
   assertFalse(isValidChain(b, [0, 1, 0])); // repeat
   assertFalse(isValidChain(b, [0, 5])); // cell 5 empty
+});
+
+Deno.test("isValidChain: accepts an ascend-by-1 step, rejects descend and skip", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 2 },
+    1: { id: 2, tier: 3 }, // east of 0, one tier higher
+    2: { id: 3, tier: 5 }, // east of 1, skips a tier
+  });
+  assertEquals(isValidChain(b, [0, 1]), true); // ascend by 1
+  assertFalse(isValidChain(b, [1, 0])); // descend (3 -> 2)
+  assertFalse(isValidChain(b, [1, 2])); // skip (3 -> 5)
+});
+
+Deno.test("isValidChain: accepts a run-then-ascend-then-run chain", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 1 },
+    1: { id: 2, tier: 1 },
+    6: { id: 3, tier: 1 },
+    7: { id: 4, tier: 2 },
+    8: { id: 5, tier: 2 },
+    13: { id: 6, tier: 3 },
+  });
+  assertEquals(isValidChain(b, [0, 1, 6, 7, 8, 13]), true);
+});
+
+Deno.test("isValidChain: rejects an ascend chain whose peak sits at max tier", () => {
+  const b = boardWith({
+    0: { id: 1, tier: kMaxTier - 1 },
+    1: { id: 2, tier: kMaxTier },
+  });
+  assertFalse(isValidChain(b, [0, 1]));
 });
 
 Deno.test("isValidChain: rejects a path onto a wall cell", () => {
@@ -324,11 +354,43 @@ Deno.test("collapseChain: endpoint +1 keeps id, others empty, scores combo", () 
   assertEquals(r.movesRemaining, 29);
 });
 
+Deno.test("collapseChain: ascending chain scores base combo PLUS an ascend bonus per transition", () => {
+  const b = boardWith({
+    0: { id: 10, tier: 1 },
+    1: { id: 11, tier: 1 },
+    6: { id: 12, tier: 2 },
+    7: { id: 13, tier: 2 },
+    8: { id: 14, tier: 3 },
+  });
+  const r = collapseChain(b, [0, 1, 6, 7, 8]);
+  assertEquals(r.cells[8], { id: 14, tier: 4 });
+  assertEquals(r.score, comboScore(3, 5) + ascendBonus(2) + ascendBonus(3));
+});
+
+Deno.test("collapseChain: a flat (same-tier) chain has zero ascend bonus", () => {
+  const b = boardWith({
+    0: { id: 10, tier: 2 },
+    1: { id: 11, tier: 2 },
+  });
+  const r = collapseChain(b, [0, 1]);
+  assertEquals(r.score, comboScore(2, 2));
+});
+
 Deno.test("hasMergeAvailable: needs ADJACENT equal tiles (spatial deadlock)", () => {
   const apart = boardWith({ 0: { id: 1, tier: 1 }, 2: { id: 2, tier: 1 } });
   assertFalse(hasMergeAvailable(apart));
   const together = boardWith({ 0: { id: 1, tier: 1 }, 1: { id: 2, tier: 1 } });
   assertEquals(hasMergeAvailable(together), true);
+});
+
+Deno.test("hasMergeAvailable: also finds an ascend-adjacent pair (differs by exactly 1 tier)", () => {
+  const b = boardWith({ 0: { id: 1, tier: 2 }, 1: { id: 2, tier: 3 } });
+  assertEquals(hasMergeAvailable(b), true);
+});
+
+Deno.test("hasMergeAvailable: a 2-tier gap is NOT available", () => {
+  const b = boardWith({ 0: { id: 1, tier: 2 }, 1: { id: 2, tier: 4 } });
+  assertFalse(hasMergeAvailable(b));
 });
 
 // ---- comboRushMultiplier tests ----

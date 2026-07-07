@@ -66,6 +66,16 @@ export function comboMultiplier(n: number): number {
   return 1 + Math.floor(((n - 2) * (n - 1)) / 2);
 }
 
+/**
+ * Bonus added once per ascend transition inside a chain (a step where the
+ * next tile's tier is exactly one higher than the previous tile's). Uses the
+ * same power-of-two convention as tile values. Must stay in lockstep with
+ * Dart `ascendBonus`.
+ */
+export function ascendBonus(intoTier: number): number {
+  return 1 << intoTier;
+}
+
 /** Seed-placed wall cells per difficulty (port of Dart `wallCountFor`). */
 export const WALL_COUNT: Record<Difficulty, number> = {
   easy: 2,
