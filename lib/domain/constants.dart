@@ -122,6 +122,12 @@ int comboMultiplier(int n) {
   return 1 + ((n - 2) * (n - 1)) ~/ 2;
 }
 
+/// Connect-Merge — bonus added once per ascend transition inside a chain (a
+/// step where the next tile's tier is exactly one higher than the previous
+/// tile's). Uses the same power-of-two convention as tile values, so
+/// stepping into a higher tier mid-chain pays out more. Pure tuning knob.
+int ascendBonus(int intoTier) => 1 << intoTier;
+
 /// Number of the next drop tiers shown openly in the planning queue.
 const int kDropQueueVisible = 3;
 

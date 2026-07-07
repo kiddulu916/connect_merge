@@ -29,6 +29,13 @@ void main() {
       }
     });
 
+    test('ascendBonus mirrors the tile-value convention (2^intoTier)', () {
+      expect(ascendBonus(1), 2);
+      expect(ascendBonus(2), 4);
+      expect(ascendBonus(3), 8);
+      expect(ascendBonus(10), 1 << 10);
+    });
+
     test('wall count increases as the board gets harder', () {
       expect(wallCountFor(Difficulty.easy), 2);
       expect(wallCountFor(Difficulty.legendary) >= wallCountFor(Difficulty.easy),
