@@ -22,16 +22,19 @@ BoardState boardWith(Map<int, Tile> tiles, {int moves = kMovesPerDay}) {
 }
 
 void main() {
-  test('canMerge: same tier, distinct cells, below max tier', () {
+  test('canMerge: same tier or ascend-by-1 into a higher-tier destination, below max tier', () {
     final b = boardWith({
       0: const Tile(id: 1, tier: 3),
       1: const Tile(id: 2, tier: 3),
       2: const Tile(id: 3, tier: 4),
       3: const Tile(id: 4, tier: kMaxTier),
       4: const Tile(id: 5, tier: kMaxTier),
+      5: const Tile(id: 6, tier: 6),
     });
-    expect(GameEngine.canMerge(b, 0, 1), isTrue);
-    expect(GameEngine.canMerge(b, 0, 2), isFalse); // different tier
+    expect(GameEngine.canMerge(b, 0, 1), isTrue); // same tier
+    expect(GameEngine.canMerge(b, 0, 2), isTrue); // ascend by 1 (3 -> 4)
+    expect(GameEngine.canMerge(b, 2, 0), isFalse); // descend (4 -> 3)
+    expect(GameEngine.canMerge(b, 0, 5), isFalse); // skips a tier (3 -> 6)
     expect(GameEngine.canMerge(b, 0, 0), isFalse); // same cell
     expect(GameEngine.canMerge(b, 3, 4), isFalse); // at max tier
   });
@@ -156,19 +159,41 @@ void main() {
       expect(GameEngine.isValidChain(b, [0, 1, 6]), isTrue);
     });
 
-    test('isValidChain: rejects length<2, mixed tier, gaps, repeats, walls', () {
+    test('isValidChain: rejects length<2, non-adjacent, repeats, empty cells', () {
       final b = boardWith({
         0: const Tile(id: 1, tier: 2),
         1: const Tile(id: 2, tier: 2),
-        2: const Tile(id: 3, tier: 3), // different tier
         6: const Tile(id: 4, tier: 2),
       });
       expect(GameEngine.isValidChain(b, [0]), isFalse); // too short
-      expect(GameEngine.isValidChain(b, [0, 2]), isFalse); // tier mismatch
       expect(GameEngine.isValidChain(b, [0, 6]), isFalse); // not adjacent
       expect(GameEngine.isValidChain(b, [0, 1, 0]), isFalse); // repeat
       final empty = boardWith({0: const Tile(id: 1, tier: 2)});
       expect(GameEngine.isValidChain(empty, [0, 1]), isFalse); // cell 1 empty
+    });
+
+    test('isValidChain: accepts an ascend-by-1 step, rejects descend and skip', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 2),
+        1: const Tile(id: 2, tier: 3), // east of 0, one tier higher
+        2: const Tile(id: 3, tier: 5), // east of 1, skips a tier
+      });
+      expect(GameEngine.isValidChain(b, [0, 1]), isTrue); // ascend by 1
+      expect(GameEngine.isValidChain(b, [1, 0]), isFalse); // descend (3 -> 2)
+      expect(GameEngine.isValidChain(b, [1, 2]), isFalse); // skip (3 -> 5)
+    });
+
+    test('isValidChain: accepts a run-then-ascend-then-run chain', () {
+      // tier1 run (0,1,6) -> ascend -> tier2 run (7,8) -> ascend -> tier3 peak (13)
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 1),
+        1: const Tile(id: 2, tier: 1),
+        6: const Tile(id: 3, tier: 1),
+        7: const Tile(id: 4, tier: 2),
+        8: const Tile(id: 5, tier: 2),
+        13: const Tile(id: 6, tier: 3),
+      });
+      expect(GameEngine.isValidChain(b, [0, 1, 6, 7, 8, 13]), isTrue);
     });
 
     test('isValidChain: rejects a path stepping onto a wall', () {
@@ -192,6 +217,14 @@ void main() {
     test('isValidChain: rejects a chain at max tier', () {
       final b = boardWith({
         0: const Tile(id: 1, tier: kMaxTier),
+        1: const Tile(id: 2, tier: kMaxTier),
+      });
+      expect(GameEngine.isValidChain(b, [0, 1]), isFalse);
+    });
+
+    test('isValidChain: rejects an ascend chain whose peak sits at max tier', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: kMaxTier - 1),
         1: const Tile(id: 2, tier: kMaxTier),
       });
       expect(GameEngine.isValidChain(b, [0, 1]), isFalse);

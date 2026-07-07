@@ -8,14 +8,16 @@ import 'prng.dart';
 class GameEngine {
   const GameEngine._();
 
-  /// A legal merge: both cells hold tiles, distinct cells, equal tier, and the
-  /// tier is below the cap (two max-tier tiles cannot fuse further).
+  /// A legal merge: both cells hold tiles, distinct cells, and [toIndex]'s
+  /// tier is either equal to or exactly one higher than [fromIndex]'s tier
+  /// (same-tier merge, or ascend-by-1 into the destination), below the cap.
   static bool canMerge(BoardState s, int fromIndex, int toIndex) {
     if (fromIndex == toIndex) return false;
     final from = s.cells[fromIndex];
     final to = s.cells[toIndex];
     if (from == null || to == null) return false;
-    return from.tier == to.tier && from.tier < kMaxTier;
+    final delta = to.tier - from.tier;
+    return delta >= 0 && delta <= 1 && to.tier < kMaxTier;
   }
 
   /// Fuse [fromIndex] into [toIndex]: destination becomes tier+1 (keeping its
@@ -129,25 +131,32 @@ class GameEngine {
     return (dr + dc) == 1;
   }
 
-  /// A legal Connect-Merge path: length >= 2, no repeated cells, each cell holds
-  /// a live tile, all tiles share one tier below the cap, and consecutive cells
-  /// are orthogonally adjacent. Walls hold no tile, so they are rejected by the
+  /// A legal Connect-Merge path: length >= 2, no repeated cells, each cell
+  /// holds a live tile, consecutive cells are orthogonally adjacent, and each
+  /// step's tier is either equal to or exactly one higher than the previous
+  /// tile's tier (never descends, never skips a tier). Since the path is thus
+  /// non-decreasing, [path.last] is always the peak tile, and it alone must
+  /// sit below the cap. Walls hold no tile, so they are rejected by the
   /// null-cell check, but we never index a wall as a tile.
   static bool isValidChain(BoardState s, List<int> path) {
     if (path.length < 2) return false;
     final seen = <int>{};
-    final first = s.cells[path.first];
-    if (first == null || first.tier >= kMaxTier || s.walls.contains(path.first)) return false;
-    final tier = first.tier;
+    Tile? prevTile;
     for (var i = 0; i < path.length; i++) {
       final idx = path[i];
       if (idx < 0 || idx >= s.cells.length) return false;
       if (!seen.add(idx)) return false; // repeat
       if (s.walls.contains(idx)) return false; // reject walls
       final t = s.cells[idx];
-      if (t == null || t.tier != tier) return false;
-      if (i > 0 && !areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) return false;
+      if (t == null) return false;
+      if (prevTile != null) {
+        final delta = t.tier - prevTile.tier;
+        if (delta < 0 || delta > 1) return false; // no descend, no tier skip
+        if (!areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) return false;
+      }
+      prevTile = t;
     }
+    if (prevTile!.tier >= kMaxTier) return false; // peak tile must be below cap
     return true;
   }
 
