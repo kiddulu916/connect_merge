@@ -168,7 +168,8 @@ class GameEngine {
 
   /// Collapse a validated Connect-Merge [path] onto its endpoint (`path.last`):
   /// the endpoint becomes tier+1 (keeping its id for animation continuity), all
-  /// other path cells empty, score gains the combo total, one move is spent.
+  /// other path cells empty, score gains the combo total PLUS an
+  /// [ascendBonus] for every ascend transition in the path, one move is spent.
   /// Caller must have checked [isValidChain]. Mirrors [merge]: no drop, no log
   /// (the cubit applies the refill and records the [ChainEvent]).
   ///
@@ -183,6 +184,14 @@ class GameEngine {
     final endTile = s.cells[endIdx]!;
     final mergedTier = endTile.tier;
     final newTier = mergedTier + 1;
+    var ascendTotal = 0;
+    for (var i = 1; i < path.length; i++) {
+      final prevTier = s.cells[path[i - 1]]!.tier;
+      final curTier = s.cells[path[i]]!.tier;
+      if (curTier == prevTier + 1) {
+        ascendTotal += ascendBonus(curTier);
+      }
+    }
     final cells = List<Tile?>.of(s.cells);
     for (final idx in path) {
       cells[idx] = null;
@@ -191,7 +200,7 @@ class GameEngine {
     final fn = comboMultiplierFn ?? comboMultiplier;
     return s.copyWith(
       cells: cells,
-      score: s.score + (1 << (mergedTier + 1)) * fn(path.length),
+      score: s.score + (1 << (mergedTier + 1)) * fn(path.length) + ascendTotal,
       movesRemaining: s.movesRemaining - 1,
       movesMade: s.movesMade + 1,
     );

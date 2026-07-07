@@ -277,5 +277,29 @@ void main() {
       expect(chain.score, legacy.score);
       expect(chain.movesRemaining, legacy.movesRemaining);
     });
+
+    test('collapse: ascending chain scores base combo PLUS an ascend bonus per transition', () {
+      final b = boardWith({
+        0: const Tile(id: 10, tier: 1),
+        1: const Tile(id: 11, tier: 1),
+        6: const Tile(id: 12, tier: 2), // ascend into tier 2
+        7: const Tile(id: 13, tier: 2),
+        8: const Tile(id: 14, tier: 3), // ascend into tier 3 (endpoint)
+      });
+      final r = GameEngine.collapseChain(b, [0, 1, 6, 7, 8]);
+      expect(r.cells[8]!.tier, 4); // peak tier 3 + 1
+      final expectedBase = GameEngine.comboScore(3, 5);
+      final expectedAscend = ascendBonus(2) + ascendBonus(3);
+      expect(r.score, expectedBase + expectedAscend);
+    });
+
+    test('collapse: a flat (same-tier) chain has zero ascend bonus', () {
+      final b = boardWith({
+        0: const Tile(id: 10, tier: 2),
+        1: const Tile(id: 11, tier: 2),
+      });
+      final r = GameEngine.collapseChain(b, [0, 1]);
+      expect(r.score, GameEngine.comboScore(2, 2));
+    });
   });
 }
