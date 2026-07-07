@@ -135,12 +135,20 @@ class _BoardWidgetState extends State<BoardWidget> {
         }
 
         // Floating live tiles keyed by id (for AnimatedPositioned animations).
-        // Cells in the current path get a glow highlight.
+        // Cells in the current path get a glow highlight; a step that ascends
+        // one tier above the previous path entry glows amber instead of white.
+        final pathIndexOf = <int, int>{
+          for (var p = 0; p < _path.length; p++) _path[p]: p,
+        };
         for (var i = 0; i < widget.board.cells.length; i++) {
           final tile = widget.board.cells[i];
           if (tile == null) continue;
           final pos = offsetFor(i);
-          final inPath = _path.contains(i);
+          final pathPos = pathIndexOf[i];
+          final inPath = pathPos != null;
+          final isAscend = inPath &&
+              pathPos! > 0 &&
+              tile.tier == widget.board.cells[_path[pathPos - 1]]!.tier + 1;
           children.add(AnimatedPositioned(
             key: ValueKey(tile.id),
             duration: const Duration(milliseconds: 160),
@@ -155,7 +163,9 @@ class _BoardWidgetState extends State<BoardWidget> {
                       borderRadius: BorderRadius.circular(cell * 0.16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.45),
+                          color: isAscend
+                              ? Colors.amber.withValues(alpha: 0.6)
+                              : Colors.white.withValues(alpha: 0.45),
                           blurRadius: cell * 0.25,
                           spreadRadius: cell * 0.06,
                         ),

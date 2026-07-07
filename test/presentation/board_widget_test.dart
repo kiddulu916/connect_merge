@@ -184,4 +184,69 @@ void main() {
     // fires onChain (BoardWidget._onEnd requires length >= 2).
     expect(reported, isNull);
   });
+
+  testWidgets('an ascend step in the path glows amber; a flat step glows white',
+      (tester) async {
+    final cells = List<Tile?>.filled(kCellCount, null);
+    cells[0] = const Tile(id: 1, tier: 1);
+    cells[1] = const Tile(id: 2, tier: 1); // flat step from 0
+    cells[6] = const Tile(id: 3, tier: 2); // ascend step from 1 (south of 1)
+    final board = BoardState(
+      cells: cells,
+      movesRemaining: 30,
+      score: 0,
+      nextTileId: 4,
+      dropIndex: 0,
+      adContinuesUsed: 0,
+      movesMade: 0,
+      status: GameStatus.playing,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: 350,
+            height: 350,
+            child: BoardWidget(board: board, onChain: (_) {}),
+          ),
+        ),
+      ),
+    ));
+
+    final box = tester.getRect(find.byType(BoardWidget));
+    const gap = 8.0;
+    final cell = (box.width - gap * (kGridSize + 1)) / kGridSize;
+    Offset centerOf(int i) {
+      final row = i ~/ kGridSize, col = i % kGridSize;
+      return box.topLeft +
+          Offset(gap + col * (cell + gap) + cell / 2,
+              gap + row * (cell + gap) + cell / 2);
+    }
+
+    final g = await tester.startGesture(centerOf(0));
+    await tester.pump();
+    await g.moveTo(centerOf(1));
+    await tester.pump();
+    await g.moveTo(centerOf(6));
+    await tester.pump();
+
+    BoxShadow shadowFor(int tileId) {
+      // .first, not .single: GridCellWidget's Container also lowers to an
+      // internal DecoratedBox, so the explicit glow wrapper (outer, found
+      // first in tree order) isn't the only DecoratedBox descendant here.
+      final decoratedBox = tester.widget<DecoratedBox>(find.descendant(
+        of: find.byKey(ValueKey(tileId)),
+        matching: find.byType(DecoratedBox),
+      ).first);
+      final decoration = decoratedBox.decoration as BoxDecoration;
+      return decoration.boxShadow!.single;
+    }
+
+    expect(shadowFor(2).color, Colors.white.withValues(alpha: 0.45)); // flat
+    expect(shadowFor(3).color, Colors.amber.withValues(alpha: 0.6)); // ascend
+
+    await g.up();
+    await tester.pump();
+  });
 }
