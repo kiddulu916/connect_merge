@@ -139,9 +139,10 @@ const int kObjectiveRewardCoins = 25;
 /// whose version != this is discarded on load (a daily resets anyway).
 const int kSnapshotVersion = 3;
 
-/// Bumped at the Connect-Merge relaunch. Submitted with every score and used to
-/// filter leaderboard reads, so pre-relaunch scores never appear (hard reset).
-const int kLeaderboardSeason = 2;
+/// Bumped when the ascending-chain-merge rule shipped. Submitted with every
+/// score and used to filter leaderboard reads, so pre-bump scores (computed
+/// under the old same-tier-only rule) never mix with post-bump scores.
+const int kLeaderboardSeason = 3;
 
 /// Seed-placed wall cells per difficulty (block tiles, break paths). Scales up with difficulty. Tuning knob.
 int wallCountFor(Difficulty d) => switch (d) {
