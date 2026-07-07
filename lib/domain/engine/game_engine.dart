@@ -89,26 +89,38 @@ class GameEngine {
     return golden * kGoldenMergeBonus;
   }
 
-  /// True if any two orthogonally-adjacent live tiles share a tier below the cap
-  /// (a legal Connect-Merge of length 2). Position now matters: equal tiles that
-  /// are not adjacent do NOT count, so a player can strand tiles into a deadlock.
+  /// True if any two orthogonally-adjacent live tiles could legally merge in
+  /// SOME direction (a legal Connect-Merge of length 2): their tiers differ by
+  /// at most one, and the higher of the two is below the cap. Position matters:
+  /// a mergeable pair that is not adjacent does NOT count, so a player can
+  /// strand tiles into a deadlock.
   static bool hasMergeAvailable(BoardState s) {
     final gs = s.gridSize;
     for (var i = 0; i < s.cells.length; i++) {
       final t = s.cells[i];
-      if (t == null || t.tier >= kMaxTier) continue;
+      if (t == null) continue;
       final row = i ~/ gs, col = i % gs;
       // Check east and south neighbours only (covers every adjacency once).
       if (col + 1 < gs) {
         final e = s.cells[i + 1];
-        if (e != null && e.tier == t.tier) return true;
+        if (e != null && _pairMergeable(t, e)) return true;
       }
       if (row + 1 < gs) {
         final so = s.cells[i + gs];
-        if (so != null && so.tier == t.tier) return true;
+        if (so != null && _pairMergeable(t, so)) return true;
       }
     }
     return false;
+  }
+
+  /// True if two adjacent tiles could legally merge in SOME direction: their
+  /// tiers differ by at most one, and the higher of the two is below the cap
+  /// (the higher tile is always the destination, per [canMerge]/[isValidChain]).
+  static bool _pairMergeable(Tile a, Tile b) {
+    final delta = (a.tier - b.tier).abs();
+    if (delta > 1) return false;
+    final higher = a.tier > b.tier ? a.tier : b.tier;
+    return higher < kMaxTier;
   }
 
   /// Resolve end-of-day status: out of moves first, then deadlock, else playing.

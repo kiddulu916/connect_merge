@@ -82,6 +82,32 @@ void main() {
     expect(GameEngine.evaluateStatus(together).status, GameStatus.playing);
   });
 
+  test('hasMergeAvailable: also finds an ascend-adjacent pair (differs by exactly 1 tier)', () {
+    final b = boardWith({
+      0: const Tile(id: 1, tier: 2),
+      1: const Tile(id: 2, tier: 3), // east neighbour, one tier higher
+    });
+    expect(GameEngine.hasMergeAvailable(b), isTrue);
+    expect(GameEngine.evaluateStatus(b).status, GameStatus.playing);
+  });
+
+  test('hasMergeAvailable: does NOT treat a 2-tier gap as available', () {
+    final b = boardWith({
+      0: const Tile(id: 1, tier: 2),
+      1: const Tile(id: 2, tier: 4), // east neighbour, two tiers higher
+    });
+    expect(GameEngine.hasMergeAvailable(b), isFalse);
+    expect(GameEngine.evaluateStatus(b).status, GameStatus.deadlocked);
+  });
+
+  test('hasMergeAvailable: an ascend pair sitting at the cap is NOT available', () {
+    final b = boardWith({
+      0: const Tile(id: 1, tier: kMaxTier - 1),
+      1: const Tile(id: 2, tier: kMaxTier),
+    });
+    expect(GameEngine.hasMergeAvailable(b), isFalse);
+  });
+
   test('evaluateStatus: zero moves => outOfMoves even if a merge exists', () {
     final b = boardWith({
       0: const Tile(id: 1, tier: 1),
