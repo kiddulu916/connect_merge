@@ -25,7 +25,15 @@ void main() {
     await tester.enterText(
         find.byKey(const Key('display-name-field')), 'Ann');
     await tester.tap(find.byKey(const Key('display-name-save')));
-    await tester.pumpAndSettle();
+    // Not pumpAndSettle(): the Save button shows an indeterminate
+    // CircularProgressIndicator while _saving == true, and _saving is never
+    // reset to false on the success path (by design — production's onSaved
+    // unmounts this screen before it matters). An indeterminate spinner's
+    // animation never settles, so pumpAndSettle() would hang forever. Two
+    // pump()s are enough to flush the fake setDisplayName's microtask and
+    // the subsequent onSaved callback.
+    await tester.pump();
+    await tester.pump();
 
     expect(saved, isTrue);
     // MapEntry has no value equality — compare .key/.value directly.

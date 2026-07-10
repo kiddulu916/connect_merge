@@ -56,8 +56,6 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
       if (!mounted) return;
       widget.analytics?.logEvent('onboarding_completed');
       widget.onSaved?.call();
-      if (!mounted) return;
-      setState(() => _saving = false);
     } catch (_) {
       if (!mounted) return;
       setState(() {
