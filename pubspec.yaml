@@ -7,7 +7,7 @@ environment:
   sdk: ">=3.4.0 <4.0.0"
 
 dependencies:
-  flutter_skill: ^0.2.6
+  flutter_skill: ^0.9.36
   flutter:
     sdk: flutter
   flutter_bloc: ^9.0.0
@@ -16,7 +16,7 @@ dependencies:
   google_mobile_ads: ^9.0.0
   path_provider: ^2.1.4
   crypto: ^3.0.5
-  supabase_flutter: ^2.8.0
+  supabase_flutter: ^2.16.0
   flutter_contacts: ^2.2.2
   app_links: ^7.1.2
   share_plus: ^13.1.0
