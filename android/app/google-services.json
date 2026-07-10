@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "306868850236",
+    "project_id": "connect-merge-1",
+    "storage_bucket": "connect-merge-1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:306868850236:android:885994022c90f014d2fd39",
+        "android_client_info": {
+          "package_name": "com.kiddulu.connect_merge"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC84eoc68kF7zqckRvPkQ8IWqXZ0jvG4SA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
