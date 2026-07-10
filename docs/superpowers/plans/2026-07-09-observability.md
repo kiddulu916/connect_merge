@@ -497,9 +497,12 @@ void main() {
       );
 
       expect(unavailableCalled, isTrue);
-      expect(events, [
-        const MapEntry('ad_load_failed', {'adType': 'hint'}),
-      ]);
+      // MapEntry has no value equality (defaults to identity), so compare
+      // .key/.value directly rather than asserting list equality against a
+      // MapEntry literal.
+      expect(events, hasLength(1));
+      expect(events.single.key, 'ad_load_failed');
+      expect(events.single.value, {'adType': 'hint'});
     });
 
     test('works with no AnalyticsService injected (offline / unconfigured)',
@@ -881,10 +884,10 @@ Then add these tests inside `main()`, right after the existing `'per-tier streak
     );
 
     final broken = events.where((e) => e.key == 'streak_broken').toList();
-    expect(broken, [
-      const MapEntry('streak_broken',
-          {'streakType': 'perTier', 'difficulty': 'easy', 'length': 1}),
-    ]);
+    // MapEntry has no value equality — compare .value on the single match.
+    expect(broken, hasLength(1));
+    expect(broken.single.value,
+        {'streakType': 'perTier', 'difficulty': 'easy', 'length': 1});
   });
 
   test('per-tier streak_broken does NOT fire on a first-ever completion',
@@ -1259,9 +1262,20 @@ class EngagementCubit extends Cubit<EngagementState> {
   final StorageService storage;
   final String Function() todayProvider;
 
-  /// Optional error-reporting hook (observability). Signature matches
-  /// `CrashReportingService.recordError` exactly.
-  final void Function(Object error, StackTrace? stack, {bool fatal})? onError;
+  /// Optional error-reporting hook (observability). Fired for exceptions that
+  /// are currently swallowed silently. Signature matches
+  /// `CrashReportingService.recordError` exactly, so callers can pass the
+  /// method directly (e.g. `onError: crashReporting.recordError`).
+  ///
+  /// Stored as a private field (`_onError`) rather than `this.onError`
+  /// because `Cubit`/`BlocBase` already declares an inherited instance
+  /// method named `onError` (its internal stream-error hook) — a field of
+  /// the same name is not a compatible override and fails to compile (this
+  /// was discovered and fixed the same way in `GameCubit`, Task 5). The
+  /// public constructor parameter is still named `onError` so callers are
+  /// unaffected.
+  final void Function(Object error, StackTrace? stack, {bool fatal})?
+      _onError;
 
   /// Optional analytics hook (observability). Signature matches
   /// `AnalyticsService.logEvent` exactly.
@@ -1271,9 +1285,10 @@ class EngagementCubit extends Cubit<EngagementState> {
   EngagementCubit({
     required this.storage,
     String Function()? todayProvider,
-    this.onError,
+    void Function(Object error, StackTrace? stack, {bool fatal})? onError,
     this.onAnalyticsEvent,
   })  : todayProvider = todayProvider ?? utcToday,
+        _onError = onError,
         super(const EngagementState());
 ```
 
@@ -1338,7 +1353,7 @@ Change to:
 
 ```dart
       } catch (e, st) {
-        onError?.call(e, st);
+        _onError?.call(e, st);
         return; // network failure: skip; retry on next app open
       }
 ```
@@ -1355,7 +1370,7 @@ Change to:
 
 ```dart
       } catch (e, st) {
-        onError?.call(e, st);
+        _onError?.call(e, st);
         // Network failure: skip this tier, try on next launch.
       }
 ```
@@ -1372,7 +1387,7 @@ Change to:
 
 ```dart
       } catch (e, st) {
-        onError?.call(e, st);
+        _onError?.call(e, st);
         return;
       }
 ```
@@ -1389,7 +1404,7 @@ Change to:
 
 ```dart
     } catch (e, st) {
-      onError?.call(e, st);
+      _onError?.call(e, st);
       return; // network failure: skip; retry on next app open
     }
 ```
@@ -1434,9 +1449,10 @@ In `test/application/duel_cubit_test.dart`, inside `group('DuelCubit receive + s
             events.add(MapEntry(name, params)),
       )..receiveChallenge(challenge);
 
-      expect(events, [
-        const MapEntry('duel_started', {'difficulty': 'hard'}),
-      ]);
+      // MapEntry has no value equality — compare .key/.value directly.
+      expect(events, hasLength(1));
+      expect(events.single.key, 'duel_started');
+      expect(events.single.value, {'difficulty': 'hard'});
     });
 
     test('recordMyResult fires duel_completed with difficulty + won', () {
@@ -1451,9 +1467,9 @@ In `test/application/duel_cubit_test.dart`, inside `group('DuelCubit receive + s
 
       final completed =
           events.where((e) => e.key == 'duel_completed').toList();
-      expect(completed, [
-        const MapEntry('duel_completed', {'difficulty': 'hard', 'won': true}),
-      ]);
+      // MapEntry has no value equality — compare .value on the single match.
+      expect(completed, hasLength(1));
+      expect(completed.single.value, {'difficulty': 'hard', 'won': true});
     });
 
     test('recordMyResult on an expired challenge does NOT fire duel_completed',
@@ -1628,9 +1644,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(saved, isTrue);
-    expect(events, [
-      const MapEntry('onboarding_completed', null),
-    ]);
+    // MapEntry has no value equality — compare .key/.value directly.
+    expect(events, hasLength(1));
+    expect(events.single.key, 'onboarding_completed');
+    expect(events.single.value, isNull);
   });
 }
 
