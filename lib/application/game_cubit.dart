@@ -158,13 +158,37 @@ class GameCubit extends Cubit<GameState> {
   /// Whether the objective reward has already been paid this run (idempotency).
   bool _objectiveMet = false;
 
+  /// Optional error-reporting hook (observability). Fired for exceptions that
+  /// are currently swallowed silently (best-effort background work — a
+  /// failing hook never blocks gameplay). Signature matches
+  /// `CrashReportingService.recordError` exactly, so callers can pass the
+  /// method directly (e.g. `onError: crashReporting.recordError`).
+  ///
+  /// Stored as a private field (`_onError`) rather than `this.onError`
+  /// because `Cubit`/`BlocBase` already declares an inherited instance
+  /// method named `onError` (its internal stream-error hook) — a field of
+  /// the same name is not a compatible override and fails to compile. The
+  /// public constructor parameter is still named `onError` so callers are
+  /// unaffected.
+  final void Function(Object error, StackTrace? stack, {bool fatal})?
+      _onError;
+
+  /// Optional analytics hook (observability). Signature matches
+  /// `AnalyticsService.logEvent` exactly, so callers can pass the method
+  /// directly (e.g. `onAnalyticsEvent: analytics.logEvent`).
+  final void Function(String name, [Map<String, Object?>? params])?
+      onAnalyticsEvent;
+
   GameCubit({
     required this.storage,
     String Function()? todayProvider,
     this.onSubmitRun,
     this.onTierCompleted,
     this.onCoinsEarned,
+    void Function(Object error, StackTrace? stack, {bool fatal})? onError,
+    this.onAnalyticsEvent,
   })  : todayProvider = todayProvider ?? utcToday,
+        _onError = onError,
         super(const GameInitial());
 
   Future<void> init({
@@ -431,6 +455,12 @@ class GameCubit extends Cubit<GameState> {
     }
     _undoStack.clear();
     await _fireCompletionHook(board);
+    onAnalyticsEvent?.call('run_completed', {
+      'difficulty': _difficulty.name,
+      'score': board.score,
+      'highestTier': board.highestTier,
+      'moveCount': board.movesMade,
+    });
     emit(GameOverShowScore(
         board: board, date: _date, difficulty: _difficulty, stats: stats));
     // Submit to the leaderboard only when the day is genuinely terminal:
@@ -557,8 +587,9 @@ class GameCubit extends Cubit<GameState> {
     _completionFired = true;
     try {
       await hook(score: board.score, highestTier: board.highestTier);
-    } catch (_) {
+    } catch (e, st) {
       // Engagement bookkeeping is best-effort; play is never blocked by it.
+      _onError?.call(e, st);
     }
   }
 
@@ -576,9 +607,10 @@ class GameCubit extends Cubit<GameState> {
         moveLog: board.moveLog,
         adContinues: board.adContinuesUsed,
       );
-    } catch (_) {
+    } catch (e, st) {
       // Submission is off the critical path; the result screen never blocks.
       // Offline queue/retry is handled by the caller's service (future work).
+      _onError?.call(e, st);
     }
   }
 
@@ -641,6 +673,20 @@ class GameCubit extends Cubit<GameState> {
     final yesterday = formatDate(
         DateTime.parse(_date).subtract(const Duration(days: 1)));
     final streak = prev.lastCompletedDate == yesterday ? prev.streak + 1 : 1;
+
+    // A genuine gap (a prior completion date exists, isn't today, isn't
+    // yesterday) resets this per-tier streak with no freeze support (unlike
+    // the headline streak in EngagementCubit) — that reset is a churn signal
+    // worth surfacing once, using the streak value BEFORE the reset.
+    if (prev.lastCompletedDate != null &&
+        prev.lastCompletedDate != yesterday &&
+        prev.streak > 0) {
+      onAnalyticsEvent?.call('streak_broken', {
+        'streakType': 'perTier',
+        'difficulty': _difficulty.name,
+        'length': prev.streak,
+      });
+    }
 
     final updated = prev.copyWith(
       streak: streak,

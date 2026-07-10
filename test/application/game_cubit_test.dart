@@ -79,6 +79,74 @@ void main() {
     expect(storage.loadStats(Difficulty.easy).streak, 2);
   });
 
+  test('onAnalyticsEvent fires run_completed exactly once with the terminal board\'s stats',
+      () async {
+    final events = <MapEntry<String, Map<String, Object?>?>>[];
+    await _completeTier(
+      storage,
+      '2026-06-06',
+      Difficulty.easy,
+      onAnalyticsEvent: (name, [params]) =>
+          events.add(MapEntry(name, params)),
+    );
+
+    final runCompleted =
+        events.where((e) => e.key == 'run_completed').toList();
+    expect(runCompleted, hasLength(1));
+    final params = runCompleted.single.value!;
+    expect(params['difficulty'], 'easy');
+    expect(params.containsKey('score'), isTrue);
+    expect(params.containsKey('highestTier'), isTrue);
+    expect(params.containsKey('moveCount'), isTrue);
+  });
+
+  test('per-tier streak_broken fires on a genuine gap, using the pre-reset length',
+      () async {
+    await _completeTier(storage, '2026-06-01', Difficulty.easy);
+    final events = <MapEntry<String, Map<String, Object?>?>>[];
+    await _completeTier(
+      storage,
+      '2026-06-07', // 6-day gap since 2026-06-01; no freeze support at this layer
+      Difficulty.easy,
+      onAnalyticsEvent: (name, [params]) =>
+          events.add(MapEntry(name, params)),
+    );
+
+    final broken = events.where((e) => e.key == 'streak_broken').toList();
+    // MapEntry has no value equality — compare .value on the single match.
+    expect(broken, hasLength(1));
+    expect(broken.single.value,
+        {'streakType': 'perTier', 'difficulty': 'easy', 'length': 1});
+  });
+
+  test('per-tier streak_broken does NOT fire on a first-ever completion',
+      () async {
+    final events = <MapEntry<String, Map<String, Object?>?>>[];
+    await _completeTier(
+      storage,
+      '2026-06-01',
+      Difficulty.easy,
+      onAnalyticsEvent: (name, [params]) =>
+          events.add(MapEntry(name, params)),
+    );
+
+    expect(events.where((e) => e.key == 'streak_broken'), isEmpty);
+  });
+
+  test('onError fires when onTierCompleted throws', () async {
+    Object? capturedError;
+    await _completeTier(
+      storage,
+      '2026-06-06',
+      Difficulty.easy,
+      onTierCompleted: ({int score = 0, int highestTier = 0}) async =>
+          throw StateError('engagement bookkeeping failed'),
+      onError: (error, stack, {fatal = false}) => capturedError = error,
+    );
+
+    expect(capturedError, isA<StateError>());
+  });
+
   test('a legal merge updates score, spends a move, triggers a drop, and logs a MergeEvent',
       () async {
     final c = make('2026-06-06');
@@ -417,7 +485,13 @@ void main() {
 /// Persist a completed snapshot + run completion bookkeeping for [tier] on
 /// [date] by driving a cubit through init on an already out-of-moves board.
 Future<void> _completeTier(
-    InMemoryStorageService storage, String date, Difficulty tier) async {
+  InMemoryStorageService storage,
+  String date,
+  Difficulty tier, {
+  void Function(Object error, StackTrace? stack, {bool fatal})? onError,
+  void Function(String name, [Map<String, Object?>? params])? onAnalyticsEvent,
+  Future<void> Function({int score, int highestTier})? onTierCompleted,
+}) async {
   // Seed a fresh board, then play it to completion by forcing out-of-moves
   // through the cubit's merge path is heavy; instead simulate completion the way
   // _recordCompletion does, by running a single merge that ends the day.
@@ -427,7 +501,13 @@ Future<void> _completeTier(
   await storage.saveSnapshot(GameSnapshot(
       date: date, difficulty: tier, board: nearDone, completed: false));
 
-  final c = GameCubit(storage: storage, todayProvider: () => date);
+  final c = GameCubit(
+    storage: storage,
+    todayProvider: () => date,
+    onError: onError,
+    onAnalyticsEvent: onAnalyticsEvent,
+    onTierCompleted: onTierCompleted,
+  );
   await c.init(difficulty: tier);
   final board = (c.state as GamePlaying).board;
   final pair = _findMergePair(board);
