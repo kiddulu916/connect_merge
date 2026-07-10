@@ -1,0 +1,59 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:connect_merge/infrastructure/analytics_service.dart';
+import 'package:connect_merge/infrastructure/auth_service.dart';
+import 'package:connect_merge/presentation/screens/display_name_screen.dart';
+
+void main() {
+  testWidgets('a successful save logs onboarding_completed', (tester) async {
+    final events = <MapEntry<String, Map<String, Object?>?>>[];
+    final analytics = AnalyticsService.withSeams(
+      logEvent: (name, params) async {
+        events.add(MapEntry(name, params));
+      },
+    );
+    var saved = false;
+
+    await tester.pumpWidget(MaterialApp(
+      home: DisplayNameScreen(
+        auth: _FakeAuthService(),
+        analytics: analytics,
+        onSaved: () => saved = true,
+      ),
+    ));
+
+    await tester.enterText(
+        find.byKey(const Key('display-name-field')), 'Ann');
+    await tester.tap(find.byKey(const Key('display-name-save')));
+    await tester.pumpAndSettle();
+
+    expect(saved, isTrue);
+    // MapEntry has no value equality — compare .key/.value directly.
+    expect(events, hasLength(1));
+    expect(events.single.key, 'onboarding_completed');
+    expect(events.single.value, isNull);
+  });
+}
+
+/// Minimal fake: real [AuthService] requires a live [SupabaseClient], which
+/// isn't available in a widget test. Implements exactly [AuthService]'s six
+/// public members (it has a private `_client` field, nothing else public).
+class _FakeAuthService implements AuthService {
+  @override
+  Future<void> setDisplayName(String name, {String? avatar}) async {}
+
+  @override
+  Future<void> ensureSignedIn() async {}
+
+  @override
+  Future<String?> displayName() async => null;
+
+  @override
+  Future<bool> hasDisplayName() async => false;
+
+  @override
+  String? get currentUserId => 'fake-id';
+
+  @override
+  bool get isSignedIn => true;
+}

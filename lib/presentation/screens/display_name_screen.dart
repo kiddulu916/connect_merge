@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../infrastructure/analytics_service.dart';
 import '../../infrastructure/auth_service.dart';
 import '../theme/tokens.dart';
 
@@ -9,10 +10,15 @@ import '../theme/tokens.dart';
 class DisplayNameScreen extends StatefulWidget {
   final AuthService auth;
 
+  /// Optional analytics service (observability). Null when Firebase isn't
+  /// configured — the onboarding_completed event simply isn't logged.
+  final AnalyticsService? analytics;
+
   /// Called after a successful save (e.g. to pop back / continue onboarding).
   final VoidCallback? onSaved;
 
-  const DisplayNameScreen({super.key, required this.auth, this.onSaved});
+  const DisplayNameScreen(
+      {super.key, required this.auth, this.analytics, this.onSaved});
 
   @override
   State<DisplayNameScreen> createState() => _DisplayNameScreenState();
@@ -48,7 +54,10 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
     try {
       await widget.auth.setDisplayName(name, avatar: _avatar);
       if (!mounted) return;
+      widget.analytics?.logEvent('onboarding_completed');
       widget.onSaved?.call();
+      if (!mounted) return;
+      setState(() => _saving = false);
     } catch (_) {
       if (!mounted) return;
       setState(() {
