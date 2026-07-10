@@ -80,6 +80,7 @@ class _CosmeticsScreenState extends State<CosmeticsScreen> {
 
   void _unlockViaAd(BuildContext context, Cosmetic c) {
     widget.adService.showRewarded(
+      adType: 'cosmetic_unlock',
       onReward: () => widget.engagement.grantAdCosmetic(c),
       onUnavailable: () {
         if (context.mounted) {

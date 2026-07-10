@@ -397,6 +397,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
 
   void _watchFreezeAd(BuildContext context) {
     widget.adService.showRewarded(
+      adType: 'streak_freeze',
       onReward: () async {
         final granted = await _engagement.grantFreezeToken();
         if (granted && context.mounted) {

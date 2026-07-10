@@ -21,6 +21,7 @@ class LootChestScreen extends StatelessWidget {
 
   void _doubleWithAd(BuildContext context) {
     adService.showRewarded(
+      adType: 'loot_double',
       onReward: () => loot.doubleReward(),
       onUnavailable: () {
         if (context.mounted) {

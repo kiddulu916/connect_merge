@@ -208,6 +208,7 @@ class _GameScreenState extends State<GameScreen> {
   /// the run's earned coins again, then refreshes so the button hides.
   void _watchDoubleCoins(BuildContext context, GameCubit cubit) {
     adService.showRewarded(
+      adType: 'double_coins',
       onReward: () async {
         final bonus = await cubit.doubleRunCoins();
         if (bonus > 0) {
@@ -329,6 +330,7 @@ class _GameScreenState extends State<GameScreen> {
     }
     // Out of free undos: gate the extra undo behind a rewarded ad.
     adService.showRewarded(
+      adType: 'undo',
       onReward: () => cubit.undoAfterReward(),
       onUnavailable: () {
         if (context.mounted) {
@@ -343,6 +345,7 @@ class _GameScreenState extends State<GameScreen> {
   /// Show a rewarded ad; on reward, reveal the next drop tier (read-only).
   void _watchHint(BuildContext context, GameCubit cubit) {
     adService.showRewarded(
+      adType: 'hint',
       onReward: () {
         final tier = cubit.revealNextDropAfterReward();
         if (tier != null && mounted) setState(() => _hintTier = tier);
@@ -373,6 +376,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _watchRewarded(BuildContext context, GameCubit cubit) {
     adService.showRewarded(
+      adType: 'continue',
       onReward: () => cubit.grantAdReward(),
       onUnavailable: () {
         if (context.mounted) {

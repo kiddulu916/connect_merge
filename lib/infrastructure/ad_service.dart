@@ -1,11 +1,16 @@
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'ad_config.dart';
+import 'analytics_service.dart';
 import 'consent_service.dart';
 
 /// Isolates all google_mobile_ads lifecycle so the rest of the app never
 /// imports the plugin directly.
 class AdService {
+  final AnalyticsService? analytics;
+
+  AdService({this.analytics});
+
   RewardedAd? _rewarded;
   bool _initialized = false;
 
@@ -45,19 +50,26 @@ class AdService {
     );
   }
 
-  /// Shows a rewarded ad. Calls [onReward] exactly once if the user earns the
-  /// reward, then preloads the next ad. [onUnavailable] fires if none is ready
-  /// or if ads have not been initialised yet.
+  /// Shows a rewarded ad for feature [adType] (e.g. `'hint'`, `'undo'`,
+  /// `'continue'`, `'double_coins'`, `'loot_double'`, `'streak_freeze'`,
+  /// `'cosmetic_unlock'`) — used only to tag the `ad_shown`/`ad_load_failed`
+  /// analytics events, not for any gameplay logic. Calls [onReward] exactly
+  /// once if the user earns the reward, then preloads the next ad.
+  /// [onUnavailable] fires if none is ready or if ads have not been
+  /// initialised yet.
   void showRewarded({
+    required String adType,
     required void Function() onReward,
     required void Function() onUnavailable,
   }) {
     if (!_initialized) {
+      analytics?.logEvent('ad_load_failed', {'adType': adType});
       onUnavailable();
       return;
     }
     final ad = _rewarded;
     if (ad == null) {
+      analytics?.logEvent('ad_load_failed', {'adType': adType});
       onUnavailable();
       _preloadRewarded();
       return;
@@ -72,10 +84,12 @@ class AdService {
       onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();
         _rewarded = null;
+        analytics?.logEvent('ad_load_failed', {'adType': adType});
         onUnavailable();
         _preloadRewarded();
       },
     );
+    analytics?.logEvent('ad_shown', {'adType': adType});
     ad.show(onUserEarnedReward: (_, __) {
       if (!rewarded) {
         rewarded = true;
