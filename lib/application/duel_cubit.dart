@@ -58,7 +58,13 @@ class DuelState {
 class DuelCubit extends Cubit<DuelState> {
   final String Function() todayProvider;
 
-  DuelCubit({required this.todayProvider}) : super(const DuelState());
+  /// Optional analytics hook (observability). Signature matches
+  /// `AnalyticsService.logEvent` exactly.
+  final void Function(String name, [Map<String, Object?>? params])?
+      onAnalyticsEvent;
+
+  DuelCubit({required this.todayProvider, this.onAnalyticsEvent})
+      : super(const DuelState());
 
   /// Accept an incoming [challenge] (from a duel deep link). Marks it expired
   /// when its date is no longer today (the seeded board is gone), so the UI can
@@ -66,6 +72,10 @@ class DuelCubit extends Cubit<DuelState> {
   void receiveChallenge(DuelChallenge challenge) {
     final expired = challenge.date != todayProvider();
     emit(DuelState(challenge: challenge, expired: expired));
+    if (!expired) {
+      onAnalyticsEvent
+          ?.call('duel_started', {'difficulty': challenge.difficulty.name});
+    }
   }
 
   /// Clear the current challenge (e.g. after the player dismisses the banner).
@@ -86,10 +96,12 @@ class DuelCubit extends Cubit<DuelState> {
     // honestly settled — guard before any comparison.
     if (state.expired) return;
     if (c.date != date || c.difficulty != difficulty) return;
-    emit(state.copyWith(
-      myScore: myScore,
-      outcome: compare(myScore: myScore, challengerScore: c.challengerScore),
-    ));
+    final outcome = compare(myScore: myScore, challengerScore: c.challengerScore);
+    emit(state.copyWith(myScore: myScore, outcome: outcome));
+    onAnalyticsEvent?.call('duel_completed', {
+      'difficulty': difficulty.name,
+      'won': outcome == DuelOutcome.win,
+    });
   }
 
   /// Pure comparison: the recipient's [myScore] vs the challenger's claimed

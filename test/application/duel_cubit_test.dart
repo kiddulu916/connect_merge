@@ -96,6 +96,51 @@ void main() {
       c.dismiss();
       expect(c.state.challenge, isNull);
     });
+
+    test('receiveChallenge fires duel_started with difficulty', () {
+      final events = <MapEntry<String, Map<String, Object?>?>>[];
+      final c = DuelCubit(
+        todayProvider: () => '2026-06-11',
+        onAnalyticsEvent: (name, [params]) =>
+            events.add(MapEntry(name, params)),
+      )..receiveChallenge(challenge);
+
+      // MapEntry has no value equality — compare .key/.value directly.
+      expect(events, hasLength(1));
+      expect(events.single.key, 'duel_started');
+      expect(events.single.value, {'difficulty': 'hard'});
+    });
+
+    test('recordMyResult fires duel_completed with difficulty + won', () {
+      final events = <MapEntry<String, Map<String, Object?>?>>[];
+      final c = DuelCubit(
+        todayProvider: () => '2026-06-11',
+        onAnalyticsEvent: (name, [params]) =>
+            events.add(MapEntry(name, params)),
+      )..receiveChallenge(challenge);
+      c.recordMyResult(
+          date: '2026-06-11', difficulty: Difficulty.hard, myScore: 1500);
+
+      final completed =
+          events.where((e) => e.key == 'duel_completed').toList();
+      // MapEntry has no value equality — compare .value on the single match.
+      expect(completed, hasLength(1));
+      expect(completed.single.value, {'difficulty': 'hard', 'won': true});
+    });
+
+    test('recordMyResult on an expired challenge does NOT fire duel_completed',
+        () {
+      final events = <MapEntry<String, Map<String, Object?>?>>[];
+      final c = DuelCubit(
+        todayProvider: () => '2026-06-12', // day after the challenge's date
+        onAnalyticsEvent: (name, [params]) =>
+            events.add(MapEntry(name, params)),
+      )..receiveChallenge(challenge);
+      c.recordMyResult(
+          date: '2026-06-11', difficulty: Difficulty.hard, myScore: 1500);
+
+      expect(events.where((e) => e.key == 'duel_completed'), isEmpty);
+    });
   });
 
   group('DuelCubit share-back', () {
