@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -13,8 +14,10 @@ import 'application/rivalry_cubit.dart';
 import 'domain/models/duel_challenge.dart';
 import 'domain/models/friend.dart';
 import 'infrastructure/ad_service.dart';
+import 'infrastructure/analytics_service.dart';
 import 'infrastructure/consent_service.dart';
 import 'infrastructure/auth_service.dart';
+import 'infrastructure/crash_reporting_service.dart';
 import 'infrastructure/deep_link_service.dart';
 import 'infrastructure/friends_service.dart';
 import 'infrastructure/hive_storage_service.dart';
@@ -25,95 +28,130 @@ import 'presentation/screens/display_name_screen.dart';
 import 'presentation/screens/tier_select_screen.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  CrashReportingService? crashReporting;
+  AnalyticsService? analytics;
 
-  await Hive.initFlutter();
-  final storage = HiveStorageService();
-  await storage.init();
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  final adService = AdService();
-  await adService.init(ConsentService());
-
-  // Notifications are LOCAL only ($0, no FCM). Init the plugin + timezone here
-  // but request OS permission lazily (after the first completion), never at cold launch.
-  tzdata.initializeTimeZones();
-  try {
-    tz.setLocalLocation(tz.getLocation(tz.local.name));
-  } catch (_) {
-    // tz.local defaults to UTC if the device zone can't be resolved; safe.
-  }
-  final notifPlugin = FlutterLocalNotificationsPlugin();
-  await notifPlugin.initialize(
-    settings: const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(
-        requestAlertPermission: false,
-        requestBadgePermission: false,
-        requestSoundPermission: false,
-      ),
-    ),
-  );
-  final notifications = NotificationService.plugin(notifPlugin);
-
-  final engagement = EngagementCubit(storage: storage)..load();
-
-  // Both are profile-backed + offline-safe: the rival relationship persists
-  // locally and duels carry their payload in the link, so neither needs a backend ($0).
-  // Hydrate the rival from storage now.
-  final rivalry = RivalryCubit(storage: storage)..load();
-  final duels = DuelCubit(todayProvider: utcToday);
-
-  // Degrades gracefully: if Supabase isn't configured (no --dart-define) or
-  // anon sign-in fails, the game still runs offline.
-  AuthService? auth;
-  LeaderboardService? leaderboard;
-  FriendsService? friends;
-  bool needsDisplayName = false;
-  if (await initSupabase()) {
-    auth = AuthService(supabase);
-    leaderboard = LeaderboardService(supabase);
-    friends = FriendsService(supabase);
     try {
-      await auth.ensureSignedIn();
-      needsDisplayName = !(await auth.hasDisplayName());
+      await Firebase.initializeApp();
+      crashReporting = CrashReportingService();
+      analytics = AnalyticsService();
+      FlutterError.onError = (details) {
+        crashReporting?.recordError(details.exception, details.stack,
+            fatal: true);
+      };
+      WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+        crashReporting?.recordError(error, stack, fatal: true);
+        return true;
+      };
     } catch (_) {
-      // Offline / auth failure: keep playing offline; retry on next launch.
-      auth = null;
-      leaderboard = null;
-      friends = null;
+      // No Firebase config (missing google-services.json/GoogleService-
+      // Info.plist, or a test/CI environment with no platform channels):
+      // observability stays fully no-op, exactly like initSupabase() below
+      // degrades to offline play when Supabase isn't configured.
     }
-  }
 
-  // Daily / weekly / monthly prizes + challenge payouts: checked on every app
-  // open and idempotent via their respective date guards.
-  if (leaderboard != null) {
-    unawaited(engagement.checkDailyPrizes(leaderboard.fetch));
-    unawaited(engagement.checkWeeklyPrizes(leaderboard.fetchPeriod));
-    unawaited(engagement.checkMonthlyPrizes(leaderboard.fetchPeriod));
-    unawaited(engagement.checkChallengePayouts(leaderboard.fetch));
-  }
+    await Hive.initFlutter();
+    final storage = HiveStorageService();
+    await storage.init();
 
-  // Deep links: invites (connectmerge://invite/<code>) AND duels
-  // (connectmerge://duel/...). Duels need no backend (the challenge rides in the
-  // link), so the service is started whenever EITHER is usable — i.e. always.
-  // Captures cold-start links so a redeem/challenge isn't lost before the app is
-  // ready; the app replays the pending code/duel once it's ready.
-  final deepLinks = DeepLinkService();
-  await deepLinks.init();
+    final adService = AdService(analytics: analytics);
+    await adService.init(ConsentService());
 
-  runApp(ConnectMergeApp(
-    storage: storage,
-    adService: adService,
-    auth: auth,
-    leaderboard: leaderboard,
-    friends: friends,
-    deepLinks: deepLinks,
-    engagement: engagement,
-    rivalry: rivalry,
-    duels: duels,
-    notifications: notifications,
-    needsDisplayName: needsDisplayName,
-  ));
+    // Notifications are LOCAL only ($0, no FCM). Init the plugin + timezone here
+    // but request OS permission lazily (after the first completion), never at cold launch.
+    tzdata.initializeTimeZones();
+    try {
+      tz.setLocalLocation(tz.getLocation(tz.local.name));
+    } catch (_) {
+      // tz.local defaults to UTC if the device zone can't be resolved; safe.
+    }
+    final notifPlugin = FlutterLocalNotificationsPlugin();
+    await notifPlugin.initialize(
+      settings: const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
+      ),
+    );
+    final notifications = NotificationService.plugin(notifPlugin);
+
+    final engagement = EngagementCubit(
+      storage: storage,
+      onError: crashReporting?.recordError,
+      onAnalyticsEvent: analytics?.logEvent,
+    )..load();
+
+    // Both are profile-backed + offline-safe: the rival relationship persists
+    // locally and duels carry their payload in the link, so neither needs a backend ($0).
+    // Hydrate the rival from storage now.
+    final rivalry = RivalryCubit(storage: storage)..load();
+    final duels = DuelCubit(
+      todayProvider: utcToday,
+      onAnalyticsEvent: analytics?.logEvent,
+    );
+
+    // Degrades gracefully: if Supabase isn't configured (no --dart-define) or
+    // anon sign-in fails, the game still runs offline.
+    AuthService? auth;
+    LeaderboardService? leaderboard;
+    FriendsService? friends;
+    bool needsDisplayName = false;
+    if (await initSupabase()) {
+      auth = AuthService(supabase);
+      leaderboard = LeaderboardService(supabase);
+      friends = FriendsService(supabase);
+      try {
+        await auth.ensureSignedIn();
+        needsDisplayName = !(await auth.hasDisplayName());
+      } catch (_) {
+        // Offline / auth failure: keep playing offline; retry on next launch.
+        auth = null;
+        leaderboard = null;
+        friends = null;
+      }
+    }
+
+    // Daily / weekly / monthly prizes + challenge payouts: checked on every app
+    // open and idempotent via their respective date guards.
+    if (leaderboard != null) {
+      unawaited(engagement.checkDailyPrizes(leaderboard.fetch));
+      unawaited(engagement.checkWeeklyPrizes(leaderboard.fetchPeriod));
+      unawaited(engagement.checkMonthlyPrizes(leaderboard.fetchPeriod));
+      unawaited(engagement.checkChallengePayouts(leaderboard.fetch));
+    }
+
+    // Deep links: invites (connectmerge://invite/<code>) AND duels
+    // (connectmerge://duel/...). Duels need no backend (the challenge rides in the
+    // link), so the service is started whenever EITHER is usable — i.e. always.
+    // Captures cold-start links so a redeem/challenge isn't lost before the app is
+    // ready; the app replays the pending code/duel once it's ready.
+    final deepLinks = DeepLinkService();
+    await deepLinks.init();
+
+    runApp(ConnectMergeApp(
+      storage: storage,
+      adService: adService,
+      auth: auth,
+      leaderboard: leaderboard,
+      friends: friends,
+      deepLinks: deepLinks,
+      engagement: engagement,
+      rivalry: rivalry,
+      duels: duels,
+      notifications: notifications,
+      needsDisplayName: needsDisplayName,
+      crashReporting: crashReporting,
+      analytics: analytics,
+    ));
+  }, (error, stack) {
+    crashReporting?.recordError(error, stack, fatal: true);
+  });
 }
 
 class ConnectMergeApp extends StatefulWidget {
@@ -128,6 +166,8 @@ class ConnectMergeApp extends StatefulWidget {
   final DuelCubit? duels;
   final NotificationService notifications;
   final bool needsDisplayName;
+  final CrashReportingService? crashReporting;
+  final AnalyticsService? analytics;
 
   const ConnectMergeApp({
     super.key,
@@ -142,6 +182,8 @@ class ConnectMergeApp extends StatefulWidget {
     this.rivalry,
     this.duels,
     this.needsDisplayName = false,
+    this.crashReporting,
+    this.analytics,
   });
 
   @override
@@ -257,6 +299,7 @@ class _ConnectMergeAppState extends State<ConnectMergeApp> {
     if (_needsDisplayName && widget.auth != null) {
       home = DisplayNameScreen(
         auth: widget.auth!,
+        analytics: widget.analytics,
         onSaved: _onOnboarded,
       );
     } else {
@@ -269,6 +312,8 @@ class _ConnectMergeAppState extends State<ConnectMergeApp> {
         rivalry: widget.rivalry,
         duels: widget.duels,
         notifications: widget.notifications,
+        crashReporting: widget.crashReporting,
+        analytics: widget.analytics,
       );
     }
     return MaterialApp(
@@ -277,6 +322,9 @@ class _ConnectMergeAppState extends State<ConnectMergeApp> {
       navigatorKey: _navKey,
       scaffoldMessengerKey: _messengerKey,
       theme: ThemeData.dark(useMaterial3: true),
+      navigatorObservers: [
+        if (widget.analytics != null) widget.analytics!.navigatorObserver,
+      ],
       home: home,
     );
   }

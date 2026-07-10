@@ -16,6 +16,8 @@ import '../../domain/models/difficulty.dart';
 import '../../domain/models/duel_challenge.dart';
 import '../../domain/models/move.dart';
 import '../../infrastructure/ad_service.dart';
+import '../../infrastructure/analytics_service.dart';
+import '../../infrastructure/crash_reporting_service.dart';
 import '../../infrastructure/friends_service.dart';
 import '../../infrastructure/leaderboard_service.dart';
 import '../../infrastructure/notification_service.dart';
@@ -54,6 +56,13 @@ class TierSelectScreen extends StatefulWidget {
   /// null (tests), a local cubit is created from [storage].
   final EngagementCubit? engagement;
 
+  /// Observability services (both optional — null when Firebase isn't
+  /// configured, or in tests). Threaded down to the locally-created
+  /// `EngagementCubit` fallback and to the `GameCubit` this screen creates
+  /// per tier.
+  final CrashReportingService? crashReporting;
+  final AnalyticsService? analytics;
+
   /// Phase 1 Daily Loot Chest cubit. When null, a local cubit is created from
   /// [storage].
   final LootCubit? loot;
@@ -90,6 +99,8 @@ class TierSelectScreen extends StatefulWidget {
     this.notifications,
     this.todayProvider,
     this.onTierSelected,
+    this.crashReporting,
+    this.analytics,
   });
 
   String today() => (todayProvider ?? utcToday)();
@@ -127,7 +138,10 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     super.initState();
     _engagement = widget.engagement ??
         (EngagementCubit(
-            storage: widget.storage, todayProvider: widget.todayProvider)
+            storage: widget.storage,
+            todayProvider: widget.todayProvider,
+            onError: widget.crashReporting?.recordError,
+            onAnalyticsEvent: widget.analytics?.logEvent)
           ..load());
     _ownsEngagement = widget.engagement == null;
     _loot = widget.loot ??
@@ -286,6 +300,8 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                 // Wired only when a leaderboard service is present; null offline
                 // so the cubit's submit no-ops.
                 onSubmitRun: widget.leaderboard == null ? null : _submitRun,
+                onError: widget.crashReporting?.recordError,
+                onAnalyticsEvent: widget.analytics?.logEvent,
               )..init(difficulty: difficulty),
               child: GameScreen(
                 adService: widget.adService,
