@@ -100,6 +100,85 @@ void main() {
     expect(params.containsKey('moveCount'), isTrue);
   });
 
+  test(
+      'onAnalyticsEvent fires run_completed exactly once across an ad continue, '
+      'using the SECOND (truly final) board\'s stats, not the pre-continue board\'s',
+      () async {
+    final events = <MapEntry<String, Map<String, Object?>?>>[];
+    const date = '2026-06-06';
+    const tier = Difficulty.easy;
+
+    // Phase 1: drive to a genuine, continue-eligible out-of-moves state. For
+    // this fixed seed, a single merge from a movesRemaining:1 snapshot ends
+    // the run with a merge still available on the board (this is the exact
+    // construction that made the sibling "fires exactly once" test above
+    // regress under the run_completed-gating fix, before _completeTier was
+    // hardened with adContinuesUsed) — so canOfferAd is deterministically
+    // true here, without depending on lucky board topology.
+    final start = const DailySeeder(date, tier).generate().board;
+    final nearDone = start.copyWith(movesRemaining: 1);
+    await storage.saveSnapshot(GameSnapshot(
+        date: date, difficulty: tier, board: nearDone, completed: false));
+
+    final c = GameCubit(
+      storage: storage,
+      todayProvider: () => date,
+      onAnalyticsEvent: (name, [params]) =>
+          events.add(MapEntry(name, params)),
+    );
+    await c.init(difficulty: tier);
+    final pair1 = _findMergePair((c.state as GamePlaying).board);
+    await c.merge(fromIndex: pair1.$1, toIndex: pair1.$2);
+
+    expect(c.state, isA<GameOverShowScore>());
+    final board1 = (c.state as GameOverShowScore).board;
+    expect(c.canOfferAd, isTrue,
+        reason: 'this seed must leave a merge available so a continue is '
+            'genuinely offered here — otherwise this test would not be '
+            'exercising the multi-continue path it is meant to cover');
+    // Not yet truly over (a continue is on offer): run_completed must NOT
+    // have fired yet.
+    expect(events.where((e) => e.key == 'run_completed'), isEmpty);
+
+    // Take the continue.
+    await c.grantAdReward();
+    expect(c.state, isA<GamePlaying>());
+    final continuedBoard = (c.state as GamePlaying).board;
+    expect(continuedBoard.adContinuesUsed, 1);
+    expect(events.where((e) => e.key == 'run_completed'), isEmpty);
+
+    // Phase 2: force a genuinely, unambiguously terminal completion (ad
+    // continues exhausted) via a resumed snapshot — mirroring how the real
+    // app resumes a persisted board, and the same determinism technique used
+    // to harden _completeTier. Board topology (cells) is untouched by this
+    // copyWith, so the merge pair available on board1/continuedBoard is still
+    // present for the final merge.
+    final finalNear = continuedBoard.copyWith(
+      movesRemaining: 1,
+      adContinuesUsed: kMaxAdContinuesPerDay,
+    );
+    await storage.saveSnapshot(GameSnapshot(
+        date: date, difficulty: tier, board: finalNear, completed: false));
+    await c.init(difficulty: tier);
+    expect(c.state, isA<GamePlaying>());
+    final pair2 = _findMergePair((c.state as GamePlaying).board);
+    await c.merge(fromIndex: pair2.$1, toIndex: pair2.$2);
+
+    expect(c.state, isA<GameOverShowScore>());
+    final finalBoard = (c.state as GameOverShowScore).board;
+    // Sanity check that the second board is genuinely further along than the
+    // first (proving this exercises two distinct completions, not one).
+    expect(finalBoard.score, greaterThan(board1.score));
+
+    final runCompleted =
+        events.where((e) => e.key == 'run_completed').toList();
+    expect(runCompleted, hasLength(1));
+    final params = runCompleted.single.value!;
+    expect(params['score'], finalBoard.score);
+    expect(params['highestTier'], finalBoard.highestTier);
+    expect(params['moveCount'], finalBoard.movesMade);
+  });
+
   test('per-tier streak_broken fires on a genuine gap, using the pre-reset length',
       () async {
     await _completeTier(storage, '2026-06-01', Difficulty.easy);
@@ -497,7 +576,14 @@ Future<void> _completeTier(
   // _recordCompletion does, by running a single merge that ends the day.
   final start = DailySeeder(date, tier).generate().board;
   // Drive to out-of-moves by saving a near-complete snapshot then merging once.
-  final nearDone = start.copyWith(movesRemaining: 1);
+  // Also force adContinuesUsed to the daily cap so the resulting board is
+  // deterministically terminal (via GameCubit._finishRun's `terminal` gate)
+  // regardless of whether a merge happens to remain on this seed's board —
+  // otherwise run_completed/leaderboard submission depend on board topology.
+  final nearDone = start.copyWith(
+    movesRemaining: 1,
+    adContinuesUsed: kMaxAdContinuesPerDay,
+  );
   await storage.saveSnapshot(GameSnapshot(
       date: date, difficulty: tier, board: nearDone, completed: false));
 

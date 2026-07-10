@@ -455,21 +455,23 @@ class GameCubit extends Cubit<GameState> {
     }
     _undoStack.clear();
     await _fireCompletionHook(board);
-    onAnalyticsEvent?.call('run_completed', {
-      'difficulty': _difficulty.name,
-      'score': board.score,
-      'highestTier': board.highestTier,
-      'moveCount': board.movesMade,
-    });
     emit(GameOverShowScore(
         board: board, date: _date, difficulty: _difficulty, stats: stats));
-    // Submit to the leaderboard only when the day is genuinely terminal:
-    // deadlocked, or out of moves with no remaining ad-continue offer. This
-    // avoids submitting before the player takes an available ad continue.
+    // Submit to the leaderboard (and fire the run_completed analytics event)
+    // only when the day is genuinely terminal: deadlocked, or out of moves
+    // with no remaining ad-continue offer. This avoids submitting — and
+    // double-counting analytics — before the player takes an available ad
+    // continue; _finishRun can otherwise run once per ad continue taken.
     final terminal = board.status == GameStatus.deadlocked ||
         board.adContinuesUsed >= kMaxAdContinuesPerDay ||
         !GameEngine.hasMergeAvailable(board);
     if (terminal) {
+      onAnalyticsEvent?.call('run_completed', {
+        'difficulty': _difficulty.name,
+        'score': board.score,
+        'highestTier': board.highestTier,
+        'moveCount': board.movesMade,
+      });
       await _submit(board);
     }
   }
