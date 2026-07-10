@@ -111,10 +111,33 @@ class EngagementCubit extends Cubit<EngagementState> {
   final StorageService storage;
   final String Function() todayProvider;
 
+  /// Optional error-reporting hook (observability). Fired for exceptions that
+  /// are currently swallowed silently. Signature matches
+  /// `CrashReportingService.recordError` exactly, so callers can pass the
+  /// method directly (e.g. `onError: crashReporting.recordError`).
+  ///
+  /// Stored as a private field (`_onError`) rather than `this.onError`
+  /// because `Cubit`/`BlocBase` already declares an inherited instance
+  /// method named `onError` (its internal stream-error hook) — a field of
+  /// the same name is not a compatible override and fails to compile (this
+  /// was discovered and fixed the same way in `GameCubit`, Task 5). The
+  /// public constructor parameter is still named `onError` so callers are
+  /// unaffected.
+  final void Function(Object error, StackTrace? stack, {bool fatal})?
+      _onError;
+
+  /// Optional analytics hook (observability). Signature matches
+  /// `AnalyticsService.logEvent` exactly.
+  final void Function(String name, [Map<String, Object?>? params])?
+      onAnalyticsEvent;
+
   EngagementCubit({
     required this.storage,
     String Function()? todayProvider,
+    void Function(Object error, StackTrace? stack, {bool fatal})? onError,
+    this.onAnalyticsEvent,
   })  : todayProvider = todayProvider ?? utcToday,
+        _onError = onError,
         super(const EngagementState());
 
   /// Hydrate from storage. Recomputes the unlocked sets from the loaded profile
@@ -177,6 +200,19 @@ class EngagementCubit extends Cubit<EngagementState> {
     );
     if (result.freezeConsumed) {
       await _consumeOneFreezeToken();
+    }
+    // A genuine gap (a prior date exists, isn't today, isn't yesterday) that
+    // no freeze token bridged is a direct churn-risk signal — surface it once,
+    // using the streak length BEFORE the reset.
+    final yesterday = previousUtcDay(today);
+    final hadGap = profile.lastActiveDate != null &&
+        profile.lastActiveDate != today &&
+        profile.lastActiveDate != yesterday;
+    if (hadGap && !result.freezeConsumed) {
+      onAnalyticsEvent?.call('streak_broken', {
+        'streakType': 'daily',
+        'length': profile.dailyActiveStreak,
+      });
     }
 
     // --- Progress + achievements. ---
@@ -331,7 +367,8 @@ class EngagementCubit extends Cubit<EngagementState> {
             bestRank = myEntry.rank;
           }
         }
-      } catch (_) {
+      } catch (e, st) {
+        _onError?.call(e, st);
         return; // network failure: skip; retry on next app open
       }
     }
@@ -417,7 +454,8 @@ class EngagementCubit extends Cubit<EngagementState> {
             rank: myEntry.rank,
           ));
         }
-      } catch (_) {
+      } catch (e, st) {
+        _onError?.call(e, st);
         // Network failure: skip this tier, try on next launch.
       }
     }
@@ -491,7 +529,8 @@ class EngagementCubit extends Cubit<EngagementState> {
             bestRank = myEntry.rank;
           }
         }
-      } catch (_) {
+      } catch (e, st) {
+        _onError?.call(e, st);
         return;
       }
     }
@@ -540,7 +579,8 @@ class EngagementCubit extends Cubit<EngagementState> {
       if (myEntry != null) {
         coins = _challengeCoinForRank(myEntry.rank);
       }
-    } catch (_) {
+    } catch (e, st) {
+      _onError?.call(e, st);
       return; // network failure: skip; retry on next app open
     }
 

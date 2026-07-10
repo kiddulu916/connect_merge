@@ -94,6 +94,93 @@ void main() {
       expect(c.state.freezeTokens, 0);
     });
 
+    test('a genuine gap with NO freeze token fires streak_broken with the pre-reset length',
+        () async {
+      await storage.saveProfile(const PlayerProfile(
+          dailyActiveStreak: 8, lastActiveDate: '2026-06-01'));
+      final events = <MapEntry<String, Map<String, Object?>?>>[];
+      final c = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-07',
+        onAnalyticsEvent: (name, [params]) =>
+            events.add(MapEntry(name, params)),
+      )..load();
+      await c.onTierCompleted();
+
+      expect(c.state.dailyActiveStreak, 1); // reset, no freeze available
+      final broken = events.where((e) => e.key == 'streak_broken').toList();
+      expect(broken, hasLength(1));
+      expect(broken.single.value, {'streakType': 'daily', 'length': 8});
+    });
+
+    test('a gap bridged by a freeze token does NOT fire streak_broken',
+        () async {
+      await storage.saveProfile(const PlayerProfile(
+          dailyActiveStreak: 8, lastActiveDate: '2026-06-01'));
+      await storage.saveStats(
+          Difficulty.easy,
+          const LifetimeStats(
+              streak: 0,
+              lastCompletedDate: null,
+              bestScore: 0,
+              bestTier: 0,
+              streakFreezeTokens: 1));
+      final events = <MapEntry<String, Map<String, Object?>?>>[];
+      final c = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-07',
+        onAnalyticsEvent: (name, [params]) =>
+            events.add(MapEntry(name, params)),
+      )..load();
+      await c.onTierCompleted();
+
+      expect(events.where((e) => e.key == 'streak_broken'), isEmpty);
+    });
+
+    test('consecutive-day completion does NOT fire streak_broken', () async {
+      await storage.saveProfile(const PlayerProfile(
+          dailyActiveStreak: 4, lastActiveDate: '2026-06-06'));
+      final events = <MapEntry<String, Map<String, Object?>?>>[];
+      final c = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-07',
+        onAnalyticsEvent: (name, [params]) =>
+            events.add(MapEntry(name, params)),
+      )..load();
+      await c.onTierCompleted();
+
+      expect(events.where((e) => e.key == 'streak_broken'), isEmpty);
+    });
+
+    test('first-ever completion does NOT fire streak_broken', () async {
+      final events = <MapEntry<String, Map<String, Object?>?>>[];
+      final c = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-07',
+        onAnalyticsEvent: (name, [params]) =>
+            events.add(MapEntry(name, params)),
+      )..load();
+      await c.onTierCompleted();
+
+      expect(events.where((e) => e.key == 'streak_broken'), isEmpty);
+    });
+
+    test('onError fires when checkDailyPrizes\' fetch throws', () async {
+      Object? capturedError;
+      final c = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-07',
+        onError: (error, stack, {fatal = false}) => capturedError = error,
+      )..load();
+
+      await c.checkDailyPrizes(
+        ({required difficulty, required date}) async =>
+            throw StateError('network down'),
+      );
+
+      expect(capturedError, isA<StateError>());
+    });
+
     test('gap with NO freeze resets the streak to 1', () async {
       await storage.saveProfile(const PlayerProfile(
           dailyActiveStreak: 8, lastActiveDate: '2026-06-01'));
