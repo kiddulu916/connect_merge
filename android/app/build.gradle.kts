@@ -40,8 +40,8 @@ android {
     }
 
     dependencies {
-        //implementation("com.google.android.gms:play-services-ads:25.3.0")
-        implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.2.2")
+        // Ads SDK comes transitively from the google_mobile_ads Flutter plugin
+        // (play-services-ads); do not add it directly — duplicate classes.
         coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     }
 
