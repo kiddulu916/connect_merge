@@ -279,6 +279,16 @@ class _ConnectMergeAppState extends State<ConnectMergeApp> {
 
   String? _pendingAfterOnboarding;
 
+  /// After an in-app account deletion: the old anonymous user is gone (server
+  /// row deleted, signed out, Hive wiped by the Profile screen). Start a fresh
+  /// anonymous session and re-run display-name onboarding.
+  void _onAccountDeleted() {
+    setState(() => _needsDisplayName = true);
+    // Best-effort: if offline right after deleting, ensureSignedIn simply
+    // retries on next launch (same degradation as cold start).
+    unawaited(widget.auth?.ensureSignedIn().catchError((_) {}));
+  }
+
   void _onOnboarded() {
     setState(() => _needsDisplayName = false);
     final dl = widget.deepLinks;
@@ -308,6 +318,8 @@ class _ConnectMergeAppState extends State<ConnectMergeApp> {
         adService: widget.adService,
         leaderboard: widget.leaderboard,
         friends: widget.friends,
+        auth: widget.auth,
+        onAccountDeleted: _onAccountDeleted,
         engagement: widget.engagement,
         rivalry: widget.rivalry,
         duels: widget.duels,

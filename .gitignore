@@ -54,6 +54,7 @@ app.*.map.json
 # Custom / editor
 .superpowers/
 .claude/
+.mcp.json
 
 # Node tooling (Supabase CLI is a local devDependency; keep package*.json, ignore deps)
 node_modules/

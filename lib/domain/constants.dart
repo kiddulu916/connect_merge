@@ -139,10 +139,10 @@ const int kObjectiveRewardCoins = 25;
 /// whose version != this is discarded on load (a daily resets anyway).
 const int kSnapshotVersion = 3;
 
-/// Bumped when the ascending-chain-merge rule shipped. Submitted with every
-/// score and used to filter leaderboard reads, so pre-bump scores (computed
-/// under the old same-tier-only rule) never mix with post-bump scores.
-const int kLeaderboardSeason = 3;
+/// Reset to 1 for launch after the pre-launch database wipe (2026-07-11).
+/// Submitted with every score and used to filter leaderboard reads, so scores
+/// from a prior rule set never mix with the current season's.
+const int kLeaderboardSeason = 1;
 
 /// Seed-placed wall cells per difficulty (block tiles, break paths). Scales up with difficulty. Tuning knob.
 int wallCountFor(Difficulty d) => switch (d) {

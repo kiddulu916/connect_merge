@@ -5,8 +5,8 @@ import '../../infrastructure/auth_service.dart';
 import '../theme/tokens.dart';
 
 /// First-run display-name capture. Persists the player's name (and an optional
-/// emoji avatar) before they can appear on a leaderboard. Names are non-unique
-/// (rank is by score); enforced length 1-20.
+/// emoji avatar) before they can appear on a leaderboard. Names are unique
+/// case-insensitively (DB index, migration 0008); enforced length 1-20.
 class DisplayNameScreen extends StatefulWidget {
   final AuthService auth;
 
@@ -56,6 +56,12 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
       if (!mounted) return;
       widget.analytics?.logEvent('onboarding_completed');
       widget.onSaved?.call();
+    } on DisplayNameTakenException {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = 'That name is already taken.';
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() {

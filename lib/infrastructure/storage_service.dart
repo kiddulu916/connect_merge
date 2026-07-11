@@ -390,6 +390,10 @@ abstract class StorageService {
   /// caps the log to [kHistoryRetentionDays] entries, dropping the oldest.
   List<DayResult> loadHistory();
   Future<void> appendResult(DayResult result);
+
+  /// Erase ALL locally persisted data (snapshots, stats, profile, history).
+  /// Used by delete-my-data so the device matches the server: gone means gone.
+  Future<void> wipeAll();
 }
 
 class InMemoryStorageService implements StorageService {
@@ -447,5 +451,13 @@ class InMemoryStorageService implements StorageService {
     while (_history.length > kHistoryRetentionDays) {
       _history.removeAt(0);
     }
+  }
+
+  @override
+  Future<void> wipeAll() async {
+    _snapshots.clear();
+    _stats.clear();
+    _profile = PlayerProfile.empty;
+    _history.clear();
   }
 }

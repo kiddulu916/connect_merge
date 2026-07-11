@@ -111,12 +111,12 @@ export function comboRushMultiplier(n: number): number {
 }
 
 /**
- * Leaderboard season (port of Dart `kLeaderboardSeason`). Bumped to 3 when the
- * ascending-chain-merge rule shipped, so pre-bump (season 2) scores never mix
- * with post-bump scores. The server uses its OWN constant when writing — it
- * never trusts a client-supplied season.
+ * Leaderboard season (port of Dart `kLeaderboardSeason`). Reset to 1 for
+ * launch after the pre-launch database wipe (2026-07-11), so scores from a
+ * prior rule set never mix with the current season's. The server uses its OWN
+ * constant when writing — it never trusts a client-supplied season.
  */
-export const kLeaderboardSeason = 3;
+export const kLeaderboardSeason = 1;
 
 /**
  * Cap on placement re-roll attempts in the seeder before throwing (port of the

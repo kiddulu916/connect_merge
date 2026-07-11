@@ -17,6 +17,7 @@ import '../../domain/models/duel_challenge.dart';
 import '../../domain/models/move.dart';
 import '../../infrastructure/ad_service.dart';
 import '../../infrastructure/analytics_service.dart';
+import '../../infrastructure/auth_service.dart';
 import '../../infrastructure/crash_reporting_service.dart';
 import '../../infrastructure/friends_service.dart';
 import '../../infrastructure/leaderboard_service.dart';
@@ -36,6 +37,7 @@ import 'game_screen.dart';
 import 'leaderboard_screen.dart';
 import 'loot_chest_screen.dart';
 import 'practice_screen.dart';
+import 'profile_screen.dart';
 
 /// Entry screen: pick a difficulty tier. Each card shows the starting tile
 /// count, whether the tier is already done today, and a live countdown to the
@@ -51,6 +53,14 @@ class TierSelectScreen extends StatefulWidget {
   /// Friends service. Null when offline — the Friends entry point and the
   /// Global/Friends toggle are then hidden.
   final FriendsService? friends;
+
+  /// Auth service. Null when offline — the Profile entry point (Player ID +
+  /// delete-my-data) is then hidden.
+  final AuthService? auth;
+
+  /// Called after the player deletes their account in the Profile screen (all
+  /// routes already popped). The app shell re-onboards.
+  final VoidCallback? onAccountDeleted;
 
   /// Phase 4 retention orchestration (streaks, achievements, cosmetics). When
   /// null (tests), a local cubit is created from [storage].
@@ -92,6 +102,8 @@ class TierSelectScreen extends StatefulWidget {
     required this.adService,
     this.leaderboard,
     this.friends,
+    this.auth,
+    this.onAccountDeleted,
     this.engagement,
     this.loot,
     this.rivalry,
@@ -263,6 +275,20 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
       return;
     }
     _openLeaderboard(context, Difficulty.values.first);
+  }
+
+  void _openProfile(BuildContext context) {
+    final auth = widget.auth;
+    if (auth == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(
+          auth: auth,
+          storage: widget.storage,
+          onDeleted: widget.onAccountDeleted,
+        ),
+      ),
+    );
   }
 
   void _openFriends(BuildContext context) {
@@ -490,7 +516,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   }
 
   /// A compact secondary-nav icon button for the top app bar. Tighter than the
-  /// default 48px target (22px glyph, 40px hit area, no padding) so up to four
+  /// default 48px target (22px glyph, 40px hit area, no padding) so up to five
   /// fit alongside the title without forcing it to wrap.
   Widget _navIconButton({
     required Key iconKey,
@@ -525,7 +551,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
             children: [
               // Top app bar: title left, secondary-nav icons right. The title
               // uses FittedBox(scaleDown) so it always stays on ONE line —
-              // shrinking only if the (up to 4) compact action icons leave it
+              // shrinking only if the (up to 5) compact action icons leave it
               // too little room — and never wraps.
               Row(
                 children: [
@@ -566,6 +592,13 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                       tooltip: 'Friends',
                       icon: Icons.group,
                       onPressed: () => _openFriends(context),
+                    ),
+                  if (widget.auth != null)
+                    _navIconButton(
+                      iconKey: const Key('open-profile'),
+                      tooltip: 'Profile',
+                      icon: Icons.person,
+                      onPressed: () => _openProfile(context),
                     ),
                 ],
               ),

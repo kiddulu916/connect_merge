@@ -120,4 +120,9 @@ class HiveStorageService implements StorageService {
     await _box.put(
         _historyKey, jsonEncode(history.map((e) => e.toJson()).toList()));
   }
+
+  @override
+  Future<void> wipeAll() async {
+    await _box.clear();
+  }
 }

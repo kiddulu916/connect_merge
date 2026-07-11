@@ -17,6 +17,14 @@ pluginManagement {
     }
 }
 
+dependencyResolutionManagement {
+  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  repositories {
+    google()
+    mavenCentral()
+  }
+}
+
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.2.1" apply false
@@ -26,4 +34,5 @@ plugins {
     id("com.google.firebase.crashlytics") version "3.0.7" apply false
 }
 
+rootProject.name = "Connect Merge"
 include(":app")

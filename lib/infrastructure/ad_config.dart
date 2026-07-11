@@ -6,7 +6,7 @@ import 'dart:io' show Platform;
 class AdConfig {
   const AdConfig._();
 
-  static const bool useTestAds = true;
+  static const bool useTestAds = false;
 
   // Google test unit IDs (safe to ship while developing).
   static const _testBannerAndroid = 'ca-app-pub-3940256099942544/6300978111';

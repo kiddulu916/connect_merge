@@ -45,7 +45,7 @@ void main() {
     test('queue + version knobs have sane values', () {
       expect(kDropQueueVisible, 3);
       expect(kSnapshotVersion >= 2, isTrue);
-      expect(kLeaderboardSeason >= 2, isTrue);
+      expect(kLeaderboardSeason >= 1, isTrue);
     });
   });
 }
