@@ -1,0 +1,3183 @@
+{
+  "_readme": "Regenerate ONLY for an intentional rule change, in the same commit as the kLeaderboardSeason bump in both Dart and TypeScript. Use UPDATE_GOLDENS_FORCE=1 only for a policy-only regeneration.",
+  "season": 1,
+  "baseDate": "2026-07-14",
+  "vectors": [
+    {
+      "name": "standard-easy",
+      "date": "2026-07-14",
+      "difficulty": "easy",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            34
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            18
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            32
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 1040,
+        "highestTier": 7,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "standard-medium",
+      "date": "2026-07-14",
+      "difficulty": "medium",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            29
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 1032,
+        "highestTier": 7,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "standard-hard",
+      "date": "2026-07-14",
+      "difficulty": "hard",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            0,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            29,
+            35
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            33,
+            34
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            35
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            35
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            9
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 792,
+        "highestTier": 6,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "standard-legendary",
+      "date": "2026-07-14",
+      "difficulty": "legendary",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            1,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            34
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            29,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 1008,
+        "highestTier": 7,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "challenge-budgetCut",
+      "date": "2026-07-16",
+      "difficulty": "challenge",
+      "rule": "budgetCut",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            32,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            35,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            32,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 296,
+        "highestTier": 5,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "challenge-longChainsOnly",
+      "date": "2026-07-24",
+      "difficulty": "challenge",
+      "rule": "longChainsOnly",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            24,
+            18,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            1,
+            7
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 36,
+        "highestTier": 3,
+        "status": "playing"
+      }
+    },
+    {
+      "name": "challenge-denseStart",
+      "date": "2026-07-18",
+      "difficulty": "challenge",
+      "rule": "denseStart",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            8,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            0
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            31,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            0
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 1356,
+        "highestTier": 8,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "challenge-sparseStart",
+      "date": "2026-07-14",
+      "difficulty": "challenge",
+      "rule": "sparseStart",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            21,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            16
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            35
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            29,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            28
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 1348,
+        "highestTier": 7,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "challenge-wallMaze",
+      "date": "2026-08-02",
+      "difficulty": "challenge",
+      "rule": "wallMaze",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            4,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            32,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            32,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            18
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            31,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            35
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 916,
+        "highestTier": 7,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "challenge-comboRush",
+      "date": "2026-07-29",
+      "difficulty": "challenge",
+      "rule": "comboRush",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            30,
+            31,
+            32
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 32,
+        "highestTier": 3,
+        "status": "playing"
+      }
+    },
+    {
+      "name": "standard-all-three-continues",
+      "date": "2026-07-14",
+      "difficulty": "easy",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            34
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            18
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            32
+          ]
+        },
+        {
+          "type": "continue"
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            29
+          ]
+        },
+        {
+          "type": "continue"
+        },
+        {
+          "type": "chain",
+          "path": [
+            35,
+            36
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            37,
+            36
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            39,
+            31
+          ]
+        },
+        {
+          "type": "continue"
+        },
+        {
+          "type": "chain",
+          "path": [
+            41,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            6
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 1564,
+        "highestTier": 8,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "standard-no-continues",
+      "date": "2026-07-14",
+      "difficulty": "medium",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            29
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 1032,
+        "highestTier": 7,
+        "status": "outOfMoves"
+      }
+    }
+  ],
+  "rejections": [
+    {
+      "name": "reject-fourth-continue",
+      "date": "2026-07-14",
+      "difficulty": "easy",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            34
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            18
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            32
+          ]
+        },
+        {
+          "type": "continue"
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            29
+          ]
+        },
+        {
+          "type": "continue"
+        },
+        {
+          "type": "chain",
+          "path": [
+            35,
+            36
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            37,
+            36
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            39,
+            31
+          ]
+        },
+        {
+          "type": "continue"
+        },
+        {
+          "type": "chain",
+          "path": [
+            41,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            6
+          ]
+        },
+        {
+          "type": "continue"
+        }
+      ],
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "name": "reject-standard-post-budget-chain",
+      "date": "2026-07-14",
+      "difficulty": "medium",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            27
+          ]
+        }
+      ],
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "name": "reject-budgetCut-post-budget-chain",
+      "date": "2026-07-16",
+      "difficulty": "challenge",
+      "rule": "budgetCut",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            32,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            35,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            32,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            25
+          ]
+        }
+      ],
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "name": "reject-non-budget-challenge-post-budget-chain",
+      "date": "2026-07-18",
+      "difficulty": "challenge",
+      "rule": "denseStart",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            8,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            0
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            31,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            0
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            29,
+            35
+          ]
+        }
+      ],
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "name": "reject-longChainsOnly-two-chain",
+      "date": "2026-07-24",
+      "difficulty": "challenge",
+      "rule": "longChainsOnly",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            24,
+            18,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        }
+      ],
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "name": "reject-legacy-merge-event",
+      "date": "2026-07-14",
+      "difficulty": "easy",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
+          ]
+        },
+        {
+          "type": "merge",
+          "from": 6,
+          "to": 7
+        }
+      ],
+      "expected": {
+        "valid": false
+      }
+    }
+  ]
+}

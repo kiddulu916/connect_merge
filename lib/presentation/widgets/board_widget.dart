@@ -147,7 +147,7 @@ class _BoardWidgetState extends State<BoardWidget> {
           final pathPos = pathIndexOf[i];
           final inPath = pathPos != null;
           final isAscend = inPath &&
-              pathPos! > 0 &&
+              pathPos > 0 &&
               tile.tier == widget.board.cells[_path[pathPos - 1]]!.tier + 1;
           children.add(AnimatedPositioned(
             key: ValueKey(tile.id),

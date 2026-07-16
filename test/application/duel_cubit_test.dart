@@ -99,11 +99,11 @@ void main() {
 
     test('receiveChallenge fires duel_started with difficulty', () {
       final events = <MapEntry<String, Map<String, Object?>?>>[];
-      final c = DuelCubit(
+      DuelCubit(
         todayProvider: () => '2026-06-11',
         onAnalyticsEvent: (name, [params]) =>
             events.add(MapEntry(name, params)),
-      )..receiveChallenge(challenge);
+      ).receiveChallenge(challenge);
 
       // MapEntry has no value equality — compare .key/.value directly.
       expect(events, hasLength(1));

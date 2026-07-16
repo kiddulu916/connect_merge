@@ -8,15 +8,19 @@ Connect Merge: a deterministic daily spatial merge puzzle (Flutter client + Supa
 
 ## Commands
 
-```bash
+```powershell
 flutter pub get                              # install deps
 flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
                                               # run the app (offline-capable without the dart-defines)
 flutter test                                 # run the full Dart test suite
 flutter test test/domain/engine/game_engine_test.dart   # run a single test file
 flutter test --plain-name "canMerge"         # run tests matching a name
+flutter test test/domain/engine/golden_vectors_test.dart # assert golden vectors
+$env:UPDATE_GOLDENS='1'; flutter test test/domain/engine/golden_vectors_test.dart
+$env:UPDATE_GOLDENS='1'; $env:UPDATE_GOLDENS_FORCE='1'; flutter test test/domain/engine/golden_vectors_test.dart
 
 deno test supabase/functions/_shared/engine.test.ts      # run the TS replay-validator tests
+deno test --frozen supabase/functions/        # run all Edge Function tests
 deno test supabase/functions/match-contacts/sanitize.test.ts
 ```
 
@@ -46,6 +50,8 @@ test/             # Mirrors lib/ — heavy on domain/engine determinism and repl
 `lib/domain/engine/game_engine.dart` (and `lib/domain/constants.dart`) is the single source of truth for game rules on the client. `supabase/functions/_shared/engine.ts` and `constants.ts` are a **hand-maintained TypeScript port with no shared source** — there is no codegen link between them. The `submit-score` Edge Function only trusts a client's move log after replaying it through the TS engine (`verifyRun`/`verifyRunChallenge` in `engine.ts`); if the TS port doesn't recognize a move as legal, the server rejects an otherwise-legitimate run.
 
 **Any change to merge validity, scoring, deadlock detection, or seeded generation in the Dart engine must be mirrored byte-for-byte into the TS engine**, including doc comments that state the parity requirement. `supabase/functions/_shared/engine.test.ts` pins this with test vectors captured directly from Dart runs — if Dart and TS ever drift, real client scores start failing server verification.
+
+The committed `supabase/functions/_shared/golden_vectors.json` fixture records real `GameCubit` runs and is asserted by both Flutter and Deno at this seam.
 
 Whenever gameplay-rule changes ship, `kLeaderboardSeason` (in both `lib/domain/constants.dart` and `supabase/functions/_shared/constants.ts`) is bumped in lockstep so old and new scoring never mix on a leaderboard — no DB migration needed, since `season` is already a parameter on the `scores` table and all leaderboard RPCs.
 
