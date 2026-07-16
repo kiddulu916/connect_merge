@@ -48,21 +48,34 @@ export async function seedForKey(key: string): Promise<number> {
  * Local copy of the spatial deadlock check (port of GameEngine.hasMergeAvailable)
  * used during placement re-roll. Inlined here to avoid a seeder<->engine import
  * cycle (engine.ts imports DailySeeder). Scans east+south neighbours once each.
+ * Must stay in lockstep with engine.ts `pairMergeable` and Dart
+ * `DailySeeder.generate`'s re-roll check (GameEngine.hasMergeAvailable): under
+ * the Connect-Merge ascend rule, tiers differing by at most one are mergeable
+ * as long as the higher tier sits below the cap.
  */
-function hasAdjacentSameTier(cells: (Tile | null)[], gridSize: number): boolean {
+function hasAdjacentMergeablePair(
+  cells: (Tile | null)[],
+  gridSize: number,
+): boolean {
+  const pairMergeable = (a: Tile, b: Tile): boolean => {
+    const delta = Math.abs(a.tier - b.tier);
+    if (delta > 1) return false;
+    const higher = a.tier > b.tier ? a.tier : b.tier;
+    return higher < kMaxTier;
+  };
   const cellCount = cells.length;
   for (let i = 0; i < cellCount; i++) {
     const t = cells[i];
-    if (t === null || t.tier >= kMaxTier) continue;
+    if (t === null) continue;
     const row = Math.floor(i / gridSize);
     const col = i % gridSize;
     if (col + 1 < gridSize) {
       const e = cells[i + 1];
-      if (e !== null && e.tier === t.tier) return true;
+      if (e !== null && pairMergeable(t, e)) return true;
     }
     if (row + 1 < gridSize) {
       const s = cells[i + gridSize];
-      if (s !== null && s.tier === t.tier) return true;
+      if (s !== null && pairMergeable(t, s)) return true;
     }
   }
   return false;
@@ -120,7 +133,7 @@ export class DailySeeder {
     const gridSize = GRID_SIZE[this.difficulty];
     const cellCount = gridSize * gridSize;
 
-    // Re-roll placement until the board has at least one adjacent same-tier pair
+    // Re-roll placement until the board has at least one adjacent mergeable pair
     // (avoids a born-deadlocked, unplayable day under the spatial deadlock rule).
     // Deterministic: same seed -> same attempt sequence -> same first valid board.
     let cells: (Tile | null)[] = [];
@@ -143,7 +156,7 @@ export class DailySeeder {
         cells[idx] = { id: nextId++, tier: 1 + a.nextInt(2) };
         placed += 1;
       }
-      if (hasAdjacentSameTier(cells, gridSize)) break;
+      if (hasAdjacentMergeablePair(cells, gridSize)) break;
     }
 
     const board: BoardState = {

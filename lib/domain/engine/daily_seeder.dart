@@ -93,8 +93,10 @@ class DailySeeder {
     final movesRemaining = movesOverride ?? kMovesPerDay;
 
     // Re-roll loop: keep drawing placements from stream A until the resulting
-    // board has at least one orthogonally-adjacent same-tier pair so no player
-    // ever starts on a born-deadlocked board.
+    // board has at least one orthogonally-adjacent mergeable pair (same tier or
+    // ascend-by-one — GameEngine.hasMergeAvailable) so no player ever starts on
+    // a born-deadlocked board. Mirrored in supabase/functions/_shared/seeder.ts
+    // (hasAdjacentMergeablePair).
     //
     // Determinism is preserved: same (date, difficulty) → same sequence of
     // re-roll attempts → same first valid board for every player.
