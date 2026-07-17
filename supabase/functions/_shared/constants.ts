@@ -57,6 +57,25 @@ export function isDifficulty(s: string): s is Difficulty {
 // ---- Connect-Merge additions (must stay in lockstep with Dart) ----
 
 /**
+ * True when `nextTier` may follow `prevTier` in a Connect-Merge chain: equal
+ * or exactly one tier higher, never descending or skipping. Must stay in
+ * lockstep with `GameEngine.canFollow` in Dart.
+ */
+export function canFollow(prevTier: number, nextTier: number): boolean {
+  return nextTier >= prevTier && nextTier <= prevTier + 1;
+}
+
+/**
+ * True if two adjacent tier numbers could merge in some direction. Must stay
+ * in lockstep with Dart `GameEngine._pairMergeable`.
+ */
+export function pairMergeable(aTier: number, bTier: number): boolean {
+  const lower = aTier < bTier ? aTier : bTier;
+  const higher = aTier > bTier ? aTier : bTier;
+  return canFollow(lower, higher) && higher < kMaxTier;
+}
+
+/**
  * Superlinear combo multiplier for a chain of [n] tiles (port of
  * lib/domain/constants.dart `comboMultiplier`). `n === 2` returns 1 so a 2-chain
  * scores exactly the legacy single-merge value. Formula: 1 + (n-2)(n-1)/2.

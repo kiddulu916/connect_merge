@@ -12,6 +12,7 @@ import { Prng } from "./prng.ts";
 import { challengeRule, DailySeeder } from "./seeder.ts";
 import {
   ascendBonus,
+  canFollow,
   comboMultiplier,
   comboRushMultiplier,
   type Difficulty,
@@ -24,6 +25,7 @@ import {
   kMaxAdContinuesPerDay,
   kMaxTier,
   kMovesPerDay,
+  pairMergeable,
   STARTING_FILL,
 } from "./constants.ts";
 
@@ -94,8 +96,7 @@ export function isValidChain(s: BoardState, path: number[]): boolean {
     const t = s.cells[idx];
     if (t === null || t === undefined) return false;
     if (prev !== null) {
-      const delta = t.tier - prev.tier;
-      if (delta < 0 || delta > 1) return false;
+      if (!canFollow(prev.tier, t.tier)) return false;
       if (!areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) return false;
     }
     prev = t;
@@ -177,15 +178,24 @@ export function applyDrop(s: BoardState, tier: number, landing: Prng): BoardStat
 }
 
 /**
- * True if two adjacent tiles could legally merge in SOME direction: their
- * tiers differ by at most one, and the higher of the two is below the cap
- * (the higher tile is always the merge destination).
+ * Fill to `targetFill` and guarantee a merge when space permits. Mirrors Dart
+ * `GameEngine.refill`; Dart's golden-drop flag is deliberately absent because
+ * cosmetic/economy state never affects authoritative replay.
  */
-function pairMergeable(a: Tile, b: Tile): boolean {
-  const delta = Math.abs(a.tier - b.tier);
-  if (delta > 1) return false;
-  const higher = a.tier > b.tier ? a.tier : b.tier;
-  return higher < kMaxTier;
+export function refillBoard(
+  board: BoardState,
+  targetFill: number,
+  tierAt: (dropIndex: number) => number,
+  landing: Prng,
+): BoardState {
+  while (emptyIndices(board).length > 0) {
+    const needsFill = filledCount(board) < targetFill;
+    const needsMerge = !hasMergeAvailable(board);
+    if (!needsFill && !needsMerge) break;
+    const tier = tierAt(board.dropIndex);
+    board = applyDrop(board, tier, landing);
+  }
+  return board;
 }
 
 /**
@@ -202,11 +212,11 @@ export function hasMergeAvailable(s: BoardState): boolean {
     const col = i % gs;
     if (col + 1 < gs) {
       const e = s.cells[i + 1];
-      if (e !== null && pairMergeable(t, e)) return true;
+      if (e !== null && pairMergeable(t.tier, e.tier)) return true;
     }
     if (row + 1 < gs) {
       const so = s.cells[i + gs];
-      if (so !== null && pairMergeable(t, so)) return true;
+      if (so !== null && pairMergeable(t.tier, so.tier)) return true;
     }
   }
   return false;
@@ -290,15 +300,12 @@ export async function verifyRun(
       if (board.status !== "playing") return REJECT;
       if (!isValidChain(board, ev.path)) return REJECT;
       board = collapseChain(board, ev.path);
-      // Mirror GameCubit new refill loop (Task 4): fill to startingFill AND
-      // guarantee hasMergeAvailable, or stop when board is full.
-      while (emptyIndices(board).length > 0) {
-        const needsFill = filledCount(board) < startingFill;
-        const needsMerge = !hasMergeAvailable(board);
-        if (!needsFill && !needsMerge) break;
-        const tier = seeder.dropTierAt(dropPrng, board.dropIndex);
-        board = applyDrop(board, tier, landing);
-      }
+      board = refillBoard(
+        board,
+        startingFill,
+        (dropIndex) => seeder.dropTierAt(dropPrng, dropIndex),
+        landing,
+      );
       board = evaluateStatus(board);
     } else {
       // Mirror GameCubit.grantAdReward / canOfferAd guard.
@@ -374,14 +381,12 @@ export async function verifyRunChallenge(
       if (rule === "longChainsOnly" && ev.path.length < 3) return REJECT;
       if (!isValidChain(board, ev.path)) return REJECT;
       board = collapseChain(board, ev.path, multiplierFn);
-      // Refill loop: fill to startingFill AND guarantee hasMergeAvailable.
-      while (emptyIndices(board).length > 0) {
-        const needsFill = filledCount(board) < startingFill;
-        const needsMerge = !hasMergeAvailable(board);
-        if (!needsFill && !needsMerge) break;
-        const tier = seeder.dropTierAt(dropPrng, board.dropIndex);
-        board = applyDrop(board, tier, landing);
-      }
+      board = refillBoard(
+        board,
+        startingFill,
+        (dropIndex) => seeder.dropTierAt(dropPrng, dropIndex),
+        landing,
+      );
       board = evaluateStatus(board);
     } else {
       // Challenge mode has no ad-continues; treat any continue as illegal.

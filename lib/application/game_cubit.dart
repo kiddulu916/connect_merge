@@ -158,6 +158,10 @@ class GameCubit extends Cubit<GameState> {
   /// Whether the objective reward has already been paid this run (idempotency).
   bool _objectiveMet = false;
 
+  /// Prevent overlapping rewarded-ad callbacks from granting twice while the
+  /// first snapshot write is still in flight.
+  bool _grantingAd = false;
+
   /// Optional error-reporting hook (observability). Fired for exceptions that
   /// are currently swallowed silently (best-effort background work — a
   /// failing hook never blocks gameplay). Signature matches
@@ -353,22 +357,15 @@ class GameCubit extends Cubit<GameState> {
           : null,
     ).copyWith(moveLog: log);
 
-    // Fill to targetFill AND guarantee at least one adjacent merge is available.
-    // Stop only when the board is completely full (true deadlock → evaluateStatus).
-    // Must mirror verifyRun's refill loop in supabase/functions/_shared/engine.ts.
-    final targetFill = _targetFill;
-    while (board.emptyIndices.isNotEmpty) {
-      final needsFill = board.filledCount < targetFill;
-      final needsMerge = !GameEngine.hasMergeAvailable(board);
-      if (!needsFill && !needsMerge) break;
-      final tier = _seeder.dropTierAt(_dropTier, board.dropIndex);
-      board = GameEngine.applyDrop(
-        board,
-        tier,
-        _landing,
-        golden: _goldenDrops.contains(board.dropIndex),
-      );
-    }
+    // GameEngine owns the mirrored refill policy; the cubit supplies only the
+    // seed-fixed tier schedule, landing stream, and cosmetic golden indices.
+    board = GameEngine.refill(
+      board,
+      targetFill: _targetFill,
+      tierAt: (i) => _seeder.dropTierAt(_dropTier, i),
+      landing: _landing,
+      goldenDrops: _goldenDrops,
+    );
 
     // Track the daily objective (monotonic; recomputable on replay).
     final newProgress = _objective.progressAfter(
@@ -636,22 +633,29 @@ class GameCubit extends Cubit<GameState> {
   }
 
   Future<void> grantAdReward() async {
-    final s = state;
-    if (s is! GameOverShowScore) return;
-    final log = List<MoveEvent>.of(s.board.moveLog)..add(const ContinueEvent());
-    final board = s.board.copyWith(
-      movesRemaining: s.board.movesRemaining + kAdMoveReward,
-      adContinuesUsed: s.board.adContinuesUsed + 1,
-      status: GameStatus.playing,
-      moveLog: log,
-    );
-    await storage.saveSnapshot(GameSnapshot(
-        date: _date,
-        difficulty: _difficulty,
-        board: board,
-        completed: false));
-    emit(GameAdRewardGranted(board: board, difficulty: _difficulty));
-    emit(GamePlaying(board: board, difficulty: _difficulty));
+    if (!canOfferAd) return;
+    if (_grantingAd) return;
+    try {
+      _grantingAd = true;
+      final s = state as GameOverShowScore;
+      final log = List<MoveEvent>.of(s.board.moveLog)
+        ..add(const ContinueEvent());
+      final board = s.board.copyWith(
+        movesRemaining: s.board.movesRemaining + kAdMoveReward,
+        adContinuesUsed: s.board.adContinuesUsed + 1,
+        status: GameStatus.playing,
+        moveLog: log,
+      );
+      await storage.saveSnapshot(GameSnapshot(
+          date: _date,
+          difficulty: _difficulty,
+          board: board,
+          completed: false));
+      emit(GameAdRewardGranted(board: board, difficulty: _difficulty));
+      emit(GamePlaying(board: board, difficulty: _difficulty));
+    } finally {
+      _grantingAd = false;
+    }
   }
 
   /// Double the coins earned this run (Phase 2). Call AFTER a rewarded ad

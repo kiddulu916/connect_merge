@@ -51,6 +51,8 @@ test/             # Mirrors lib/ — heavy on domain/engine determinism and repl
 
 **Any change to merge validity, scoring, deadlock detection, or seeded generation in the Dart engine must be mirrored byte-for-byte into the TS engine**, including doc comments that state the parity requirement. `supabase/functions/_shared/engine.test.ts` pins this with test vectors captured directly from Dart runs — if Dart and TS ever drift, real client scores start failing server verification.
 
+The tier-step predicate is single-sourced as `GameEngine.canFollow` in Dart and `canFollow`/`pairMergeable` in TypeScript `constants.ts`; all chain, pair, widget, and seeder checks route through it. Post-chain refill is single-sourced as `GameEngine.refill` in Dart and exported `refillBoard` in TypeScript `engine.ts`; both verifier modes use the latter. These are lockstep surfaces even though Dart alone carries the cosmetic `goldenDrops` flag.
+
 The committed `supabase/functions/_shared/golden_vectors.json` fixture records real `GameCubit` runs and is asserted by both Flutter and Deno at this seam.
 
 Whenever gameplay-rule changes ship, `kLeaderboardSeason` (in both `lib/domain/constants.dart` and `supabase/functions/_shared/constants.ts`) is bumped in lockstep so old and new scoring never mix on a leaderboard — no DB migration needed, since `season` is already a parameter on the `scores` table and all leaderboard RPCs.

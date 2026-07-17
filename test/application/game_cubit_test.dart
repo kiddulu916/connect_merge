@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:connect_merge/application/game_cubit.dart';
 import 'package:connect_merge/application/game_state.dart';
@@ -342,6 +344,78 @@ void main() {
     }
   });
 
+  group('grantAdReward eligibility', () {
+    test('is a no-op outside the result state', () async {
+      final c = make('2026-06-06');
+      await c.init(difficulty: Difficulty.medium);
+      final before = c.state;
+      await c.grantAdReward();
+      expect(c.state, same(before));
+    });
+
+    test('is a no-op when the result board is not out of moves', () async {
+      final board = const DailySeeder('2026-06-06', Difficulty.medium)
+          .generate()
+          .board;
+      final c = await _resumeResult(storage, board);
+      final before = c.state;
+      await c.grantAdReward();
+      expect(c.state, same(before));
+    });
+
+    test('is a no-op when the continue cap is exhausted', () async {
+      final board = const DailySeeder('2026-06-06', Difficulty.medium)
+          .generate()
+          .board
+          .copyWith(
+            movesRemaining: 0,
+            adContinuesUsed: kMaxAdContinuesPerDay,
+            status: GameStatus.outOfMoves,
+          );
+      final c = await _resumeResult(storage, board);
+      final before = c.state;
+      await c.grantAdReward();
+      expect(c.state, same(before));
+    });
+
+    test('is a no-op when no merge is available', () async {
+      final seeded = const DailySeeder('2026-06-06', Difficulty.medium)
+          .generate()
+          .board;
+      final board = seeded.copyWith(
+        cells: List<Tile?>.filled(seeded.cells.length, null),
+        movesRemaining: 0,
+        status: GameStatus.outOfMoves,
+      );
+      final c = await _resumeResult(storage, board);
+      final before = c.state;
+      await c.grantAdReward();
+      expect(c.state, same(before));
+    });
+
+    test('overlapping calls persist and record exactly one continue', () async {
+      final blockingStorage = _BlockingSnapshotStorage();
+      final board = const DailySeeder('2026-06-06', Difficulty.medium)
+          .generate()
+          .board
+          .copyWith(movesRemaining: 0, status: GameStatus.outOfMoves);
+      final c = await _resumeResult(blockingStorage, board);
+      expect(c.canOfferAd, isTrue);
+      blockingStorage.blockSnapshotSaves();
+
+      final first = c.grantAdReward();
+      await blockingStorage.firstBlockedSave;
+      final second = c.grantAdReward();
+      blockingStorage.releaseSnapshotSaves();
+      await Future.wait([first, second]);
+
+      final result = (c.state as GamePlaying).board;
+      expect(blockingStorage.blockedSaveCalls, 1);
+      expect(result.adContinuesUsed, 1);
+      expect(result.moveLog.whereType<ContinueEvent>(), hasLength(1));
+    });
+  });
+
   group('golden tiles credit coins (Phase 1)', () {
     test('merging golden tiles fires onCoinsEarned without changing score',
         () async {
@@ -559,6 +633,51 @@ void main() {
       }
     }
   });
+}
+
+Future<GameCubit> _resumeResult(
+  StorageService storage,
+  BoardState board,
+) async {
+  await storage.saveSnapshot(GameSnapshot(
+    date: '2026-06-06',
+    difficulty: Difficulty.medium,
+    board: board,
+    completed: true,
+  ));
+  final cubit = GameCubit(
+    storage: storage,
+    todayProvider: () => '2026-06-06',
+  );
+  await cubit.init(difficulty: Difficulty.medium);
+  expect(cubit.state, isA<GameOverShowScore>());
+  return cubit;
+}
+
+class _BlockingSnapshotStorage extends InMemoryStorageService {
+  Completer<void>? _saveBlocker;
+  Completer<void>? _firstSave;
+  int blockedSaveCalls = 0;
+
+  Future<void> get firstBlockedSave => _firstSave!.future;
+
+  void blockSnapshotSaves() {
+    _saveBlocker = Completer<void>();
+    _firstSave = Completer<void>();
+  }
+
+  void releaseSnapshotSaves() => _saveBlocker!.complete();
+
+  @override
+  Future<void> saveSnapshot(GameSnapshot snapshot) async {
+    final blocker = _saveBlocker;
+    if (blocker != null) {
+      blockedSaveCalls++;
+      if (!_firstSave!.isCompleted) _firstSave!.complete();
+      await blocker.future;
+    }
+    await super.saveSnapshot(snapshot);
+  }
 }
 
 /// Persist a completed snapshot + run completion bookkeeping for [tier] on

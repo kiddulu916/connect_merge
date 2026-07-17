@@ -59,7 +59,7 @@ class _BoardWidgetState extends State<BoardWidget> {
     if (_path.isEmpty) return true;
     if (_path.contains(idx)) return false;
     final lastTier = widget.board.cells[_path.last]!.tier;
-    if (t.tier < lastTier || t.tier > lastTier + 1) return false;
+    if (!GameEngine.canFollow(lastTier, t.tier)) return false;
     return GameEngine.areOrthogonallyAdjacent(_path.last, idx, widget.board.gridSize);
   }
 

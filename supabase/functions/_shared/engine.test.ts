@@ -19,14 +19,39 @@ import {
   hasMergeAvailable,
   isValidChain,
   type MoveEvent,
+  refillBoard,
   type Tile,
   verifyRun,
 } from "./engine.ts";
-import { ascendBonus, comboRushMultiplier, comboMultiplier, kCellCount, kMaxTier } from "./constants.ts";
+import {
+  ascendBonus,
+  canFollow,
+  comboRushMultiplier,
+  comboMultiplier,
+  kCellCount,
+  kMaxTier,
+  pairMergeable,
+} from "./constants.ts";
 
 // ---- Captured Dart vectors (PRNG/seedForKey unchanged by the redesign) ----
 
 const DART_SEED_KEY_2026_06_07_LEGENDARY = 550419188;
+
+Deno.test("canFollow: accepts equal/ascend and rejects descend/skip", () => {
+  assertEquals(canFollow(3, 3), true);
+  assertEquals(canFollow(3, 4), true);
+  assertFalse(canFollow(3, 2));
+  assertFalse(canFollow(3, 5));
+});
+
+Deno.test("pairMergeable: symmetric tier rule with max-tier cap", () => {
+  assertEquals(pairMergeable(3, 3), true);
+  assertEquals(pairMergeable(3, 4), true);
+  assertEquals(pairMergeable(4, 3), true);
+  assertFalse(pairMergeable(3, 5));
+  assertFalse(pairMergeable(kMaxTier - 1, kMaxTier));
+  assertFalse(pairMergeable(kMaxTier, kMaxTier));
+});
 
 const DART_PRNG: Record<string, number[]> = {
   "1": [
@@ -275,6 +300,88 @@ function boardWith(
     gridSize: 5,
   };
 }
+
+function smallBoard(cells: (Tile | null)[], dropIndex = 0): BoardState {
+  return {
+    cells,
+    walls: new Set(),
+    movesRemaining: 30,
+    score: 0,
+    nextTileId: 100,
+    dropIndex,
+    adContinuesUsed: 0,
+    movesMade: 0,
+    status: "playing",
+    gridSize: 2,
+  };
+}
+
+Deno.test("refillBoard: fills to target when a merge already exists", () => {
+  const board = smallBoard([
+    { id: 1, tier: 1 },
+    { id: 2, tier: 1 },
+    null,
+    null,
+  ]);
+  const result = refillBoard(board, 3, () => 4, new Prng(1));
+  assertEquals(result.cells.filter((tile) => tile !== null).length, 3);
+  assertEquals(result.dropIndex, 1);
+});
+
+Deno.test("refillBoard: tops up beyond target until full without a merge", () => {
+  const board = smallBoard([
+    { id: 1, tier: 1 },
+    { id: 2, tier: 3 },
+    { id: 3, tier: 3 },
+    null,
+  ]);
+  const result = refillBoard(board, 3, () => 5, new Prng(1));
+  assertEquals(result.cells.filter((tile) => tile !== null).length, 4);
+  assertEquals(result.dropIndex, 1);
+  assertFalse(hasMergeAvailable(result));
+});
+
+Deno.test("refillBoard: full board stops without reading tierAt", () => {
+  let reads = 0;
+  const board = smallBoard([
+    { id: 1, tier: 1 },
+    { id: 2, tier: 3 },
+    { id: 3, tier: 3 },
+    { id: 4, tier: 1 },
+  ]);
+  const result = refillBoard(
+    board,
+    4,
+    () => {
+      reads++;
+      return 1;
+    },
+    new Prng(1),
+  );
+  assertEquals(result, board);
+  assertEquals(reads, 0);
+});
+
+Deno.test("refillBoard: reads current dropIndex for every applied drop", () => {
+  const reads: number[] = [];
+  const board = smallBoard([
+    { id: 1, tier: 1 },
+    { id: 2, tier: 1 },
+    null,
+    null,
+  ], 7);
+  const result = refillBoard(
+    board,
+    4,
+    (dropIndex) => {
+      reads.push(dropIndex);
+      return 1;
+    },
+    new Prng(1),
+  );
+  assertEquals(reads, [7, 8]);
+  assertEquals(result.dropIndex, 9);
+});
 
 Deno.test("comboScore: 2-chain equals legacy single-merge; superlinear beyond", () => {
   assertEquals(comboScore(3, 2), 1 << 4); // legacy parity

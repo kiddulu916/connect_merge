@@ -21,7 +21,26 @@ BoardState boardWith(Map<int, Tile> tiles, {int moves = kMovesPerDay}) {
   );
 }
 
+BoardState smallBoard(List<Tile?> cells, {int dropIndex = 0}) => BoardState(
+      cells: cells,
+      movesRemaining: kMovesPerDay,
+      score: 0,
+      nextTileId: 100,
+      dropIndex: dropIndex,
+      adContinuesUsed: 0,
+      movesMade: 0,
+      status: GameStatus.playing,
+      gridSize: 2,
+    );
+
 void main() {
+  test('canFollow: accepts equal/ascend and rejects descend/skip', () {
+    expect(GameEngine.canFollow(3, 3), isTrue);
+    expect(GameEngine.canFollow(3, 4), isTrue);
+    expect(GameEngine.canFollow(3, 2), isFalse);
+    expect(GameEngine.canFollow(3, 5), isFalse);
+  });
+
   test('canMerge: same tier or ascend-by-1 into a higher-tier destination, below max tier', () {
     final b = boardWith({
       0: const Tile(id: 1, tier: 3),
@@ -61,6 +80,105 @@ void main() {
     expect(r.dropIndex, 1);
     final dropped = r.cells.firstWhere((c) => c != null && c.id == 100);
     expect(dropped!.tier, 2);
+  });
+
+  group('refill', () {
+    test('fills to target when a merge already exists', () {
+      final board = smallBoard([
+        const Tile(id: 1, tier: 1),
+        const Tile(id: 2, tier: 1),
+        null,
+        null,
+      ]);
+      final result = GameEngine.refill(
+        board,
+        targetFill: 3,
+        tierAt: (_) => 4,
+        landing: Prng(1),
+      );
+      expect(result.filledCount, 3);
+      expect(result.dropIndex, 1);
+    });
+
+    test('tops up beyond target until full when no merge appears', () {
+      final board = smallBoard([
+        const Tile(id: 1, tier: 1),
+        const Tile(id: 2, tier: 3),
+        const Tile(id: 3, tier: 3),
+        null,
+      ]);
+      final result = GameEngine.refill(
+        board,
+        targetFill: 3,
+        tierAt: (_) => 5,
+        landing: Prng(1),
+      );
+      expect(result.filledCount, 4);
+      expect(result.dropIndex, 1);
+      expect(GameEngine.hasMergeAvailable(result), isFalse);
+    });
+
+    test('stops without reading tierAt when the board is full', () {
+      var reads = 0;
+      final board = smallBoard([
+        const Tile(id: 1, tier: 1),
+        const Tile(id: 2, tier: 3),
+        const Tile(id: 3, tier: 3),
+        const Tile(id: 4, tier: 1),
+      ]);
+      final result = GameEngine.refill(
+        board,
+        targetFill: 4,
+        tierAt: (_) {
+          reads++;
+          return 1;
+        },
+        landing: Prng(1),
+      );
+      expect(result, same(board));
+      expect(reads, 0);
+    });
+
+    test('reads the current dropIndex once per applied drop', () {
+      final reads = <int>[];
+      final board = smallBoard([
+        const Tile(id: 1, tier: 1),
+        const Tile(id: 2, tier: 1),
+        null,
+        null,
+      ], dropIndex: 7);
+      final result = GameEngine.refill(
+        board,
+        targetFill: 4,
+        tierAt: (dropIndex) {
+          reads.add(dropIndex);
+          return 1;
+        },
+        landing: Prng(1),
+      );
+      expect(reads, [7, 8]);
+      expect(result.dropIndex, 9);
+    });
+
+    test('marks only configured drop indices golden', () {
+      final board = smallBoard([
+        const Tile(id: 1, tier: 1),
+        const Tile(id: 2, tier: 1),
+        null,
+        null,
+      ], dropIndex: 7);
+      final result = GameEngine.refill(
+        board,
+        targetFill: 4,
+        tierAt: (_) => 1,
+        landing: Prng(1),
+        goldenDrops: const {8},
+      );
+      expect(result.cells.singleWhere((tile) => tile?.id == 100)!.golden,
+          isFalse);
+      expect(result.cells.singleWhere((tile) => tile?.id == 101)!.golden,
+          isTrue);
+    });
   });
 
   test('hasMergeAvailable: needs ADJACENT equal tiers, not just any pair', () {

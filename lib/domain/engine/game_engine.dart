@@ -8,6 +8,12 @@ import 'prng.dart';
 class GameEngine {
   const GameEngine._();
 
+  /// True when [nextTier] may follow [prevTier] in a Connect-Merge chain:
+  /// equal or exactly one tier higher, never descending or skipping.
+  /// Must stay in lockstep with `canFollow` in the TypeScript constants port.
+  static bool canFollow(int prevTier, int nextTier) =>
+      nextTier >= prevTier && nextTier <= prevTier + 1;
+
   /// A legal merge: both cells hold tiles, distinct cells, and [toIndex]'s
   /// tier is either equal to or exactly one higher than [fromIndex]'s tier
   /// (same-tier merge, or ascend-by-1 into the destination), below the cap.
@@ -16,8 +22,7 @@ class GameEngine {
     final from = s.cells[fromIndex];
     final to = s.cells[toIndex];
     if (from == null || to == null) return false;
-    final delta = to.tier - from.tier;
-    return delta >= 0 && delta <= 1 && to.tier < kMaxTier;
+    return canFollow(from.tier, to.tier) && to.tier < kMaxTier;
   }
 
   /// Fuse [fromIndex] into [toIndex]: destination becomes tier+1 (keeping its
@@ -75,6 +80,31 @@ class GameEngine {
     );
   }
 
+  /// Fill to [targetFill] and guarantee a merge when space permits. Mirrors
+  /// TypeScript `refillBoard`; [goldenDrops] is deliberately Dart-only because
+  /// golden tiles never affect authoritative score or replay.
+  static BoardState refill(
+    BoardState board, {
+    required int targetFill,
+    required int Function(int dropIndex) tierAt,
+    required Prng landing,
+    Set<int> goldenDrops = const {},
+  }) {
+    while (board.emptyIndices.isNotEmpty) {
+      final needsFill = board.filledCount < targetFill;
+      final needsMerge = !GameEngine.hasMergeAvailable(board);
+      if (!needsFill && !needsMerge) break;
+      final tier = tierAt(board.dropIndex);
+      board = GameEngine.applyDrop(
+        board,
+        tier,
+        landing,
+        golden: goldenDrops.contains(board.dropIndex),
+      );
+    }
+    return board;
+  }
+
   /// Coins to credit when the merge of [fromIndex] into [toIndex] consumes one
   /// or more golden tiles. Pure and read-only — it inspects [before] (the board
   /// PRIOR to the merge) and returns a bonus; it NEVER mutates state or touches
@@ -103,11 +133,11 @@ class GameEngine {
       // Check east and south neighbours only (covers every adjacency once).
       if (col + 1 < gs) {
         final e = s.cells[i + 1];
-        if (e != null && _pairMergeable(t, e)) return true;
+        if (e != null && _pairMergeable(t.tier, e.tier)) return true;
       }
       if (row + 1 < gs) {
         final so = s.cells[i + gs];
-        if (so != null && _pairMergeable(t, so)) return true;
+        if (so != null && _pairMergeable(t.tier, so.tier)) return true;
       }
     }
     return false;
@@ -116,11 +146,10 @@ class GameEngine {
   /// True if two adjacent tiles could legally merge in SOME direction: their
   /// tiers differ by at most one, and the higher of the two is below the cap
   /// (the higher tile is always the destination, per [canMerge]/[isValidChain]).
-  static bool _pairMergeable(Tile a, Tile b) {
-    final delta = (a.tier - b.tier).abs();
-    if (delta > 1) return false;
-    final higher = a.tier > b.tier ? a.tier : b.tier;
-    return higher < kMaxTier;
+  static bool _pairMergeable(int aTier, int bTier) {
+    final lower = aTier < bTier ? aTier : bTier;
+    final higher = aTier > bTier ? aTier : bTier;
+    return canFollow(lower, higher) && higher < kMaxTier;
   }
 
   /// Resolve end-of-day status: out of moves first, then deadlock, else playing.
@@ -162,9 +191,10 @@ class GameEngine {
       final t = s.cells[idx];
       if (t == null) return false;
       if (prevTile != null) {
-        final delta = t.tier - prevTile.tier;
-        if (delta < 0 || delta > 1) return false; // no descend, no tier skip
-        if (!areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) return false;
+        if (!canFollow(prevTile.tier, t.tier)) return false;
+        if (!areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) {
+          return false;
+        }
       }
       prevTile = t;
     }
