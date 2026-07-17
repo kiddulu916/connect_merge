@@ -80,3 +80,27 @@ VERDICT: APPROVED
 ### Claude's response
 
 Accepted: smoke now verifies deletion by requiring a repeat sign-in with the same credentials to fail; a surviving throwaway user is a release-check failure. Plan converged in 5 rounds.
+
+## Act 3 — Build
+
+### Round 1 — Codex build
+
+Codex (gpt-5.6-sol, thread 019f6cb6-6fcb-74a0-a028-76556227e968, ~22 min, both phases): canFollow single-sourced (Dart GameEngine; TS constants.ts shared by engine.ts + seeder.ts), refill moved into GameEngine / exported refillBoard replacing both TS inline copies, grantAdReward canOfferAd + in-flight guards, docs-first TDD plan under docs/superpowers/, Phase A proof gate captured (fixture regen EXIT=0, byte-identical) BEFORE Phase B (stale filter removed, ascend-only requirement enforced, force regeneration — wallMaze back to 2026-07-17). NO git mutations this time. Reported deviations: none.
+
+### Claude's verdict
+
+Verified independently:
+- Full diff read: every routing is expression-equivalent (canFollow(lower,higher) ⇔ |Δ|≤1 in _pairMergeable; canMerge/isValidChain/widget/TS mirrors exact); both TS inline refill copies deleted; changed files exactly match the contract's allowed set; prng.ts/index.ts/golden_vectors.test.ts untouched.
+- flutter analyze clean; flutter test 503/503; deno test --frozen 45/45.
+- Fixture regeneration deterministic (identical SHA-256 across repeated regens: 00D54BDD...4DCD) and assert-mode green; the 120-line fixture diff vs HEAD is Phase B's intended change (wallMaze 2026-08-02 → 2026-07-17, ascend-only start now covered).
+- Phase A's byte-identical gate was captured in Codex's report before Phase B; post-hoc parity carried by the regenerated fixture passing both suites + the new branch-parity unit tests.
+
+Build ACCEPTED, round 1, no fix rounds used. Held for human gate.
+
+### Post-gate execution (user approved commit + push + deploy + smoke)
+
+- f58f7b0 (Phase A): refactor landed — canFollow + refill/refillBoard single-sourced, grantAdReward guards; fixture byte-identical under regeneration on this commit.
+- 2f550e9 (Phase B): stale generator workaround removed, ascend-only coverage now REQUIRED, fixture force-regenerated (wallMaze → 2026-07-17).
+- Pushed; CI run 29594974425 SUCCESS (1m28s) — Flutter + Deno both green as required checks.
+- submit-score deployed with --project-ref (now version 8); bundle contents verified via get_edge_function (refillBoard in engine.ts, canFollow/pairMergeable in constants.ts, seeder using shared predicate).
+- Runtime smoke passed end-to-end: throwaway signup → function-generated 422 {"valid":false,"reason":"invalid_run"} on malformed body → delete-account {"ok":true} → deletion verified (re-sign-in rejected). No stored secrets, no residue.
