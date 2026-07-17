@@ -1494,15 +1494,127 @@
     },
     {
       "name": "challenge-wallMaze",
-      "date": "2026-08-02",
+      "date": "2026-07-17",
       "difficulty": "challenge",
       "rule": "wallMaze",
       "moveLog": [
         {
           "type": "chain",
           "path": [
-            4,
-            5
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            31,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            31
           ]
         },
         {
@@ -1515,8 +1627,8 @@
         {
           "type": "chain",
           "path": [
-            19,
-            25
+            2,
+            3
           ]
         },
         {
@@ -1529,55 +1641,6 @@
         {
           "type": "chain",
           "path": [
-            32,
-            33
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            24,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            32,
-            33
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            11,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            22
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            22
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            30,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
             25,
             31
           ]
@@ -1585,78 +1648,8 @@
         {
           "type": "chain",
           "path": [
-            1,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            6,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            18
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            18,
-            24
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            29
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            22
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            29
+            28,
+            34
           ]
         },
         {
@@ -1669,49 +1662,56 @@
         {
           "type": "chain",
           "path": [
-            24,
-            25
+            17,
+            11
           ]
         },
         {
           "type": "chain",
           "path": [
-            31,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            18,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            6,
-            12
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            30,
+            25,
             24
           ]
         },
         {
           "type": "chain",
           "path": [
-            34,
-            35
+            20,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            7
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 916,
+        "score": 1164,
         "highestTier": 7,
         "status": "outOfMoves"
       }

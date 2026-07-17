@@ -158,10 +158,6 @@ Future<void> _generateFixture({required bool force}) async {
         continue;
       }
       final candidate = await _driveRun(date, Difficulty.challenge);
-      // The frozen TS seeder still re-rolls until it sees a same-tier pair,
-      // while Dart also accepts ascend-by-one pairs. Qualify dates where both
-      // stop on the same initial placement without changing production code.
-      if (!_hasAdjacentSameTier(candidate.boardsAfterPrefix.first)) continue;
       final distinguishes = rule != ChallengeRule.comboRush &&
               rule != ChallengeRule.longChainsOnly ||
           candidate.events
@@ -188,6 +184,16 @@ Future<void> _generateFixture({required bool force}) async {
       noContinues.board.movesMade != kMovesPerDay ||
       noContinues.board.adContinuesUsed != 0) {
     missing.add('standard-no-continues');
+  }
+  final initialBoardsByScenario = <String, BoardState>{
+    for (final entry in standardRuns.entries)
+      'standard-${entry.key.name}': entry.value.boardsAfterPrefix.first,
+    for (final entry in challengeRuns.entries)
+      'challenge-${entry.key.name}': entry.value.boardsAfterPrefix.first,
+  };
+  if (!initialBoardsByScenario.values
+      .any(_hasAscendPairAndNoSameTierPair)) {
+    missing.add('ascend-only-initial-board');
   }
   if (missing.isNotEmpty) {
     throw StateError(
@@ -452,20 +458,26 @@ List<int>? _firstLegalChain(BoardState board, int length) {
   return null;
 }
 
-bool _hasAdjacentSameTier(BoardState board) {
+bool _hasAscendPairAndNoSameTierPair(BoardState board) {
+  var hasAscendPair = false;
+  final gridSize = board.gridSize;
   for (var i = 0; i < board.cells.length; i++) {
     final tile = board.cells[i];
     if (tile == null) continue;
-    for (var candidate = i + 1; candidate < board.cells.length; candidate++) {
+    final row = i ~/ gridSize;
+    final col = i % gridSize;
+    for (final candidate in [
+      if (col + 1 < gridSize) i + 1,
+      if (row + 1 < gridSize) i + gridSize,
+    ]) {
       final other = board.cells[candidate];
-      if (other != null &&
-          other.tier == tile.tier &&
-          GameEngine.areOrthogonallyAdjacent(i, candidate, board.gridSize)) {
-        return true;
-      }
+      if (other == null) continue;
+      final difference = (other.tier - tile.tier).abs();
+      if (difference == 0) return false;
+      if (difference == 1) hasAscendPair = true;
     }
   }
-  return false;
+  return hasAscendPair;
 }
 
 List<int> _requiredLegalChain(
