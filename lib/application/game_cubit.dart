@@ -12,7 +12,6 @@ import '../domain/models/difficulty.dart';
 import '../domain/models/day_result.dart';
 import '../domain/models/game_status.dart';
 import '../domain/models/move.dart';
-import '../domain/models/streak.dart' show nextStreak;
 import '../infrastructure/storage_service.dart';
 import 'game_state.dart';
 
@@ -677,13 +676,9 @@ class GameCubit extends Cubit<GameState> {
     final prev = storage.loadStats(_difficulty);
     if (prev.lastCompletedDate == _date) return prev;
 
-    final yesterday = date_utils.previousUtcDay(_date);
-    final streak = nextStreak(
-      prev: prev.streak,
-      last: prev.lastCompletedDate,
-      today: _date,
-      hasFreeze: false,
-    ).streak;
+    final yesterday = formatDate(
+        DateTime.parse(_date).subtract(const Duration(days: 1)));
+    final streak = prev.lastCompletedDate == yesterday ? prev.streak + 1 : 1;
 
     // A genuine gap (a prior completion date exists, isn't today, isn't
     // yesterday) resets this per-tier streak with no freeze support (unlike

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/date_utils.dart' show formatDate, mondayOfWeek, utcToday;
+import '../../application/game_cubit.dart';
 import '../../domain/models/difficulty.dart';
 import '../../domain/models/leaderboard_entry.dart';
 import '../../domain/models/weekly_prize.dart';
@@ -25,8 +25,7 @@ extension LeaderboardPeriodX on LeaderboardPeriod {
       };
 
   /// Inclusive [from, to] UTC date range for [today]. Daily collapses to a
-  /// single day; all-time spans from a fixed launch floor to today. [today]
-  /// must be the canonical YYYY-MM-DD date used throughout the app.
+  /// single day; all-time spans from a fixed launch floor to today.
   (String, String) range(String today) {
     final t = DateTime.parse(today);
     switch (this) {
@@ -34,9 +33,9 @@ extension LeaderboardPeriodX on LeaderboardPeriod {
         return (today, today);
       case LeaderboardPeriod.weekly:
         // Calendar week: Monday of the current ISO week → today.
-        // Prize checks use the previous completed week; both periods share
-        // only this Monday-of-week sub-rule.
-        return (mondayOfWeek(today), today);
+        // Matches the [from, to] range used by checkWeeklyPrizes.
+        final daysSinceMonday = (t.weekday - 1) % 7;
+        return (formatDate(t.subtract(Duration(days: daysSinceMonday))), today);
       case LeaderboardPeriod.monthly:
         // Calendar month: 1st of the current month → today.
         return (formatDate(DateTime.utc(t.year, t.month, 1)), today);
