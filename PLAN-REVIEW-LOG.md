@@ -104,3 +104,14 @@ All round-4 findings are addressed:
 No new material problems found.
 
 VERDICT: APPROVED
+## Act 3 — Build
+
+### Round 1 — Codex build
+
+Thread 019f7545-aa95-77a2-962a-a5d87a85d96e (gpt-5.6-sol). Implemented all of PLAN.md in one pass: docs/superpowers spec + red-green plan, date_utils gains parseUtcDate/previousUtcDay(moved)/mondayOfWeek, streak.dart imports (no shim), game_cubit routes per-tier streaks through nextStreak(hasFreeze: false), engagement delegates to the shared helpers with direct imports, leaderboard weekly range uses mondayOfWeek with the false comment corrected, LifetimeStats freeze-token doc corrected, TZ=Africa/Cairo CI step added, tests per spec (freeze-token gap pin, Cairo-sensitive cases on IANA 2025 dates: Egypt spring-forward Fri 2025-04-25 midnight). Deviations: none. No git mutations.
+
+### Claude's verdict
+
+Full diff read: faithful, minimal, behavior-identical outside DST boundaries. Proof re-run by Claude: flutter analyze clean; flutter test 545/545 (was 535; +10 net new). RED-FIRST DEMONSTRATED ON CI (the plan's hard requirement): throwaway branch dst-red-proof (PR #2, closed unmerged, branch deleted) = new tests + CI step + OLD consumer implementations -> Flutter job FAILED exactly on the two Cairo-sensitive consumer cases under TZ=Africa/Cairo — leaderboard Monday computed as 2025-04-20 (Sunday, the 23:00 landing) vs expected 2025-04-21, and per-tier streak 1 vs expected 2 across Apr 25->26 (gap misclassification); the pure date_utils helper tests passed on the same run (they were never buggy). Deno green. With the fixed code the same step passes. PASSED review, round 1 of 2 — no fix rounds needed.
+
+Shipped: committed to main and pushed after user sign-off; CI validates including the Cairo TZ step.
