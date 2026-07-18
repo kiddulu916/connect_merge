@@ -1,106 +1,71 @@
-# Plan Review Log: Deepen GameEngine (refill + canFollow)
+# Plan Review Log: Collapse the four prize checks (candidate #3)
 
 Act 1 (grill) complete — plan locked with the user. MAX_ROUNDS=5.
 
-(Candidate #1's log lives in git history at b06017f.)
+(Candidate #1's log lives in git history at b06017f; candidate #2's at 28a539e.)
 
-Grill decisions: merge() removal DEFERRED to its own PR (26 test references + undo entanglement; MergeEvent/canMerge must survive for the golden-vector sentinel regardless) — this PR is refill + canFollow + grantAdReward guard only. Settled from code: tierAt-callback signature keeps GameEngine seeder-free; TS refillBoard stays private; golden flag is Dart-only by design; proof = committed fixture byte-identical under regeneration.
+Grill decisions: weekly error handling NORMALIZED to abort-and-retry (guard stamped only after a fully successful check — fixes the lost-crown-on-network-blip edge; pinned by a new failing-first test). API shape: four public names stay as thin wrappers over one private `_checkPrizes(config)` engine — main.dart and existing tests untouched. Settled from code: guard fields stay four separate profile fields; payout tables become `int Function(int rank)`; fetch-signature differences adapted per-wrapper into one closure; engine always emits after a successful check (UI-invisible normalization); no TS mirror / season bump (client-only economy).
 
 ## Round 1 — Codex
 
-1. "Single owner" claim false: canFollow would coexist with canMerge, Dart/TS pairMergeable, and seeder.ts's copy. Fix: route them all through canFollow; parity-test the unavoidable seeder mirror.
-2. TS refill helper's terminal branch untested (no full-board deadlock vector in fixture). Fix: direct refillBoard tests mirroring Dart's.
-3. Golden proof biased: generator still filters ascend-only boards via the stale _hasAdjacentSameTier workaround (drift was fixed in 69420db). Fix: remove filter, add ascend-only parity coverage.
-4. "Proves every scored run" unsupported. Fix: call it regression evidence + branch-parity tests.
-5. Ad guard test omits the no-merge-available predicate. Fix: test each predicate independently.
-6. grantAdReward racy under concurrent reward callbacks. Fix: in-flight guard + concurrent test.
-7. Deploy verification not executable (no command/owner/smoke/rollback). Fix: concrete checklist.
-8. Repo requires the dated docs/superpowers task plan BEFORE implementation. Fix: write it first.
+Material findings:
+
+- **Lost updates/double payouts:** [main.dart:123](C:/Users/dat1k/Projects/connect_merge/lib/main.dart:123) starts four concurrent read-fetch-write operations using whole-profile snapshots, so the last save can erase other guards, coins, and crowns. **Fix:** serialize startup checks and reload/recheck the latest profile immediately before committing; add a delayed concurrent-check test.
+- **Emission change is observable:** [PLAN.md:27](C:/Users/dat1k/Projects/connect_merge/PLAN.md:27) gets this backwards—without `==`, every new `EngagementState` is unequal, so zero-payout emits trigger listeners and rebuilds. **Fix:** preserve the existing daily/monthly versus weekly/challenge emission policy in config and test stream event counts.
+- **Claimed crown coverage does not exist:** [PLAN.md:33](C:/Users/dat1k/Projects/connect_merge/PLAN.md:33) says crowns are tested across weeks, but [weekly_prize_test.dart:139](C:/Users/dat1k/Projects/connect_merge/test/application/weekly_prize_test.dart:139) only checks date ranges and never asserts retained crown history. **Fix:** run two week keys and assert both weeks remain in persisted and emitted `weeklyPrizes`.
+- **Test inventory is wrong:** [PLAN.md:20](C:/Users/dat1k/Projects/connect_merge/PLAN.md:20) omits `challenge_payout_test.dart`; daily has no success/idempotency test, and challenge tests ignore supplied date/difficulty. **Fix:** include the challenge suite and add wrapper tests asserting fetch arguments, payout, persisted guard, and idempotency.
+- **Best-rank behavior is unproved:** weekly/monthly fakes return the same rank for every tier, so an implementation that takes the first or last rank could pass. **Fix:** add one mixed-rank fake and assert the lowest qualifying rank wins while every weekly qualifying tier records a crown.
+- **UTC date math is not actually UTC:** [streak.dart:27](C:/Users/dat1k/Projects/connect_merge/lib/domain/models/streak.dart:27) and weekly helpers parse date-only strings as local time; subtracting 24 hours across spring DST can produce the wrong calendar day. **Fix:** construct UTC dates explicitly in all prize-period helpers and add DST, leap-day, and year-boundary cases.
+- **Equality-only guards permit replay after clock rollback:** `_checkPrizes` only skips when `guard == periodKey`, so a stored newer guard does not block an older period from paying again. **Fix:** for canonical ISO keys, skip when the guard is lexically greater than or equal to `periodKey`, with a rollback regression test.
+- **Challenge accepts invalid ranks:** [engagement_cubit.dart:550](C:/Users/dat1k/Projects/connect_merge/lib/application/engagement_cubit.dart:550) awards 100 coins for rank `0` or negative values, and the proposed `coinsForRank(rank) > 0` makes that the shared eligibility predicate. **Fix:** return zero for `rank < 1` and test ranks `0`, `1`, and `11`.
+- **“Any throw” is overstated:** [PLAN.md:19](C:/Users/dat1k/Projects/connect_merge/PLAN.md:19) catches fetch failures only; `saveProfile` failures escape through `unawaited` startup futures without `_onError`. **Fix:** report persistence failures, emit nothing, and leave the operation retryable.
+- **The config is a mini-framework:** six data/callback fields, including a mutation-shaped `recordCrown`, may be more code and weaker semantics than the duplication removed. **Fix:** extract one placement-fetching helper returning qualifying `(difficulty, rank)` results and keep the four small, explicit guard/commit blocks.
 
 VERDICT: REVISE
-
 ### Claude's response
 
-ACCEPTED all 8, two in modified form:
-- #1 modified: TS canFollow + pairMergeable move to constants.ts (rule functions already live there) — the only placement seeder.ts can share without an import cycle, physically de-duplicating the exact predicate that drifted in prod. Dart routes canMerge/pairMergeable/isValidChain/widget through GameEngine.canFollow.
-- #2: refillBoard EXPORTED (reversing the grill's "private" lean) for direct unit tests mirroring the Dart refill vectors.
-- #3 modified into a two-phase structure: Phase A pure refactor with byte-identical fixture (the proof), Phase B separate commit removing the stale workaround + UPDATE_GOLDENS_FORCE regeneration (vectors legitimately change — wallMaze back to 2026-07-17, ascend-only boards now reachable). Collapsing the phases would destroy the proof.
-- #4: proof language reworded to regression evidence + branch-parity unit tests.
-- #5: four independent no-op guard tests incl. no-merge-available.
-- #6: _grantingAd in-flight flag with try/finally + concurrent-double-call test; guard added to grantAdReward only (SDK-driven), no speculative reentrancy elsewhere.
-- #7: concrete release checklist (deploy command, project, owner, bundle-content verification via mcp get_edge_function, rollback path).
-- #8: dated docs/superpowers spec + TDD task plan written first, before production tasks.
+Verified against the repo before revising: challenge_payout_test.dart exists (my inventory was wrong); daily has ONLY an onError test; weekly_prize_test does not pin cross-week crown accumulation; previousUtcDay (streak.dart:27) parses local midnight — DST off-by-one confirmed; main.dart:123-126 concurrent read-modify-writes confirmed racy.
+
+Accepted (9/10): concurrency fix via a future-chain mutex in the cubit (root-cause, main.dart untouched) + concurrency test; crown cross-week test added; test inventory corrected + new daily_prize_test; mixed-rank test added; UTC-explicit date construction in previousUtcDay and the weekly/monthly helpers + boundary tests; guard hardened to lexical >=; rank<1 pays 0 + tests; saveProfile failures reported via _onError inside the mutex wrapper; config record REPLACED with Codex's simpler shape (3 small helpers + 4 explicit methods).
+
+Modified (1/10): emission policy — not preserved per-period behind a flag (rejected: keeps four inconsistent policies alive) and not always-emit (Codex correctly showed my claim was backwards). Unified to emit-iff-changed: daily/monthly byte-identical, weekly/challenge lose only value-identical spurious emits, which nothing observes.
 
 ## Round 2 — Codex
 
-1. Ascend-only coverage still optional in Phase B ("may include"). Fix: require a named vector whose start board has an ascend pair but no same-tier pair.
-2. Deploy/rollback commands don't bind the project. Fix: --project-ref on every command.
-3. Bundle verification checks source, not runtime. Fix: authenticated production smoke invocation.
-4. Proposed seeder parity test has no accessible seam (hasAdjacentMergeablePair private). Fix: export it, or shared-predicate cases + guaranteed ascend-only vector.
-5. pairMergeable's constants.ts signature unspecified — Tile params would reintroduce the engine dependency. Fix: tier-number params.
+Most prior findings are addressed. Remaining issues:
+
+- **Mutex scope is wrong:** [PLAN.md:23](C:/Users/dat1k/Projects/connect_merge/PLAN.md:23) reloads the profile before network fetching and holds the mutex across all 13 tier requests, serializing previously parallel startup work while still risking overwrite of unrelated profile changes during those requests. **Fix:** fetch ranks outside the mutex; serialize only reload → guard recheck → copy/save/emit.
+- **The plan contradicts itself:** [PLAN.md:39](C:/Users/dat1k/Projects/connect_merge/PLAN.md:39) says the reload occurs after fetching, while step 3 places it before `_myRankByTier`. **Fix:** make the commit-time reload ordering explicit and use it consistently.
+- **Persistence-error behavior is overclaimed and untested:** `saveProfile` may throw after writing, so “nothing is stamped” is not guaranteed, and a failed future-chain implementation could poison every later check. **Fix:** test both failure-before-write and failure-after-write, then verify a healthy subsequent check runs without duplicate payment.
+- **DST tests do not pin the DST bug:** year rollover, month length, and leap-day tests can all pass with the current local-time implementation, especially on UTC CI. **Fix:** add a deterministic assertion that the parsed/arithmetic date is UTC or run the regression under a controlled DST timezone.
+- **Challenge fetch adaptation remains untested:** revised challenge tests validate ranks but still do not assert `Difficulty.challenge` and yesterday’s date. **Fix:** capture and assert both arguments.
+- **The deliberate emission change remains unpinned:** weekly/challenge will stop emitting on zero payout, but no stream-count test is planned. **Fix:** add one zero-payout listener test asserting no emission for the normalized behavior.
+- **Minor shrink:** top-three map lookups already return zero for negative ranks, so adding explicit `rank < 1` branches to all payout functions is redundant. **Fix:** validate positivity only in `_challengeCoinsForRank`.
 
 VERDICT: REVISE
-
 ### Claude's response
 
-ACCEPTED #1, #2, #4 (alternative branch), #5; #3 PARTIALLY:
-- #1: generator now ASSERTS ≥1 vector's initial board is ascend-only (fails loudly otherwise); 2026-07-17 challenge is known to satisfy it.
-- #2: --project-ref nnoqqchqprfikhabrrjt added to deploy and rollback commands.
-- #3 partial: boot smoke added (unauthenticated POST must 401, not 5xx — proves bundle imports and serves). Full authenticated replay smoke REJECTED for this PR: needs a real user JWT plus a current-day legal run; logic verification is carried by the Deno suite. Logged as a known, accepted gap.
-- #4: took Codex's alternative — hasAdjacentMergeablePair stays private; parity carried by shared-predicate unit cases + the now-required ascend-only vector; unimplementable constructed-board comparison dropped.
-- #5: canFollow(prevTier, nextTier) / pairMergeable(aTier, bTier) — numbers only, constants.ts stays dependency-free; Dart's private pair check mirrors the tier-based shape.
+Accepted (6/7): mutex narrowed to commit-only (fetches outside; window shrinks from seconds to a microtask, and the four checks' network work stays concurrent) — this also resolves the step-3-vs-risks contradiction with one explicit ordering (pre-check -> fetch -> mutex{reload -> recheck -> save -> emit}); persistence-failure tests added for both fail-before-write and completed-write-then-throw, plus a chain-not-poisoned assertion, with the overclaim softened (idempotency, not atomicity, is the retry guarantee); challenge fetch-args assertion added; zero-payout no-emit test added; rank<1 guard confined to the challenge ladder (maps already total).
+
+Rejected (1/7, partially — the DST-pinning fix): a controlled-timezone regression harness is not available in-process (Dart has no per-test TZ injection; flutter test inherits the host TZ, so any such test is environment-flaky or vacuously green on UTC machines). Logged as an honest structural guarantee instead: every construction in the touched helpers goes through DateTime.utc, verified at diff review; boundary-value tests pin the arithmetic.
 
 ## Round 3 — Codex
 
-1. 401 smoke proves only the gateway (verify_jwt rejects before invocation). Fix: authenticated malformed request → function-generated 422.
-2. MCP bundle verification lacks explicit project_id/function_slug args.
+Round-2 findings are addressed, including commit-only serialization, challenge arguments, emission tests, error-chain recovery, and the reduced rank guard.
+
+- **Post-write failure leaves Cubit state stale:** if `saveProfile` writes then throws, the guard blocks retry while coins/crowns were never emitted. **Fix:** have the commit helper report failure, reload persistence, and reconcile state when the expected guard was stamped; test state as well as storage.
+- **Unrelated-write safety is still overclaimed:** [PLAN.md:22](C:/Users/dat1k/Projects/connect_merge/PLAN.md:22) calls load→save a “microtask,” but `saveProfile` is asynchronous and other cubits do not share this mutex. **Fix:** claim only prize-to-prize serialization; defer cross-cubit atomicity to a storage-level update mechanism.
+- **Repository planning workflow is missing:** AGENTS.md requires a dated spec and task-by-task implementation plan under `docs/superpowers/` for nontrivial work. **Fix:** add their creation as the first task, with failing test → implementation → passing test → commit steps.
 
 VERDICT: REVISE
-
 ### Claude's response
 
-ACCEPTED both, #1 in modified form: the anon key is itself a valid JWT, so Bearer <anon key> passes the verify_jwt gateway and reaches function code, where auth.getUser() fails — the smoke now requires the function's OWN body {"error":"unauthorized"} (not a gateway error shape, not 5xx), which is function-generated proof the bundle imports and serves, without needing a user JWT for a 422. #2: MCP call fully specified with project_id + function_slug.
+Accepted (3/3): write-then-throw now reconciles cubit state from storage in the catch path (coins/crowns can't sit stranded behind a stamped guard), tested on both storage and state; the mutex claim is scoped honestly to prize-to-prize serialization only, with cross-writer atomicity named as a future storage-level primitive; docs/superpowers spec + task plan added as step 0, matching candidates #1 and #2.
 
 ## Round 4 — Codex
 
-The smoke request still uses the wrong credential type: the repo defaults to an sb_publishable_ key (supabase_client.dart:17), which is not a JWT and is rejected before function execution when sent as Bearer. Fix: test-user JWT in Authorization, publishable key in apikey, malformed JSON → require function-generated 422.
+All round-3 findings are addressed. No new material flaws found.
 
-VERDICT: REVISE
-
-### Claude's response
-
-ACCEPTED — and made it self-contained instead of requiring a stored test account: config.toml has signup enabled with email confirmations off, so the smoke (a) mints a throwaway user via POST /auth/v1/signup with the publishable apikey (returns access_token immediately), (b) POSTs a malformed body to submit-score with that Bearer token → requires the function-generated 422 {"valid":false,"reason":"invalid_run"}, (c) cleans up via the repo's own delete-account function with the same JWT. If prod signup settings diverge, the smoke fails loudly at step (a).
-
-## Round 5 — Codex
-
-Minor release caveat: delete-account (index.ts:72) ignores deletion errors, so smoke cleanup can silently leave a throwaway user. Fix: verify the user no longer exists; treat failure as a release-check failure.
+Implementation constraint: post-write reconciliation must emit only when persisted coins/crowns differ from state, preserving the planned no-emit behavior for failures before writing.
 
 VERDICT: APPROVED
-
-### Claude's response
-
-Accepted: smoke now verifies deletion by requiring a repeat sign-in with the same credentials to fail; a surviving throwaway user is a release-check failure. Plan converged in 5 rounds.
-
-## Act 3 — Build
-
-### Round 1 — Codex build
-
-Codex (gpt-5.6-sol, thread 019f6cb6-6fcb-74a0-a028-76556227e968, ~22 min, both phases): canFollow single-sourced (Dart GameEngine; TS constants.ts shared by engine.ts + seeder.ts), refill moved into GameEngine / exported refillBoard replacing both TS inline copies, grantAdReward canOfferAd + in-flight guards, docs-first TDD plan under docs/superpowers/, Phase A proof gate captured (fixture regen EXIT=0, byte-identical) BEFORE Phase B (stale filter removed, ascend-only requirement enforced, force regeneration — wallMaze back to 2026-07-17). NO git mutations this time. Reported deviations: none.
-
-### Claude's verdict
-
-Verified independently:
-- Full diff read: every routing is expression-equivalent (canFollow(lower,higher) ⇔ |Δ|≤1 in _pairMergeable; canMerge/isValidChain/widget/TS mirrors exact); both TS inline refill copies deleted; changed files exactly match the contract's allowed set; prng.ts/index.ts/golden_vectors.test.ts untouched.
-- flutter analyze clean; flutter test 503/503; deno test --frozen 45/45.
-- Fixture regeneration deterministic (identical SHA-256 across repeated regens: 00D54BDD...4DCD) and assert-mode green; the 120-line fixture diff vs HEAD is Phase B's intended change (wallMaze 2026-08-02 → 2026-07-17, ascend-only start now covered).
-- Phase A's byte-identical gate was captured in Codex's report before Phase B; post-hoc parity carried by the regenerated fixture passing both suites + the new branch-parity unit tests.
-
-Build ACCEPTED, round 1, no fix rounds used. Held for human gate.
-
-### Post-gate execution (user approved commit + push + deploy + smoke)
-
-- f58f7b0 (Phase A): refactor landed — canFollow + refill/refillBoard single-sourced, grantAdReward guards; fixture byte-identical under regeneration on this commit.
-- 2f550e9 (Phase B): stale generator workaround removed, ascend-only coverage now REQUIRED, fixture force-regenerated (wallMaze → 2026-07-17).
-- Pushed; CI run 29594974425 SUCCESS (1m28s) — Flutter + Deno both green as required checks.
-- submit-score deployed with --project-ref (now version 8); bundle contents verified via get_edge_function (refillBoard in engine.ts, canFollow/pairMergeable in constants.ts, seeder using shared predicate).
-- Runtime smoke passed end-to-end: throwaway signup → function-generated 422 {"valid":false,"reason":"invalid_run"} on malformed body → delete-account {"ok":true} → deletion verified (re-sign-in rejected). No stored secrets, no residue.

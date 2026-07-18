@@ -1,85 +1,54 @@
-# Plan: Deepen GameEngine — absorb the refill loop and the chain-step rule
+# Plan: Collapse the four prize checks into one shared engine
 
 _Locked via grill — by Claude + kiddulu916. Revised after Codex round 1._
 
 ## Goal
 
-Make the tier-step rule and the refill loop single-sourced per language, with behavior preserved and **proven** by the golden-vector fixture plus targeted branch-parity tests. `GameEngine.canFollow` becomes the one tier-step predicate behind `isValidChain`, `canMerge`, `pairMergeable`, and the widget's drag handler in Dart; its TS mirror lives in `constants.ts` so `engine.ts` **and** `seeder.ts` share it (the seeder's inlined copy is the one that actually drifted in production — 69420db). The refill loop moves from `GameCubit.playChain` into `GameEngine.refill()`; its two TS copies collapse into one exported `refillBoard()`. Plus `grantAdReward()` gains the guard the TS verifier already enforces, and an in-flight guard against double-grant.
+`EngagementCubit` carries four near-duplicate methods — `checkDailyPrizes`, `checkWeeklyPrizes`, `checkMonthlyPrizes`, `checkChallengePayouts` (~250 lines, `lib/application/engagement_cubit.dart:329-594`) — that all do: compute a closed period, short-circuit on a once-per-period guard, fetch leaderboard entries per tier, find the player's best rank, convert rank → coins, stamp the guard, save, emit. Deduplicate them behind small shared helpers (not a config framework — per Codex round 1), keep the four public names and signatures, and fix the real defects the dedup exposes: weekly's stamp-guard-despite-failure quirk, the concurrent lost-update race between the four startup checks, local-time date parsing in the period helpers, and challenge's payout for rank ≤ 0. Pure client-side economy code — no TS mirror, no season bump, no storage schema change.
 
 ## Approach
 
-Work is two phases in one PR: **Phase A** is the pure refactor (fixture must come out byte-identical); **Phase B** is the generator-policy cleanup Phase A unlocks (fixture legitimately changes under the force flag). Per the repo's planning workflow, the dated spec + failing-test→implementation→passing-test→commit task plan under `docs/superpowers/` is written **first**, before any production task.
-
-### Phase A — refactor, behavior frozen
-
-1. **`GameEngine.canFollow` (Dart)** — `static bool canFollow(int prevTier, int nextTier) => nextTier >= prevTier && nextTier <= prevTier + 1;` with a doc comment stating the step rule and TS lockstep.
-   Route every Dart tier-step check through it:
-   - `isValidChain`: inline delta check → `canFollow(prev.tier, t.tier)`.
-   - `canMerge`: `delta >= 0 && delta <= 1 && to.tier < kMaxTier` → `canFollow(from.tier, to.tier) && to.tier < kMaxTier`.
-   - `pairMergeable` (inside `hasMergeAvailable`): → `canFollow(lower, higher) && higher < kMaxTier` (symmetric use: lower/higher = min/max of the two tiers).
-   - `board_widget._canExtend` line 62 → `GameEngine.canFollow(lastTier, t.tier)`.
-
-2. **`canFollow` + `pairMergeable` (TS) move to `constants.ts`** — rule functions already live there (`comboMultiplier`, `ascendBonus`); placing these two there breaks the seeder↔engine import cycle that forced `seeder.ts` to inline its own copy. **Tier-number signatures, no Tile types**, so `constants.ts` stays dependency-free: `canFollow(prevTier: number, nextTier: number)`, `pairMergeable(aTier: number, bTier: number)`. Dart's private pair check takes tiers the same way for shape parity.
-   - `engine.ts`: deletes its private `pairMergeable`, imports both (callers pass `.tier`); `isValidChain` uses `canFollow`.
-   - `seeder.ts`: `hasAdjacentMergeablePair`'s inline tier math → shared `pairMergeable`. The predicate that drifted once can no longer drift alone.
-
-3. **`GameEngine.refill` (Dart)** — loop moves verbatim from `game_cubit.dart:360-371`:
-   ```dart
-   static BoardState refill(
-     BoardState board, {
-     required int targetFill,
-     required int Function(int dropIndex) tierAt,
-     required Prng landing,
-     Set<int> goldenDrops = const {},
-   })
-   ```
-   Each iteration reads the *current* board's `dropIndex` for both `tierAt` and the golden check — exact read-point preservation. `playChain` calls it with `tierAt: (i) => _seeder.dropTierAt(_dropTier, i)`, keeping `GameEngine` seeder-free.
-
-4. **`refillBoard` (TS, exported)** — `export function refillBoard(board, targetFill, tierAt, landing)` in `engine.ts`; `verifyRun` + `verifyRunChallenge` call it; the two inline copies die. Exported so it's directly unit-testable (Codex round 1); doc comment names the Dart mirror and the deliberately Dart-only golden flag.
-
-5. **`grantAdReward()` guards** — early `if (!canOfferAd) return;` plus an in-flight flag (`_grantingAd`, set in `try`/cleared in `finally`) so two overlapping reward callbacks can't both grant before the first snapshot write lands.
-
-6. **Tests (TDD order per task)** —
-   - Dart: `canFollow` (equal/ascend/descend/skip); `refill` (fill-only, merge-top-up, full-board stop, dropIndex read-order, golden flag); `grantAdReward` no-op for each predicate independently — wrong state, not outOfMoves, cap exhausted, **no merge available** — and a concurrent-double-call test proving one continue recorded.
-   - TS: `canFollow` + `pairMergeable` cases (the shared predicates ARE the seeder-parity guarantee now — `hasAdjacentMergeablePair` stays private; end-to-end seeder acceptance is pinned by Phase B's required ascend-only vector instead of an unimplementable constructed-board comparison); `refillBoard` unit tests mirroring the Dart refill vectors (fill-only, merge-top-up, full-board, drop-order).
-   - All existing suites pass unchanged.
-
-7. **Phase A proof** — `flutter test` + `deno test --frozen supabase/functions/` green with the committed fixture untouched; then `UPDATE_GOLDENS=1` regeneration followed by `git diff --exit-code supabase/functions/_shared/golden_vectors.json`. The fixture is **regression evidence over the recorded runs** (not a proof over all runs — the unit branch-parity tests above cover what the vectors don't); together they justify no season bump. If regeneration diffs in Phase A, the refactor is wrong — fix code, never the fixture.
-
-### Phase B — generator-policy cleanup (separate commit)
-
-8. **Remove the stale `_hasAdjacentSameTier` workaround** from `golden_vectors_test.dart` (lines ~161-164): it filtered challenge dates for the seeder drift fixed in 69420db and now silently narrows coverage. Regenerate with `UPDATE_GOLDENS=1 UPDATE_GOLDENS_FORCE=1` (policy-only change — exactly what the force flag exists for). **Required, not optional**: the generator asserts at least one vector's initial board contains an ascend pair and NO same-tier pair (the historical-regression shape), failing generation loudly otherwise — 2026-07-17 challenge is known to be such a board, so `wallMaze` returning to it satisfies this. Both suites must pass on the regenerated fixture.
-
-### Docs & release
-
-9. **Docs**: dated spec + task plan under `docs/superpowers/` (2026-07-16, written first); update the `game_cubit.dart` refill comment and the CLAUDE.md/AGENTS.md dual-engine sections to name `canFollow`/`refill`/`refillBoard` as the mirrored surface.
-
-10. **Release checklist** (engine.ts + seeder.ts + constants.ts change → the deployed bundle must follow; this drift has shipped twice):
-    - Pre-deploy: `deno test --frozen supabase/functions/` green on the merge commit.
-    - Deploy: `supabase functions deploy submit-score --project-ref nnoqqchqprfikhabrrjt` (explicit ref — never rely on the locally-linked project). Owner: Claude, immediately after the commit lands on main.
-    - Verify bundle: `mcp__supabase__get_edge_function({project_id: "nnoqqchqprfikhabrrjt", function_slug: "submit-score"})` — confirm the returned `engine.ts` contains `refillBoard`, `constants.ts` contains `canFollow`, and the version incremented.
-    - Runtime smoke (self-contained, no stored secrets — the project key is `sb_publishable_…`, not a JWT, so a real user token is minted on the spot): (a) `POST /auth/v1/signup` with the publishable `apikey` and a random throwaway email/password — signup is enabled with confirmations off, so this returns an `access_token` immediately; (b) `POST /functions/v1/submit-score` with `Authorization: Bearer <access_token>` + publishable `apikey` and a malformed body — require the **function-generated 422** `{"valid":false,"reason":"invalid_run"}` (proves the new bundle imports, serves, and executes past auth); (c) clean up by calling the repo's own `delete-account` function with the same JWT, then **verify the user is actually gone** (a repeat sign-in with the same credentials must fail — `delete-account` swallows deletion errors, so cleanup is only done when proven). A surviving throwaway user is a release-check failure. If prod signup settings ever diverge from config.toml, the smoke fails loudly at (a) — adapt then, don't skip.
-    - Rollback: `git checkout <prev> -- supabase/functions && supabase functions deploy submit-score --project-ref nnoqqchqprfikhabrrjt`.
+0. **Repo planning workflow first**: create the dated design doc under `docs/superpowers/specs/` and the task-by-task implementation plan under `docs/superpowers/plans/` (each task = failing test → implementation → passing test → commit), per CLAUDE.md/AGENTS.md — same as candidates #1 and #2.
+1. **Failing tests first** (extend existing suites):
+   - `weekly_prize_test.dart`: one tier's `fetchPeriod` throws → `lastWeeklyPrizeDate` NOT stamped, no coins, no crowns; healthy re-run pays out. (Pins normalized abort-and-retry.)
+   - `weekly_prize_test.dart`: two consecutive weeks both top-3 → `weeklyPrizes` retains both crowns (persisted + emitted). (Coverage Codex showed was missing.)
+   - `weekly_prize_test.dart` or `engagement_test.dart`: mixed ranks across tiers (e.g. hard=1, medium=3) → best (lowest) rank pays, every qualifying tier gets a crown.
+   - New `test/application/daily_prize_test.dart`: success payout, guard idempotency, and fetch-args assertions for daily (currently only an onError test exists).
+   - `challenge_payout_test.dart`: rank 0 and rank 11 pay nothing; rank 1 pays 150. (Pins the `rank < 1` guard.)
+   - Concurrency: all four checks fired concurrently (daily save delayed via a completer-backed fake) → no guard/coins lost-update; every stamp and payout survives.
+   - Persistence failure: `saveProfile` throws before writing → `_onError` fired, no emit, and the NEXT check (same or different period) still runs — the mutex chain is not poisoned by a failed link. Completed-write-then-throw variant: guard idempotency makes the retry a no-op (no duplicate payment), AND the catch path reconciles cubit state from storage so the credited coins/crowns are emitted rather than left stale behind the stamped guard — asserted on both storage and state.
+   - Emission: zero-payout weekly/challenge check → listener sees NO emit (pins the emit-iff-changed normalization).
+   - `challenge_payout_test.dart`: the fake captures fetch arguments → assert `Difficulty.challenge` + yesterday's date (currently unasserted).
+2. **Shared helpers** in `engagement_cubit.dart` (the dedup, Codex-round-1 shape):
+   - `_serializedPrizeCommit(Future<void> Function() body)` — a future-chain mutex all four checks run their COMMIT through (network fetches happen outside it, so the four checks' fetches stay concurrent). What it guarantees: prize-to-prize serialization — the four checks can no longer erase each other's stamps/coins. What it does not: atomicity against other profile writers (other cubits don't share the mutex; the commit window no longer spans network fetches, which narrows but does not close that pre-existing repo-wide race). Each link runs `body` in try/catch → `_onError`, so a throwing `saveProfile` in an `unawaited` startup future is reported, the check stays retryable, and a failed link can never poison the chain; if the failure happened after the write landed (guard stamped), the catch reconciles cubit state from storage so credited coins/crowns aren't stranded unemitted.
+   - `_myRankByTier(List<Difficulty> tiers, Future<List<LeaderboardEntry>> Function(Difficulty) fetch)` → `Map<Difficulty, int>?` — the per-tier fetch loop; returns null after `_onError` on ANY fetch failure (unified abort-and-retry rule, per grill), so no partial-result stamping is possible for any period.
+   - `_bestQualifyingRank(Map<Difficulty, int> ranks, int Function(int) coinsForRank)` → best (lowest) rank whose payout is positive.
+   - Payout tables become total functions (`_dailyCoinsFor(rank)` etc.); the map-backed ones already return 0 for any non-winning rank, so only the challenge ladder gains an explicit `rank < 1 → 0` guard (it currently pays 100 for rank ≤ 0).
+3. **Rewrite the four public methods** as short explicit blocks (each ~15 lines) with ONE ordering used everywhere: compute period → cheap guard pre-check on the current profile (skip without fetching) → `_myRankByTier` OUTSIDE the mutex → null ⇒ return → `_serializedPrizeCommit`: reload profile → re-check guard against the reload (lexical ≥; authoritative under the mutex) → compute coins (+ crowns for weekly) → single `copyWith`/`saveProfile` → emit only when coins or crowns actually changed.
+   - Guard skip hardened from `==` to "stored ≥ periodKey" (lexical compare; each guard field's format is internally consistent — ISO dates or `YYYY-MM` — so lexical order = chronological order). A clock rollback can no longer re-pay an old period. One regression test.
+4. **Fix the period helpers to be actually UTC** (root-cause, shared): `previousUtcDay` (`lib/domain/models/streak.dart:27`) and the weekly/monthly statics parse date-only strings as LOCAL midnight, so day arithmetic across a DST transition can yield the wrong calendar day. Fix by constructing UTC dates explicitly (`DateTime.utc(y, m, d ± n)` after parsing components); add boundary tests (year rollover, month lengths, leap day). Honest limitation: the DST regression itself cannot be pinned deterministically in-process (Dart offers no per-test timezone injection, and on a UTC machine local == UTC), so the guarantee is structural — every date construction in these helpers goes through `DateTime.utc`, reviewed at the diff — while the boundary tests pin the values. Behavior is byte-identical outside the DST edge; `previousUtcDay` is shared with streak logic, which gets the same latent fix for free. No TS-side change (server already runs in UTC).
+5. **Prove**: full `flutter test` (engagement, weekly, monthly, challenge suites + the new tests) + `flutter analyze` clean. No golden-vector involvement — this code never touches `BoardState`/replay.
 
 ## Key decisions & tradeoffs
 
-- **TS `canFollow`/`pairMergeable` live in `constants.ts`, not `engine.ts`** — the only placement that lets `seeder.ts` share them without an import cycle; `constants.ts` already holds rule functions. Cost: "constants" hosting predicates is a slight name stretch; benefit: the predicate that actually drifted in prod becomes physically shared.
-- **`refillBoard` exported** (reversing the grill's "private" lean) — direct unit tests beat interface purity here; the mirrored surface grows by one deliberate name.
-- **`tierAt` callback instead of passing `DailySeeder`** — keeps `GameEngine` seeder-free; same helper shape both languages. Cost: one closure per chain play.
-- **Golden flag Dart-only, absent from TS mirror** — cosmetic economy is walled off from replay by design; doc comments name the asymmetry as intent.
-- **Two-phase structure** — Phase A's byte-identical fixture proves the refactor; only then does Phase B change vectors under the force flag. Collapsing them would destroy the proof.
-- **`merge()` removal deferred** (grill decision): test-migration job, 26 references, and `MergeEvent`/`canMerge` must survive for the golden sentinel anyway.
-- **In-flight guard added to `grantAdReward` only** — the one method an external SDK callback drives; no speculative reentrancy guards elsewhere.
+- **Weekly error handling normalized, not preserved** (grill decision): any fetch failure aborts the whole check before stamping, retrying next launch. A transient error can no longer permanently forfeit a crown. Failure-path-only behavior change; pinned by the new test.
+- **Shared helpers over a config record** (Codex round 1, accepted): a 6-field config with `readGuard`/`stampGuard` closures was a mini-framework — more indirection than the duplication it removed. Three small helpers + four explicit methods keep each check readable at a glance while deduplicating the parts that are actually identical (mutex, fetch loop, rank fold, payout-fn shape).
+- **Serialization covers the commit only, not the fetches** (Codex round 2, accepted; claim scoped in round 3): the guarantee is prize-to-prize serialization. Against OTHER profile writers (run completion, purchases, golden-tile credits) there is no atomicity — the mutex merely stops holding a stale snapshot across slow network fetches, narrowing that pre-existing repo-wide race without closing it. Closing it properly means a storage-level read-modify-write primitive — out of scope here, noted for a future candidate.
+- **Emit only on change** (modification of Codex's "preserve emission policy per period"): Codex was right that my always-emit claim was backwards (no `==` override ⇒ every emit rebuilds listeners). Instead of preserving the four inconsistent policies behind a flag, all four emit iff coins or crowns changed — never a spurious rebuild, no per-period flag. Daily/monthly keep their exact behavior; weekly/challenge stop emitting value-identical states, which no test or widget observes.
+- **Guard comparison hardened to ≥** (Codex, accepted): one-line change; client-side coins are tamper-able anyway, but refusing obvious clock-rollback replays is free.
+- **Guard fields stay four separate profile fields** — collapsing them into a map is a `PlayerProfile`/Hive migration for zero user-visible gain (candidate #5's territory).
 
 ## Risks / open questions
 
-- `canMerge`/`pairMergeable` routing must be expression-identical under all inputs (bounds: tier 1..kMaxTier); the unit tests enumerate the edge tiers.
-- Phase B's regenerated vectors change fixture dates; if any regenerated vector fails the Deno suite, that's a new cross-language finding to investigate, not to paper over.
-- `grantAdReward` guard could surface tests granting from illegal states; fix as test bugs unless one encodes real product behavior — then stop and surface.
+- The commit-time reload changes when the profile snapshot is taken (after fetches complete, not before). All tests drive checks sequentially except the new concurrency test, so ordering assumptions in existing tests are unaffected; full suite is the backstop.
+- `saveProfile` throwing AFTER the write has landed cannot be distinguished from a clean failure by the caller; the guard's idempotency is what makes the retry safe either way (re-skip if stamped, re-pay-nothing-twice never possible) — pinned by the completed-write-then-throw test.
+- Lexical `≥` on `lastWeeklyPrizeDate` compares Mondays to Mondays (always stamped with `weekFrom`) — consistent. `lastDailyPrizeDate`/`lastChallengeCheckDate` are dates, `lastMonthlyPrizeMonth` is `YYYY-MM` — each field only ever compares against its own format.
+- `previousUtcDay` is also used by streak-gap analytics (`engagement_cubit.dart:207`); the UTC fix can shift behavior only for users whose local clock crossed DST at the exact boundary — the direction of the change is "correct calendar day," and streak tests pin the honest paths.
 
 ## Out of scope
 
-- Removing `GameCubit.merge()` / `GameEngine.merge` / `canMerge` / `MergeEvent` — own PR (grill decision).
-- Extending `VerifyResult`, deploy-drift CI guard, scoring/rule/`kLeaderboardSeason` changes.
-- Reshaping the fixture beyond Phase B's regeneration.
-- Candidates #3–#6 from the architecture review.
+- No storage/`PlayerProfile` schema changes (candidate #5).
+- No TS mirror, no season bump — prize economy is client-only and walled off from replay (`lib/domain/constants.dart`).
+- No change to payout amounts or period definitions (only the local→UTC correctness fix to their date math).
+- No change to `main.dart` call sites or public signatures.
+- Streak transition rules themselves (candidate #6) — only the shared `previousUtcDay` helper is touched.
