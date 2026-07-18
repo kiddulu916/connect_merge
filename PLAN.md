@@ -1,60 +1,47 @@
-# Plan: Regroup PlayerProfile into sub-records with intent-named writes
+# Plan: Move game-session composition out of tier_select_screen
 
-_Locked via grill — by Claude + kiddulu916. Revised after Codex round 1._
+_Locked via grill — by Claude + kiddulu916._
 
 ## Goal
 
-`PlayerProfile` (`lib/infrastructure/storage_service.dart:105-359`) is a 23-field flat bag: constructor, `copyWith` (with 5 ad-hoc `clear*` flags, 4 of which are dead — never called anywhere), `toJson`, and `fromJson` each enumerate all 23, and nothing tells a reader which fields belong together or which multi-field writes are transactions. Regroup the fields into 7 cohesive sub-records AND give `PlayerProfile` intent-named write methods for the multi-field transactions the call sites actually perform (grill decision) — write sites get shorter than today instead of drowning in nested `copyWith`. The on-disk format stays the exact flat JSON it is today — pinned by an encoded-string golden, not a key-set check — so there is zero migration and old builds stay compatible; the change is purely a Dart-API restructure.
+`_TierSelectScreenState` is a composition root wearing a screen costume: it constructs the production `LootCubit` (main.dart never passes one), builds and wires `GameCubit` per tier (`tier_select_screen.dart:321` — the app's only production `GameCubit` site), and owns three application bridges (completion→engagement, coins→wallet+loot-refresh, submit→leaderboard). Extract a small `GameSessionFactory` in `lib/application/` that owns `GameCubit` creation and the bridges, construct it once in `main.dart`, and hoist `LootCubit` creation to `main.dart` — so ALL production composition lives in the root and the screen keeps navigation and rendering only. The screen's local-cubit fallbacks stay as explicitly test-only scaffolding (grill decision), so the ~10 widget-test construction sites are untouched.
 
 ## Approach
 
-0. **Repo planning workflow first**: dated design doc under `docs/superpowers/specs/` and task-by-task red-green plan under `docs/superpowers/plans/` (per CLAUDE.md/AGENTS.md, same as candidates #1–#3), including an explicit `rg`-derived call-site checklist of every production `PlayerProfile` write and every `PlayerProfile(...)` test fixture (Codex counted 17 production `copyWith` sites, and constructor-fixture tests like `profile_screen_test.dart` are in scope too — no estimates, an enumerated list).
-1. **Wire-format golden tests first** (`test/infrastructure/profile_wire_format_test.dart`, NEW) — written to survive the refactor unchanged, so they are constructed from raw JSON fixtures, never from the Dart constructor:
-   - **Full fixture**: a raw `Map` literal exercising all 23 keys → `PlayerProfile.fromJson` → `toJson` → assert `jsonEncode(...)` equals one exact golden STRING (key order included — `jsonEncode` preserves insertion order, so `toJson` must centrally emit today's key order even after grouping).
-   - **Legacy-defaults fixture**: an empty map and a partial map (early-phase keys only) → `fromJson` → assert every missing field gets today's default (the migration-free guarantee older installs rely on).
-   Both must pass against the CURRENT class before the refactor starts, then keep passing untouched.
-2. **Sub-records** (same file, small immutable classes, repo style — const constructors, `copyWith`, no `==` override), grouped by domain ownership (which system owns the fields — co-commit patterns cross groups via coins by design and don't define them):
-   - `ActivityStreak` — `dailyActiveStreak`, `lastActiveDate` (headline streak system)
-   - `Progression` — `unlockedAchievements`, `bestRankByDifficulty`, `lifetimeXp`, `almanacCounts` (meta-progression)
-   - `CosmeticsInventory` — `selectedCosmetic`, `adUnlockedCosmetics`, `purchasedCosmetics`
-   - `PlayerSettings` — `notificationsEnabled`, `reminderMinutes`, `tutorialSeen`, `colorblindMode`
-   - `Wallet` — `coins`, `lastLootClaimDate`
-   - `Rivalry` — `rivalId`, `rivalName`, `lastSeenRivalScoreByTier`
-   - `PrizeLedger` — `lastDailyPrizeDate`, `lastWeeklyPrizeDate`, `lastMonthlyPrizeMonth`, `lastChallengeCheckDate`, `weeklyPrizes`
-   `PlayerProfile` becomes 7 fields; `toJson` enumerates all 23 flat keys DIRECTLY in today's golden order (no per-group map spreading — reordering is exactly what the string golden exists to catch), and `fromJson` regroups.
-3. **Intent-named write methods on `PlayerProfile`** — each a pure profile→profile transform with an explicit contract; none evaluates guards, touches storage, or emits (that stays in the cubits, exactly as candidate #3 left it):
-   - `awardDailyPrize(String date, {required int awardCoins})`, `awardWeeklyPrize(String weekFrom, {required int awardCoins, required List<WeeklyPrize> crowns})`, `awardMonthlyPrize(String monthKey, {required int awardCoins})`, `awardChallengeCheck(String date, {required int awardCoins})` — contract: ADD `awardCoins` to the receiver's (freshly reloaded, mutex-held) balance, never replace; APPEND crowns, never replace; stamp the guard even when `awardCoins == 0`; caller owns the lexical-≥ guard recheck, the serialized commit, and emit-iff-changed. Pinned by the 18 existing candidate-#3 tests (concurrency, zero-payout, write-then-throw) which must pass with only accessor-path edits.
-   - `advanceActivity({required int streak, required String date, required Set<String> achievements, required int lifetimeXp, required Map<String, int> almanacCounts})` — the onTierCompleted commit (spans ActivityStreak + Progression, which is fine: helpers are transactions over groups).
-   - `recordPurchase(String cosmeticName, {required int price})` — records a caller-VALIDATED purchase (debits price, unions the name); idempotency and funds checks stay in `EngagementCubit.purchaseCosmetic` where they live today, and the doc comment says so (named `recordPurchase`, not `purchase`, so the name doesn't promise validation it doesn't do).
-   - `grantAdCosmetic(String name)` — UNIONS into the existing ad-unlocked set (never replaces); `selectCosmetic(String name)`.
-   - `claimLoot(String date, {required int awardCoins})` — ADDS `awardCoins` to the balance and stamps the claim date atomically (loot_cubit's write); `creditCoins(int delta)` clamped at 0 (single-sources the clamp now duplicated in both `addCoins` impls).
-   - `setRival(String id, String name)` / `clearRival()` — BOTH reset `lastSeenRivalScoreByTier` to empty, mirroring today's spurious-nudge protection in `rivalry_cubit.dart:86-114`; plus `recordRivalScore`-style last-seen update stays a plain group copyWith (single-field).
-   - Single-field writes (tutorialSeen, notification prefs) use group copyWith: `profile.copyWith(settings: profile.settings.copyWith(tutorialSeen: true))`.
-4. **Clear semantics**: the four never-called prize `clear*` flags are DELETED (dead capability; the wire pin doesn't care). `clearRival` survives as the `clearRival()` helper. Sub-record `copyWith`s keep the repo's existing flag pattern only where a real caller needs clearing (currently: none besides rival) — no sentinel cleverness.
-5. **Migrate call sites** from the step-0 checklist (~17 production `copyWith` sites + reads across `engagement_cubit.dart`, `loot_cubit.dart`, `rivalry_cubit.dart`, `hive_storage_service.dart`, `storage_service.dart`, `game_screen.dart`, `tier_select_screen.dart`; ~90 test accesses + constructor fixtures). The compiler catches every miss — field moves are breaking by design.
-6. **Prove**: both wire goldens unchanged and green; `flutter analyze` clean; full `flutter test` green with only accessor-path/fixture edits to existing tests (no assertion-value changes anywhere — behavior is untouched).
+0. **Repo planning workflow first**: dated design doc under `docs/superpowers/specs/` and task-by-task red-green plan under `docs/superpowers/plans/` (dated 2026-07-18, same format as prior candidates).
+1. **Failing tests first** (`test/application/game_session_factory_test.dart`, NEW — the factory is a plain class, unit-testable without widgets):
+   - `create(difficulty)` returns an initializing `GameCubit` (tests await the first non-`GameInitial` state) whose completion hook calls `engagement.onTierCompleted` with today's date + the run's score/highestTier, THEN awaits the screen-supplied `afterCompleted` callback (ordering pinned).
+   - Coins hook: a nonzero delta goes through `storage.addCoins` (single awaited path) and then `loot.load()` refreshes the balance; a zero delta does neither.
+   - Submit hook: with a leaderboard present, `submitRun` forwards date/difficulty/moveLog; with `leaderboard: null` the cubit's `onSubmitRun` is null (offline no-op preserved).
+   - Observability: `onError`/`onAnalyticsEvent` are threaded into the created cubit.
+2. **`GameSessionFactory`** (`lib/application/game_session_factory.dart`): constructor takes `storage`, `engagement`, `loot`, `leaderboard` (nullable), `crashReporting`/`analytics` hooks (nullable, same function-typed style as the cubits), `todayProvider`. One method:
+   `GameCubit create({required Difficulty difficulty, Future<void> Function()? afterCompleted})` — builds the `GameCubit` with exactly today's wiring from `_startTier`/`_onTierCompleted`/`_creditCoins`/`_submitRun` and STARTS `init(difficulty:)` via the same unawaited cascade as today (init is async — `create` does not and cannot return an already-initialized cubit; tests await the first non-`GameInitial` state). The notification-permission flow stays screen-side via `afterCompleted` (a UI concern: contextual permission prompt + reschedule).
+3. **Hoist `LootCubit` with a real lifecycle**: `main.dart` creates `LootCubit(storage: storage)..load()` and passes it through `ConnectMergeApp` → `TierSelectScreen`. `_ConnectMergeAppState.dispose()` closes the hoisted `loot` — and ONLY `loot` (Codex round 3): closing the other root cubits there would race the unawaited startup prize checks (`engagement`) and the live deep-link subscription (`duels`), turning a pre-existing benign leak into an emit-after-close crash. Broader root shutdown (deep-link stream disposal + async-task coordination) is explicitly future work.
+4. **Account-deletion staleness fix** (pre-existing for engagement/rivalry, would newly hit loot): `_onAccountDeleted` in `ConnectMergeApp` reloads every profile-backed root cubit (`engagement.load()`, `rivalry.load()`, `loot.load()`) after the wipe, so the re-onboarded session can't show the deleted account's coins/streak/chest state.
+5. **Slim the screen — no fallback factory**: `TierSelectScreen` gains a nullable `sessions`; `_startTier` checks the `onTierSelected` override FIRST (every widget test returns there), then uses `widget.sessions!` — a missing factory past the override is a contract violation that fails loudly, not a silently-composed duplicate path. `_onTierCompleted`, `_creditCoins`, and `_submitRun` are DELETED from the screen. `_settleDuelIfMatched` and all notification logic stay (they need the messenger/UI context). The existing cubit fallbacks (engagement/loot/rivalry) stay for widget-test ergonomics, binding the STATE fields (`_engagement`, `_loot`) — never the nullable widget params.
+6. **Wire `main.dart`**: construct the factory after the services exist, pass `sessions` + `loot` down.
+7. **Prove**: new factory unit tests green; ONE new widget test exercises the real root-to-route wiring (inject a factory, no `onTierSelected`, tap a tier → the factory-created `GameCubit` drives `GameScreen`); `flutter analyze` clean; full `flutter test` green — existing widget tests untouched.
 
 ## Key decisions & tradeoffs
 
-- **Flat wire format pinned as an encoded string, not a key set** (Codex round 1): `jsonEncode` preserves insertion order, so only an exact-string golden catches accidental reordering; fixture-driven construction keeps the pin compiling across the constructor change.
-- **Sub-records + intent helpers over plain nested copyWith** (grill decision): plain nesting makes every write site MORE verbose (Dart has no lenses); the helpers are what pay for the churn. **Codex proposed dropping the regroup entirely (flat + helpers only); rejected**: that exact option was on the table at the grill with its tradeoff stated, and the user chose the regroup. The honest version of Codex's point stands in the goal: grouping distributes rather than eliminates the per-field 4-place cost — but each place becomes a small cohesive class, which is the candidate's actual aim.
-- **Groups justified by domain ownership, not co-access** (Codex round 1, accepted): the prize guards are never stamped together and `advanceActivity` spans two groups — co-access was the wrong rationale; ownership (which system reads/writes the fields) is the real one, and transactions legitimately cross groups via helpers.
-- **Helpers are transactions with explicit contracts**: add-vs-replace named in parameters (`awardCoins`), append-vs-replace stated for crowns, guard/emit/storage responsibilities explicitly left with the cubits — so candidate-#3 semantics cannot silently shift.
-- **`recordPurchase` keeps validation in the cubit** — moving idempotency/funds checks into the profile would change where failures surface (return values, emits) for zero gain; the name is scoped to what it does.
-- **Dead clear-flags deleted** rather than ported — capability nobody calls is complexity smuggled forward.
-- **No `==`/`hashCode`** — repo precedent; nothing compares profiles by value (the wire goldens compare strings).
-- **`PlayerProfile` stays in `storage_service.dart`** — moving it to domain is candidate-#4 territory.
+- **Factory over full AppScope DI** (grill decision): one plain class with one method captures everything that was actually wrong (application wiring in presentation) at ~1/10th the churn of threading an app-scope container through every screen. Rejected: minimal LootCubit-only hoist (leaves the GameCubit wiring — most of the candidate).
+- **Cubit fallbacks stay; factory fallback REJECTED** (grill decision, narrowed by Codex round 1): the cubit fallbacks are inert 3-line conveniences sparing ~10 widget-test sites, but a fallback *factory* would textually preserve the exact second composition path this candidate deletes — and no test needs it (every widget test returns at the `onTierSelected` override before the factory is touched). Past the override, `widget.sessions!` fails loudly.
+- **`afterCompleted` callback keeps notifications in the screen**: the contextual permission prompt is UX policy tied to screen lifecycle; pushing it into the factory would drag `NotificationService` + profile writes into application wiring for no gain. The factory calls engagement first, then `afterCompleted` — same order as today.
+- **Loot refresh moves into the factory's coins hook** (it holds the hoisted `LootCubit`), keeping the "credit then refresh the pill" behavior identical.
+- **Factory lives in `lib/application/`** — it wires cubits to services, which is exactly what that layer does; no new abstractions, no interfaces, one implementation.
 
 ## Risks / open questions
 
-- Largest mechanical churn of the candidates (~150 sites); mitigated by compiler-enforced breaks, the enumerated checklist, and zero permitted assertion-value changes.
-- The golden string must match Dart's `jsonEncode` of today's `toJson` exactly — the build's first task captures it from the CURRENT code before any restructuring, so the pin is generated, not hand-typed.
-- `addCoins` in two storage impls routes through `creditCoins` — watch that Hive's awaited save path stays identical (same single put).
+- `create` starts (never awaits) `init` — callers see the same eventually-initialized cubit `_startTier` produces today; the new widget test and factory unit tests await the first non-`GameInitial` state before asserting.
+- Closing `loot` in `_ConnectMergeAppState.dispose()` is new behavior on app teardown only (hot-restart / test harness); production teardown is process death. The new root-wiring widget test must pop the game route before shell teardown so a mid-credit `loot.load()` can't hit a closed cubit.
+- The screen keeps reading `widget.leaderboard` for UI decisions (leaderboard buttons/routes); only the submit bridge moves. Offline behavior (buttons hidden, submit no-op) is pinned by existing widget tests.
+- `ConnectMergeApp` param growth is mechanical; `main.dart` is already the composition root for everything else, so no test churn there (it has no tests).
 
 ## Out of scope
 
-- No storage schema/key changes, no Hive box changes, no migration code.
-- No move of `PlayerProfile` out of `infrastructure/` (candidate #4).
-- No behavior changes; existing tests may only change accessor paths/fixtures, never asserted values.
-- No TS mirror, no season bump (client-only).
-- `LifetimeStats`, `GameSnapshot`, `DayResult` untouched.
+- Closing the pre-existing root cubits (`engagement`/`rivalry`/`duels`) and disposing `DeepLinkService` — a proper root-shutdown needs async-task coordination (the unawaited prize checks) and stream teardown; separate work.
+- No AppScope/InheritedWidget DI container; no changes to other screens' service threading.
+- No changes to `GameCubit`, `LootCubit`, `EngagementCubit` themselves — only who constructs/wires them.
+- Duel settlement, notification scheduling, and navigation stay in the screen (UI concerns).
+- `PracticeScreen` (doesn't construct `GameCubit`) untouched.
+- No TS mirror, no season bump (client-only; replay logic untouched).

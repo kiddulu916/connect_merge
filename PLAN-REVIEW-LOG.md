@@ -1,85 +1,71 @@
-# Plan Review Log: PlayerProfile sub-records (candidate #5)
+# Plan Review Log: game-session composition out of tier_select_screen (candidate #4)
 
 Act 1 (grill) complete — plan locked with the user. MAX_ROUNDS=5.
 
-(Candidate #1's log lives in git history at b06017f; #2's at 28a539e; #3's at e70490e.)
+(Candidate #1's log lives in git history at b06017f; #2's at 28a539e; #3's at e70490e; #5's at 63c3682.)
 
-Grill decisions: API shape = sub-records + intent-named write helpers (user picked over plain nested copyWith, which is MORE verbose than flat, and over helpers-only, which leaves the 23-field quadruplet). Settled from code: wire format stays byte-identical flat JSON (repo-wide "migration-free default" convention; pinned by a new wire-format test); 7 groups by co-access; no == overrides (repo precedent); PlayerProfile stays in storage_service.dart (moving it is candidate-#4 territory).
+Grill decisions: shape = GameSessionFactory in lib/application/ + hoist LootCubit to main.dart (user picked over full AppScope DI and over minimal-hoist-only); screen fallbacks KEPT as documented test-only scaffolding (production always injects after the hoist; ~10 widget-test sites untouched). Settled from code: tier_select_screen.dart:321 is the only production GameCubit site; widget tests use the onTierSelected override so the factory path needs unit tests, not widget-test churn; notification permission flow stays screen-side via an afterCompleted callback.
 
 ## Round 1 — Codex
 
-## Material findings
+Material lifecycle and wiring gaps remain:
 
-1. **“Byte-identical” is not pinned.** Group-by-group map spreading will reorder today’s interleaved keys, and `jsonEncode` preserves insertion order; asserting map keys/shapes will not detect changed stored bytes.  
-   **Fix:** Assert one exact `jsonEncode(profile.toJson())` golden string and keep key ordering centralized in `PlayerProfile.toJson()`.
+1. Hoisted `LootCubit` has no owner. Today the screen closes locally created loot at [tier_select_screen.dart:189](/C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/tier_select_screen.dart:189); the plan makes `_ownsLoot` false while `main.dart` never closes it.  
+   Fix: Add an explicit root lifecycle owner that closes the hoisted `LootCubit` on disposal.
 
-2. **The proposed unchanged characterization test conflicts with the constructor refactor.** A test using today’s 23 named constructor arguments cannot compile after `PlayerProfile` becomes seven fields; direct round-trip equality also fails without `==`.  
-   **Fix:** Construct through an exact legacy JSON fixture and compare the re-encoded JSON, not `PlayerProfile` instances.
+2. Account deletion leaves the hoisted loot state stale. `wipeAll()` runs before `_onAccountDeleted`, but unlike today, rebuilding `TierSelectScreen` will reuse the old loaded cubit and its pre-deletion balance/chest state.  
+   Fix: Reload all profile-backed root cubits—at least `loot`, plus existing `engagement` and `rivalry`—inside `_onAccountDeleted`.
 
-3. **Legacy-default compatibility is under-tested.** A fully populated fixture cannot detect broken defaults when older profiles omit later keys.  
-   **Fix:** Add an empty/partial legacy JSON fixture asserting every missing field retains its current default.
+3. The fallback factory is underspecified and can bind the wrong cubits. Building it from nullable `widget.engagement`/`widget.loot` would either fail or create duplicates instead of using the state-owned fallbacks initialized at [tier_select_screen.dart:151](/C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/tier_select_screen.dart:151).  
+   Fix: If retained, construct the fallback factory with `_engagement` and `_loot`, not the nullable widget parameters.
 
-4. **Prize helper coin semantics are ambiguous and can break candidate #3.** Current prize-local `coins` means an award delta, while loot-local `coins` means the resulting balance; replacement instead of addition would lose concurrent payouts.  
-   **Fix:** Name parameters `awardCoins`/`rewardCoins` and specify that helpers add them to the freshly reloaded profile balance.
+4. The new factory fallback is unnecessary scaffolding. Every listed widget test supplies `onTierSelected`, and `_startTier` returns before constructing a game; none needs a fallback `GameSessionFactory`. The fallback merely preserves a second production-reachable composition path.  
+   Fix: After the `onTierSelected` early return, require `widget.sessions` and fail loudly if production omitted it.
 
-5. **Candidate #3’s transaction boundary is insufficiently specified.** Each prize helper must run only after the serialized reload and lexical-≥ recheck; weekly must append crowns, zero-payout checks must still persist guards, and helpers must not emit or evaluate guards.  
-   **Fix:** Record those four requirements explicitly in each helper contract and pin them with the existing concurrency, zero-payout, and write-then-throw tests.
+5. `create()` cannot truthfully return an “initialized” cubit. `GameCubit.init` is asynchronous, and the existing cascade starts it without awaiting it, so a fresh cubit may still be `GameInitial` when returned.  
+   Fix: Specify that `create()` starts initialization, and have tests await the first non-`GameInitial` state before asserting.
 
-6. **Nullable `copyWith` semantics remain undefined.** Ordinary nullable parameters cannot distinguish “omitted” from “clear to null,” which is precisely why the five current flags exist.  
-   **Fix:** Specify sentinel-based nullable `copyWith`, or retain only dedicated clear operations actually used and delete the four unused prize-clear capabilities.
-
-7. **Rival helpers omit required behavior.** Both current `setRival` and `clearRival` reset `lastSeenRivalScoreByTier`; preserving only IDs/names would produce stale overtake suppression.  
-   **Fix:** Define and test both helpers as resetting IDs/names and the last-seen score map atomically.
-
-8. **`purchase` is underspecified.** The current flow is idempotent, rejects insufficient funds, unions ownership, and debits exactly once; a helper that merely subtracts `price` does not own the behavior its name promises.  
-   **Fix:** Either encode those invariants in `purchase`, or rename it `recordValidatedPurchase` and explicitly retain all guards in `EngagementCubit`.
-
-9. **The call-site inventory is wrong.** There are 17 production `PlayerProfile.copyWith` sites, not 14, and constructor-only tests such as [profile_screen_test.dart](C:/Users/dat1k/Projects/connect_merge/test/presentation/profile_screen_test.dart:25) are excluded by “tests that read profile fields.”  
-   **Fix:** Replace estimates with an explicit `rg`-derived checklist covering all production writes and every `PlayerProfile(...)` test fixture.
-
-10. **The claimed “co-access” grouping does not match the code.** Activity and progression are committed together, while the four prize guards are never committed together; nearly every important transaction still crosses groups through `Wallet`.  
-    **Fix:** Justify groups by domain ownership instead of co-access, or regroup according to actual atomic writes.
-
-11. **The restructure does not eliminate the stated four-place maintenance cost.** Every field still appears in a sub-record declaration, constructor, `copyWith`, serializer, and decoder, while adding seven public types and roughly 150 edits.  
-    **Fix:** Prefer flat `PlayerProfile` plus the genuinely multi-field intent helpers unless sub-record navigation is itself a firm requirement.
-
-12. **The repository’s required planning workflow is absent.** [PLAN.md](C:/Users/dat1k/Projects/connect_merge/PLAN.md:9) is coarse and does not create the required dated design and task-by-task red-green plan under `docs/superpowers/`.  
-    **Fix:** Add the dated spec and implementation plan, with characterization test, API tests, implementation, focused verification, and commit checkpoints.
+6. The proposed tests never exercise the actual root-to-route wiring. Existing widget tests short-circuit navigation, while factory unit tests cannot detect `ConnectMergeApp` forgetting or misrouting `sessions`/`loot`.  
+   Fix: Add one widget test using an injected factory without `onTierSelected`, tap a tier, and verify the factory-created `GameCubit` drives `GameScreen`.
 
 VERDICT: REVISE
 ### Claude's response
 
-Verified before revising: setRival AND clearRival both reset lastSeenRivalScoreByTier (rivalry_cubit.dart:86-114 — finding 7 confirmed); the four prize clear* copyWith flags have zero callers (finding 6 confirmed — dead capability); clearRival is the only live clear flag.
-
-Accepted (11/12): wire pin becomes an exact jsonEncode golden STRING with centralized key order (1), constructed from raw JSON fixtures so it compiles across the constructor change (2), plus empty/partial legacy-default fixtures (3); prize helpers renamed award* with awardCoins params and an explicit add-not-replace / append-not-replace / stamp-even-at-zero / no-guard-no-emit-no-storage contract pinned by the candidate-#3 tests (4, 5); dead prize clear* flags deleted, clearRival survives as the helper (6); setRival/clearRival helpers reset the last-seen map (7); purchase renamed recordPurchase with validation explicitly left in the cubit (8); step-0 rg-derived call-site checklist replaces estimates, constructor fixtures included (9); grouping rationale corrected to domain ownership (10); docs/superpowers spec + red-green plan added as step 0 (12).
-
-Rejected (1/12): finding 11 (drop the regroup, keep flat + helpers). That exact option was presented at the grill with the same tradeoff Codex names (grouping distributes rather than eliminates the 4-place cost) and the user chose the regroup. Not re-litigating a user decision made with full information; the honest caveat now lives in the Goal.
+Accepted (6/6): hoisted LootCubit gets a real owner — _ConnectMergeAppState.dispose() closes it plus the already-hoisted engagement/rivalry/duels (pre-existing leak, none is closed today) (1); _onAccountDeleted reloads all profile-backed root cubits post-wipe — fixes the NEW loot staleness and the PRE-EXISTING engagement/rivalry staleness (2); fallback-factory idea DELETED — it would preserve the exact second composition path this candidate removes, and no test needs it since every widget test returns at the onTierSelected override; past the override widget.sessions! fails loudly (3, 4); create() contract reworded to "starts init" (async, never awaited — same cascade as today), tests await the first non-GameInitial state (5); one new widget test exercises the real root-to-route wiring (injected factory, no override, tap tier → factory-created GameCubit drives GameScreen) (6).
 
 ## Round 2 — Codex
 
-All prior material findings are addressed; the regroup decision is treated as fixed.
+Most prior findings are addressed: account deletion reloads state, the factory fallback is gone, async initialization is acknowledged, and a real route test is planned.
 
-Minor cleanup before implementation:
+One new material issue:
 
-- `bestRank update` has no current production write site. Fix: remove that example to avoid accidental scope expansion.
-- `grantAdCosmetic` should explicitly union existing unlocks, and `claimLoot` should explicitly add `awardCoins`. Fix: state both contracts in step 3.
-- “Delegating per group” could still invite reordered map spreading. Fix: require `PlayerProfile.toJson()` to enumerate all 23 keys directly in golden order.
+- Closing `duels` in `ConnectMergeApp.dispose()` leaves `DeepLinkService.onDuel` pointing at the disposed state while its stream subscription remains active; a later link can call a closed cubit.  
+  Fix: Keep this change scoped to closing the newly hoisted `LootCubit`, or clear both callbacks and call `deepLinks.dispose()` before closing `duels`.
 
-These are non-blocking; the golden and existing behavioral tests should catch incorrect implementations.
+Minor contradiction: Step 1 still says `create()` returns an “initialized” cubit, while Step 2 correctly says initialization is merely started.  
+Fix: Change Step 1 to “initializing `GameCubit`” so the test contract is unambiguous.
 
-VERDICT: APPROVED
+VERDICT: REVISE
 ### Claude's response
 
-All three non-blocking cleanups folded into the plan: bestRank example removed from the single-field list (no production write site — avoids scope creep); grantAdCosmetic contract states union-not-replace and claimLoot states add-plus-stamp; toJson required to enumerate all 23 keys directly in golden order (no per-group spreading). Plan final.
+Accepted (2/2): dispose() now detaches both DeepLinkService callbacks (onDuel, onInviteCode) BEFORE closing any cubit, so an in-flight link can never reach a closed DuelCubit; step-1 wording fixed to "initializing GameCubit" matching the async-init contract.
 
-## Act 3 — Build
+## Round 3 — Codex
 
-### Round 1 — Codex build
+Async-init wording is fixed. Teardown is only partially fixed:
 
-Thread 019f74a4-d5b8-7693-bf40-f330dede7964 (gpt-5.6-sol). Implemented all of PLAN.md in one pass: docs/superpowers spec + red-green plan with the rg-derived checklist (17 production writes / 30 fixtures), 7 sub-records, toJson enumerating all 23 flat keys in golden order, 12 intent helpers with the normative contracts, dead clear* flags deleted, both addCoins impls routed through creditCoins, ~150 call sites migrated across 7 lib files + 12 test files, wire golden generated from the CURRENT class before restructuring and held after. Deviations: none. No git mutations.
+- Detaching deep-link callbacks prevents calls into closed cubits, but leaves the existing `DeepLinkService` subscription alive.
+- Newly closing `EngagementCubit` can race the four unawaited prize checks in `main.dart`, which may later emit into the closed cubit.
 
-### Claude's verdict
+Fix: Keep this plan scoped to closing the newly hoisted `LootCubit`; handle broader root shutdown separately with deep-link disposal and async-task coordination.
 
-Full diff read: sub-records and helpers match every contract (award* add+append+stamp-at-zero, no guard/emit/storage; setRival/clearRival rebuild the Rivalry record so last-seen resets; recordPurchase leaves validation in the cubit; creditCoins clamps). Call-site migrations are purely mechanical — no asserted value changed anywhere. Independently confirmed the golden string's key order matches the pre-refactor toJson read during the grill. Proof re-run by Claude: flutter analyze clean; flutter test 529/529 (was 521; +3 wire goldens, +5 helper-contract tests). PASSED review, round 1 of 2 — no fix rounds needed.
+VERDICT: REVISE
+### Claude's response
 
-Shipped: committed to main and pushed after user sign-off; CI validates.
+Accepted (1/1, fully): dispose() scoped to closing ONLY the newly hoisted LootCubit — my round-1 "fix the pre-existing leak while we're here" was scope creep that traded a benign leak for an emit-after-close race (unawaited prize checks into a closed EngagementCubit; live deep-link subscription into a closed DuelCubit). Broader root shutdown moved to Out of scope as named future work. Account-deletion reloads (load(), not close()) stay — they're safe and fix real staleness.
+
+## Round 4 — Codex
+
+Round-3 finding is addressed: teardown now closes only the newly hoisted `LootCubit`, avoiding deep-link and engagement-task races. Async-init wording, account reset, fallback removal, and route-level coverage remain consistent. No new material issues found.
+
+VERDICT: APPROVED
