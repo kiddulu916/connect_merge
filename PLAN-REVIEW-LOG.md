@@ -1,82 +1,106 @@
-# Plan Review Log: game-session composition out of tier_select_screen (candidate #4)
+# Plan Review Log: unify the streak rule + calendar-date math (candidate #6)
 
 Act 1 (grill) complete — plan locked with the user. MAX_ROUNDS=5.
 
-(Candidate #1's log lives in git history at b06017f; #2's at 28a539e; #3's at e70490e; #5's at 63c3682.)
+(Candidate #1's log lives in git history at b06017f; #2's at 28a539e; #3's at e70490e; #5's at 63c3682; #4's at a16a131.)
 
-Grill decisions: shape = GameSessionFactory in lib/application/ + hoist LootCubit to main.dart (user picked over full AppScope DI and over minimal-hoist-only); screen fallbacks KEPT as documented test-only scaffolding (production always injects after the hoist; ~10 widget-test sites untouched). Settled from code: tier_select_screen.dart:321 is the only production GameCubit site; widget tests use the onTierSelected override so the factory path needs unit tests, not widget-test churn; notification permission flow stays screen-side via an afterCompleted callback.
+Grill decisions: freeze policy PRESERVED (per-tier streaks stay no-freeze; mechanism unified via nextStreak(hasFreeze: false) — user rejected extending freeze as a product change); scope = streak rule + single-sourcing the DUPLICATED calendar helpers (parseUtcDate, previousUtcDay moved with re-export shim, mondayOfWeek) into domain/date_utils.dart — user picked over streak-only. Found during exploration: GameCubit._recordCompletion still carries the local-time DST yesterday bug (#3 fixed only previousUtcDay), and LeaderboardScreen's weekly range() has the same DST Monday bug despite claiming to match checkWeeklyPrizes. Settled from code: prize-period statics stay in engagement_cubit (single consumer); leaderboard monthly/all-time branches already DST-immune; pure client-side — no TS mirror, no fixture, no season bump.
 
 ## Round 1 — Codex
 
-Material lifecycle and wiring gaps remain:
+(First round-1 attempt hit the 10-minute ceiling and was treated as failed; retried once in a fresh session, which completed.)
 
-1. Hoisted `LootCubit` has no owner. Today the screen closes locally created loot at [tier_select_screen.dart:189](/C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/tier_select_screen.dart:189); the plan makes `_ownsLoot` false while `main.dart` never closes it.  
-   Fix: Add an explicit root lifecycle owner that closes the hoisted `LootCubit` on disposal.
+Material problems remain:
 
-2. Account deletion leaves the hoisted loot state stale. `wipeAll()` runs before `_onAccountDeleted`, but unlike today, rebuilding `TierSelectScreen` will reuse the old loaded cubit and its pre-deletion balance/chest state.  
-   Fix: Reload all profile-backed root cubits—at least `loot`, plus existing `engagement` and `rivalry`—inside `_onAccountDeleted`.
+1. The re-export shim is incomplete: `export` does not place `previousUtcDay` in `streak.dart`’s own scope, yet `nextStreak` calls it at [streak.dart:50](/C:/Users/dat1k/Projects/connect_merge/lib/domain/models/streak.dart:50).  
+Fix: Add an explicit import as well, or simpler, remove the shim and update known consumers to import `date_utils.dart` directly.
 
-3. The fallback factory is underspecified and can bind the wrong cubits. Building it from nullable `widget.engagement`/`widget.loot` would either fail or create duplicates instead of using the state-owned fallbacks initialized at [tier_select_screen.dart:151](/C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/tier_select_screen.dart:151).  
-   Fix: If retained, construct the fallback factory with `_engagement` and `_loot`, not the nullable widget parameters.
+2. Import changes are underspecified: both [engagement_cubit.dart:13](/C:/Users/dat1k/Projects/connect_merge/lib/application/engagement_cubit.dart:13) and [leaderboard_screen.dart:3](/C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/leaderboard_screen.dart:3) obtain `formatDate`/`utcToday` through `game_cubit.dart`; adding `date_utils.dart` naïvely creates ambiguous symbols.  
+Fix: Replace those compatibility imports with direct, selective `date_utils.dart` imports.
 
-4. The new factory fallback is unnecessary scaffolding. Every listed widget test supplies `onTierSelected`, and `_startTier` returns before constructing a game; none needs a fallback `GameSessionFactory`. The fallback merely preserves a second production-reachable composition path.  
-   Fix: After the `onTierSelected` early return, require `widget.sessions` and fail loudly if production omitted it.
+3. The leaderboard/prize equivalence claim is false: leaderboard weekly is current Monday→today, while `checkWeeklyPrizes` queries the previous completed Monday→Sunday at [engagement_cubit.dart:506](/C:/Users/dat1k/Projects/connect_merge/lib/application/engagement_cubit.dart:506); they cannot have equal ranges.  
+Fix: Rewrite the comment and tests to assert only shared `mondayOfWeek` semantics, explicitly documenting the different periods.
 
-5. `create()` cannot truthfully return an “initialized” cubit. `GameCubit.init` is asynchronous, and the existing cascade starts it without awaiting it, so a fresh cubit may still be `GameInitial` when returned.  
-   Fix: Specify that `create()` starts initialization, and have tests await the first non-`GameInitial` state before asserting.
+4. The test inventory duplicates existing coverage: Monday and Sunday are already tested at [leaderboard_period_range_test.dart:56](/C:/Users/dat1k/Projects/connect_merge/test/presentation/leaderboard_period_range_test.dart:56), while year/leap `previousUtcDay` cases already exist at [engagement_test.dart:80](/C:/Users/dat1k/Projects/connect_merge/test/application/engagement_test.dart:80). These cases also do not expose local-time arithmetic on UTC CI.  
+Fix: Move the date-helper assertions into the new domain test, extend the existing leaderboard suite only for missing boundaries, and run a focused regression under a controlled DST timezone.
 
-6. The proposed tests never exercise the actual root-to-route wiring. Existing widget tests short-circuit navigation, while factory unit tests cannot detect `ConnectMergeApp` forgetting or misrouting `sessions`/`loot`.  
-   Fix: Add one widget test using an injected factory without `onTierSelected`, tap a tier, and verify the factory-created `GameCubit` drives `GameScreen`.
+5. The claimed `nextStreak` equivalence proof is weak: consecutive behavior is already covered, while same-day completion returns before `nextStreak`, so that test cannot prove the swap; no test pins the crucial `hasFreeze: false` policy when tokens exist.  
+Fix: Add a gap test with a banked freeze token asserting the per-tier streak resets to 1 and the token remains untouched, and add the missing reset assertion to the existing gap test.
+
+6. The plan says comments document headline-only freeze behavior, but [storage_service.dart:47](/C:/Users/dat1k/Projects/connect_merge/lib/infrastructure/storage_service.dart:47) says each token shields “this tier’s streak,” contradicting both current code and the plan.  
+Fix: Correct `LifetimeStats.streakFreezeTokens` documentation as part of this policy-preserving refactor.
+
+7. `LeaderboardPeriod.range` currently accepts the broader inputs supported by `DateTime.parse`; routing weekly inputs through a component splitter silently narrows that public behavior beyond the DST fix.  
+Fix: Explicitly contract `range` to canonical `YYYY-MM-DD` input and test rejection, or preserve the existing accepted input surface.
 
 VERDICT: REVISE
 ### Claude's response
 
-Accepted (6/6): hoisted LootCubit gets a real owner — _ConnectMergeAppState.dispose() closes it plus the already-hoisted engagement/rivalry/duels (pre-existing leak, none is closed today) (1); _onAccountDeleted reloads all profile-backed root cubits post-wipe — fixes the NEW loot staleness and the PRE-EXISTING engagement/rivalry staleness (2); fallback-factory idea DELETED — it would preserve the exact second composition path this candidate removes, and no test needs it since every widget test returns at the onTierSelected override; past the override widget.sessions! fails loudly (3, 4); create() contract reworded to "starts init" (async, never awaited — same cascade as today), tests await the first non-GameInitial state (5); one new widget test exercises the real root-to-route wiring (injected factory, no override, tap tier → factory-created GameCubit drives GameScreen) (6).
+Accepted (6/7 fully, 1 partially): streak.dart now IMPORTS previousUtcDay as well as re-exporting it — Dart export does not bring names into the exporting file's scope and nextStreak calls it (1); touched imports switch to direct selective date_utils imports to avoid ambiguous symbols via game_cubit's compatibility re-exports (2); the false "matches checkWeeklyPrizes" code comment gets corrected, tests assert only the shared mondayOfWeek sub-rule, and the plan no longer claims range equality (3); test inventory deduplicated — previousUtcDay cases RELOCATE to the new domain test, leaderboard suite extended only for the missing year-boundary case (4, partially: the controlled-DST-timezone harness is rejected again for the same reason as candidate #3 — flutter test has no per-test TZ injection, so such a test is environment-flaky or vacuously green; logged precedent stands); the equivalence proof is now the freeze-token gap test (reset to 1 + token untouched — pins hasFreeze: false) plus an explicit reset assertion on the existing gap test, and the same-day claim is dropped (5); LifetimeStats.streakFreezeTokens doc corrected — it contradicts the actual headline-only consumption (6); range() gets an explicit canonical-YYYY-MM-DD input contract in docs, no new validation (internal enum method, every caller passes utcToday output) (7).
 
 ## Round 2 — Codex
 
-Most prior findings are addressed: account deletion reloads state, the factory fallback is gone, async initialization is acknowledged, and a real route test is planned.
+Most prior findings are addressed. Three issues remain:
 
-One new material issue:
+1. [PLAN.md:32](/C:/Users/dat1k/Projects/connect_merge/PLAN.md:32) still says leaderboard and prize ranges “agree,” contradicting the corrected distinction at lines 15 and 39.  
+Fix: Replace that key decision with “both consume the same Monday helper while representing different periods.”
 
-- Closing `duels` in `ConnectMergeApp.dispose()` leaves `DeepLinkService.onDuel` pointing at the disposed state while its stream subscription remains active; a later link can call a closed cubit.  
-  Fix: Keep this change scoped to closing the newly hoisted `LootCubit`, or clear both callbacks and call `deepLinks.dispose()` before closing `duels`.
+2. DST regression coverage is still missing. Boundary tests pass the old local-time implementation on UTC CI, while [test.yml:15](/C:/Users/dat1k/Projects/connect_merge/.github/workflows/test.yml:15) uses Ubuntu and can run a focused suite under a controlled `TZ`.  
+Fix: Add one TZ-controlled test command exercising transition dates, or explicitly call the DST guarantee review-only rather than test-proven.
 
-Minor contradiction: Step 1 still says `create()` returns an “initialized” cubit, while Step 2 correctly says initialization is merely started.  
-Fix: Change Step 1 to “initializing `GameCubit`” so the test contract is unambiguous.
+3. The re-export is now unnecessary: tests relocate to `date_utils_test.dart`, Engagement imports `date_utils.dart` directly, and GameCubit already has a date-utils import. “Zero import churn” is therefore false.  
+Fix: Keep only `streak.dart`’s internal import and have callers use `date_utils.dart` directly.
+
+Minor: line 13 relocates existing assertions while line 25 says only new assertions are added; correct that wording.
 
 VERDICT: REVISE
 ### Claude's response
 
-Accepted (2/2): dispose() now detaches both DeepLinkService callbacks (onDuel, onInviteCode) BEFORE closing any cubit, so an in-flight link can never reach a closed DuelCubit; step-1 wording fixed to "initializing GameCubit" matching the async-init contract.
+Accepted (3/3 + minor): stale "agree on boundary dates" key-decision wording replaced with "same Monday helper, different documented periods" (1); DST regression now TEST-PROVEN via a TZ-controlled CI step — Codex correctly reversed my candidate-#3-era rejection: per-test TZ injection is still impossible, but CI is Ubuntu where a process-level TZ (America/Los_Angeles) makes the transition-date cases load-bearing; one focused workflow step added (2); re-export shim DROPPED — with tests relocating and engagement importing date_utils directly, the shim served nobody; previousUtcDay has one definition and one import path (3); relocate-vs-additive wording fixed (minor).
 
 ## Round 3 — Codex
 
-Async-init wording is fixed. Teardown is only partially fixed:
+Round-2 findings are mostly addressed. Two material issues remain:
 
-- Detaching deep-link callbacks prevents calls into closed cubits, but leaves the existing `DeepLinkService` subscription alive.
-- Newly closing `EngagementCubit` can race the four unawaited prize checks in `main.dart`, which may later emit into the closed cubit.
+1. [PLAN.md:32](/C:/Users/dat1k/Projects/connect_merge/PLAN.md:32) still mandates a re-export shim, directly contradicting “NO re-export shim” at line 18.  
+Fix: Delete the stale key-decision bullet or replace it with “direct `date_utils.dart` imports.”
 
-Fix: Keep this plan scoped to closing the newly hoisted `LootCubit`; handle broader root shutdown separately with deep-link disposal and async-task coordination.
+2. The TZ step does not prove the leaderboard fix: it omits `leaderboard_period_range_test.dart`, and Los Angeles changes DST on Sunday, so the old Monday calculation may still pass. Fall-back also does not expose the GameCubit previous-day error.  
+Fix: Use the LA spring-forward case for GameCubit, and add the leaderboard suite under a verified timezone/date whose DST transition occurs within an ISO week—or classify that wiring as structurally reviewed rather than test-proven.
+
+No other new material problems found.
 
 VERDICT: REVISE
 ### Claude's response
 
-Accepted (1/1, fully): dispose() scoped to closing ONLY the newly hoisted LootCubit — my round-1 "fix the pre-existing leak while we're here" was scope creep that traded a benign leak for an emit-after-close race (unawaited prize checks into a closed EngagementCubit; live deep-link subscription into a closed DuelCubit). Broader root shutdown moved to Out of scope as named future work. Account-deletion reloads (load(), not close()) stay — they're safe and fix real staleness.
+Accepted (2/2): stale re-export key-decision bullet replaced with the direct-imports decision (1); TZ step redesigned per Codex's DST-geometry point — US zones transition 2am Sunday (last ISO-week day) so Monday-subtraction never crosses them and the old code passes vacuously; switched to TZ=Africa/Cairo (midnight transitions on a Thursday/Friday, mid-ISO-week, exposes both bug directions), HISTORICAL transition dates (immutable tzdata), leaderboard_period_range_test included in the step, red-first demonstration required, with a documented fall-back to structurally-reviewed if the cases prove finicky (2).
 
 ## Round 4 — Codex
 
-Round-3 finding is addressed: teardown now closes only the newly hoisted `LootCubit`, avoiding deep-link and engagement-task races. Async-init wording, account reset, fallback removal, and route-level coverage remain consistent. No new material issues found.
+The stale re-export contradiction is fixed. The DST proof still has three problems:
+
+1. [PLAN.md:25](/C:/Users/dat1k/Projects/connect_merge/PLAN.md:25) does not run `game_cubit_test.dart`, so the surviving `_recordCompletion` bug is never exercised under Cairo.  
+Fix: Include a consecutive per-tier completion test across Cairo’s April transition in the TZ-controlled step.
+
+2. The October fallback does not expose `mondayOfWeek`’s date error; subtraction lands on Monday at 01:00, still Monday. Cairo’s April forward jump is the load-bearing case for both bugs, consistent with [IANA’s Egypt rules](https://data.iana.org/time-zones/tzdb-2024a/africa).  
+Fix: Use a post-transition April date such as the Saturday after the jump for the leaderboard regression too.
+
+3. The contingency permits silently dropping the required regression while still claiming completion.  
+Fix: If the old implementation cannot be demonstrated failing, stop and revise the plan instead of deleting the CI check.
+
+VERDICT: REVISE
+### Claude's response
+
+Accepted (3/3): per-tier streak tests (game_cubit_test.dart consecutive-completion across Cairo's April transition) added to the TZ step (1); leaderboard case moved to a post-transition April Saturday in the same ISO week — Codex verified against IANA that the April forward jump is load-bearing for both directions while October's fall-back lands at 01:00 Monday and proves nothing (2); contingency hardened — if the red-first demonstration cannot be produced the plan STOPS and returns to review; the CI check is never silently dropped (3).
+
+## Round 5 — Codex
+
+All round-4 findings are addressed:
+
+- Cairo CI now includes the GameCubit, domain-date, and leaderboard suites.
+- April spring-forward cases exercise both actual DST failures.
+- Failure to reproduce red now blocks implementation instead of weakening coverage.
+
+No new material problems found.
 
 VERDICT: APPROVED
-## Act 3 — Build
-
-### Round 1 — Codex build
-
-Thread 019f74ec-273f-7132-9eb0-f9b07f28dc94 (gpt-5.6-sol). Implemented all of PLAN.md in one pass: docs/superpowers spec + red-green plan, GameSessionFactory (exact _startTier/_onTierCompleted/_creditCoins/_submitRun wiring, unawaited init cascade, engagement-before-afterCompleted ordering, zero-delta coins no-op, offline null submit), LootCubit hoisted to main.dart with dispose() closing ONLY it, _onAccountDeleted reloading engagement/rivalry/loot, screen bridges deleted with sessions! past the onTierSelected override, cubit fallbacks intact, 6 factory unit tests + 1 root-to-route widget test. Deviations: none. No git mutations.
-
-### Claude's verdict
-
-Full diff read: factory wiring is line-for-line faithful to the old screen bridges; main.dart is now the sole production composition root; dispose/reload scoping matches the round-3 review decision exactly; remaining screen changes are dart-format cosmetics. Existing widget tests untouched. Proof re-run by Claude: flutter analyze clean; flutter test 535/535 (was 529; +7 new, one pre-existing count overlap). PASSED review, round 1 of 2 — no fix rounds needed.
-
-Shipped: committed to main and pushed after user sign-off; CI validates.
