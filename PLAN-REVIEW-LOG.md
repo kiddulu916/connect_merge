@@ -1,80 +1,73 @@
-# Plan Review Log: Collapse the four prize checks (candidate #3)
+# Plan Review Log: PlayerProfile sub-records (candidate #5)
 
 Act 1 (grill) complete — plan locked with the user. MAX_ROUNDS=5.
 
-(Candidate #1's log lives in git history at b06017f; candidate #2's at 28a539e.)
+(Candidate #1's log lives in git history at b06017f; #2's at 28a539e; #3's at e70490e.)
 
-Grill decisions: weekly error handling NORMALIZED to abort-and-retry (guard stamped only after a fully successful check — fixes the lost-crown-on-network-blip edge; pinned by a new failing-first test). API shape: four public names stay as thin wrappers over one private `_checkPrizes(config)` engine — main.dart and existing tests untouched. Settled from code: guard fields stay four separate profile fields; payout tables become `int Function(int rank)`; fetch-signature differences adapted per-wrapper into one closure; engine always emits after a successful check (UI-invisible normalization); no TS mirror / season bump (client-only economy).
+Grill decisions: API shape = sub-records + intent-named write helpers (user picked over plain nested copyWith, which is MORE verbose than flat, and over helpers-only, which leaves the 23-field quadruplet). Settled from code: wire format stays byte-identical flat JSON (repo-wide "migration-free default" convention; pinned by a new wire-format test); 7 groups by co-access; no == overrides (repo precedent); PlayerProfile stays in storage_service.dart (moving it is candidate-#4 territory).
 
 ## Round 1 — Codex
 
-Material findings:
+## Material findings
 
-- **Lost updates/double payouts:** [main.dart:123](C:/Users/dat1k/Projects/connect_merge/lib/main.dart:123) starts four concurrent read-fetch-write operations using whole-profile snapshots, so the last save can erase other guards, coins, and crowns. **Fix:** serialize startup checks and reload/recheck the latest profile immediately before committing; add a delayed concurrent-check test.
-- **Emission change is observable:** [PLAN.md:27](C:/Users/dat1k/Projects/connect_merge/PLAN.md:27) gets this backwards—without `==`, every new `EngagementState` is unequal, so zero-payout emits trigger listeners and rebuilds. **Fix:** preserve the existing daily/monthly versus weekly/challenge emission policy in config and test stream event counts.
-- **Claimed crown coverage does not exist:** [PLAN.md:33](C:/Users/dat1k/Projects/connect_merge/PLAN.md:33) says crowns are tested across weeks, but [weekly_prize_test.dart:139](C:/Users/dat1k/Projects/connect_merge/test/application/weekly_prize_test.dart:139) only checks date ranges and never asserts retained crown history. **Fix:** run two week keys and assert both weeks remain in persisted and emitted `weeklyPrizes`.
-- **Test inventory is wrong:** [PLAN.md:20](C:/Users/dat1k/Projects/connect_merge/PLAN.md:20) omits `challenge_payout_test.dart`; daily has no success/idempotency test, and challenge tests ignore supplied date/difficulty. **Fix:** include the challenge suite and add wrapper tests asserting fetch arguments, payout, persisted guard, and idempotency.
-- **Best-rank behavior is unproved:** weekly/monthly fakes return the same rank for every tier, so an implementation that takes the first or last rank could pass. **Fix:** add one mixed-rank fake and assert the lowest qualifying rank wins while every weekly qualifying tier records a crown.
-- **UTC date math is not actually UTC:** [streak.dart:27](C:/Users/dat1k/Projects/connect_merge/lib/domain/models/streak.dart:27) and weekly helpers parse date-only strings as local time; subtracting 24 hours across spring DST can produce the wrong calendar day. **Fix:** construct UTC dates explicitly in all prize-period helpers and add DST, leap-day, and year-boundary cases.
-- **Equality-only guards permit replay after clock rollback:** `_checkPrizes` only skips when `guard == periodKey`, so a stored newer guard does not block an older period from paying again. **Fix:** for canonical ISO keys, skip when the guard is lexically greater than or equal to `periodKey`, with a rollback regression test.
-- **Challenge accepts invalid ranks:** [engagement_cubit.dart:550](C:/Users/dat1k/Projects/connect_merge/lib/application/engagement_cubit.dart:550) awards 100 coins for rank `0` or negative values, and the proposed `coinsForRank(rank) > 0` makes that the shared eligibility predicate. **Fix:** return zero for `rank < 1` and test ranks `0`, `1`, and `11`.
-- **“Any throw” is overstated:** [PLAN.md:19](C:/Users/dat1k/Projects/connect_merge/PLAN.md:19) catches fetch failures only; `saveProfile` failures escape through `unawaited` startup futures without `_onError`. **Fix:** report persistence failures, emit nothing, and leave the operation retryable.
-- **The config is a mini-framework:** six data/callback fields, including a mutation-shaped `recordCrown`, may be more code and weaker semantics than the duplication removed. **Fix:** extract one placement-fetching helper returning qualifying `(difficulty, rank)` results and keep the four small, explicit guard/commit blocks.
+1. **“Byte-identical” is not pinned.** Group-by-group map spreading will reorder today’s interleaved keys, and `jsonEncode` preserves insertion order; asserting map keys/shapes will not detect changed stored bytes.  
+   **Fix:** Assert one exact `jsonEncode(profile.toJson())` golden string and keep key ordering centralized in `PlayerProfile.toJson()`.
+
+2. **The proposed unchanged characterization test conflicts with the constructor refactor.** A test using today’s 23 named constructor arguments cannot compile after `PlayerProfile` becomes seven fields; direct round-trip equality also fails without `==`.  
+   **Fix:** Construct through an exact legacy JSON fixture and compare the re-encoded JSON, not `PlayerProfile` instances.
+
+3. **Legacy-default compatibility is under-tested.** A fully populated fixture cannot detect broken defaults when older profiles omit later keys.  
+   **Fix:** Add an empty/partial legacy JSON fixture asserting every missing field retains its current default.
+
+4. **Prize helper coin semantics are ambiguous and can break candidate #3.** Current prize-local `coins` means an award delta, while loot-local `coins` means the resulting balance; replacement instead of addition would lose concurrent payouts.  
+   **Fix:** Name parameters `awardCoins`/`rewardCoins` and specify that helpers add them to the freshly reloaded profile balance.
+
+5. **Candidate #3’s transaction boundary is insufficiently specified.** Each prize helper must run only after the serialized reload and lexical-≥ recheck; weekly must append crowns, zero-payout checks must still persist guards, and helpers must not emit or evaluate guards.  
+   **Fix:** Record those four requirements explicitly in each helper contract and pin them with the existing concurrency, zero-payout, and write-then-throw tests.
+
+6. **Nullable `copyWith` semantics remain undefined.** Ordinary nullable parameters cannot distinguish “omitted” from “clear to null,” which is precisely why the five current flags exist.  
+   **Fix:** Specify sentinel-based nullable `copyWith`, or retain only dedicated clear operations actually used and delete the four unused prize-clear capabilities.
+
+7. **Rival helpers omit required behavior.** Both current `setRival` and `clearRival` reset `lastSeenRivalScoreByTier`; preserving only IDs/names would produce stale overtake suppression.  
+   **Fix:** Define and test both helpers as resetting IDs/names and the last-seen score map atomically.
+
+8. **`purchase` is underspecified.** The current flow is idempotent, rejects insufficient funds, unions ownership, and debits exactly once; a helper that merely subtracts `price` does not own the behavior its name promises.  
+   **Fix:** Either encode those invariants in `purchase`, or rename it `recordValidatedPurchase` and explicitly retain all guards in `EngagementCubit`.
+
+9. **The call-site inventory is wrong.** There are 17 production `PlayerProfile.copyWith` sites, not 14, and constructor-only tests such as [profile_screen_test.dart](C:/Users/dat1k/Projects/connect_merge/test/presentation/profile_screen_test.dart:25) are excluded by “tests that read profile fields.”  
+   **Fix:** Replace estimates with an explicit `rg`-derived checklist covering all production writes and every `PlayerProfile(...)` test fixture.
+
+10. **The claimed “co-access” grouping does not match the code.** Activity and progression are committed together, while the four prize guards are never committed together; nearly every important transaction still crosses groups through `Wallet`.  
+    **Fix:** Justify groups by domain ownership instead of co-access, or regroup according to actual atomic writes.
+
+11. **The restructure does not eliminate the stated four-place maintenance cost.** Every field still appears in a sub-record declaration, constructor, `copyWith`, serializer, and decoder, while adding seven public types and roughly 150 edits.  
+    **Fix:** Prefer flat `PlayerProfile` plus the genuinely multi-field intent helpers unless sub-record navigation is itself a firm requirement.
+
+12. **The repository’s required planning workflow is absent.** [PLAN.md](C:/Users/dat1k/Projects/connect_merge/PLAN.md:9) is coarse and does not create the required dated design and task-by-task red-green plan under `docs/superpowers/`.  
+    **Fix:** Add the dated spec and implementation plan, with characterization test, API tests, implementation, focused verification, and commit checkpoints.
 
 VERDICT: REVISE
 ### Claude's response
 
-Verified against the repo before revising: challenge_payout_test.dart exists (my inventory was wrong); daily has ONLY an onError test; weekly_prize_test does not pin cross-week crown accumulation; previousUtcDay (streak.dart:27) parses local midnight — DST off-by-one confirmed; main.dart:123-126 concurrent read-modify-writes confirmed racy.
+Verified before revising: setRival AND clearRival both reset lastSeenRivalScoreByTier (rivalry_cubit.dart:86-114 — finding 7 confirmed); the four prize clear* copyWith flags have zero callers (finding 6 confirmed — dead capability); clearRival is the only live clear flag.
 
-Accepted (9/10): concurrency fix via a future-chain mutex in the cubit (root-cause, main.dart untouched) + concurrency test; crown cross-week test added; test inventory corrected + new daily_prize_test; mixed-rank test added; UTC-explicit date construction in previousUtcDay and the weekly/monthly helpers + boundary tests; guard hardened to lexical >=; rank<1 pays 0 + tests; saveProfile failures reported via _onError inside the mutex wrapper; config record REPLACED with Codex's simpler shape (3 small helpers + 4 explicit methods).
+Accepted (11/12): wire pin becomes an exact jsonEncode golden STRING with centralized key order (1), constructed from raw JSON fixtures so it compiles across the constructor change (2), plus empty/partial legacy-default fixtures (3); prize helpers renamed award* with awardCoins params and an explicit add-not-replace / append-not-replace / stamp-even-at-zero / no-guard-no-emit-no-storage contract pinned by the candidate-#3 tests (4, 5); dead prize clear* flags deleted, clearRival survives as the helper (6); setRival/clearRival helpers reset the last-seen map (7); purchase renamed recordPurchase with validation explicitly left in the cubit (8); step-0 rg-derived call-site checklist replaces estimates, constructor fixtures included (9); grouping rationale corrected to domain ownership (10); docs/superpowers spec + red-green plan added as step 0 (12).
 
-Modified (1/10): emission policy — not preserved per-period behind a flag (rejected: keeps four inconsistent policies alive) and not always-emit (Codex correctly showed my claim was backwards). Unified to emit-iff-changed: daily/monthly byte-identical, weekly/challenge lose only value-identical spurious emits, which nothing observes.
+Rejected (1/12): finding 11 (drop the regroup, keep flat + helpers). That exact option was presented at the grill with the same tradeoff Codex names (grouping distributes rather than eliminates the 4-place cost) and the user chose the regroup. Not re-litigating a user decision made with full information; the honest caveat now lives in the Goal.
 
 ## Round 2 — Codex
 
-Most prior findings are addressed. Remaining issues:
+All prior material findings are addressed; the regroup decision is treated as fixed.
 
-- **Mutex scope is wrong:** [PLAN.md:23](C:/Users/dat1k/Projects/connect_merge/PLAN.md:23) reloads the profile before network fetching and holds the mutex across all 13 tier requests, serializing previously parallel startup work while still risking overwrite of unrelated profile changes during those requests. **Fix:** fetch ranks outside the mutex; serialize only reload → guard recheck → copy/save/emit.
-- **The plan contradicts itself:** [PLAN.md:39](C:/Users/dat1k/Projects/connect_merge/PLAN.md:39) says the reload occurs after fetching, while step 3 places it before `_myRankByTier`. **Fix:** make the commit-time reload ordering explicit and use it consistently.
-- **Persistence-error behavior is overclaimed and untested:** `saveProfile` may throw after writing, so “nothing is stamped” is not guaranteed, and a failed future-chain implementation could poison every later check. **Fix:** test both failure-before-write and failure-after-write, then verify a healthy subsequent check runs without duplicate payment.
-- **DST tests do not pin the DST bug:** year rollover, month length, and leap-day tests can all pass with the current local-time implementation, especially on UTC CI. **Fix:** add a deterministic assertion that the parsed/arithmetic date is UTC or run the regression under a controlled DST timezone.
-- **Challenge fetch adaptation remains untested:** revised challenge tests validate ranks but still do not assert `Difficulty.challenge` and yesterday’s date. **Fix:** capture and assert both arguments.
-- **The deliberate emission change remains unpinned:** weekly/challenge will stop emitting on zero payout, but no stream-count test is planned. **Fix:** add one zero-payout listener test asserting no emission for the normalized behavior.
-- **Minor shrink:** top-three map lookups already return zero for negative ranks, so adding explicit `rank < 1` branches to all payout functions is redundant. **Fix:** validate positivity only in `_challengeCoinsForRank`.
+Minor cleanup before implementation:
 
-VERDICT: REVISE
-### Claude's response
+- `bestRank update` has no current production write site. Fix: remove that example to avoid accidental scope expansion.
+- `grantAdCosmetic` should explicitly union existing unlocks, and `claimLoot` should explicitly add `awardCoins`. Fix: state both contracts in step 3.
+- “Delegating per group” could still invite reordered map spreading. Fix: require `PlayerProfile.toJson()` to enumerate all 23 keys directly in golden order.
 
-Accepted (6/7): mutex narrowed to commit-only (fetches outside; window shrinks from seconds to a microtask, and the four checks' network work stays concurrent) — this also resolves the step-3-vs-risks contradiction with one explicit ordering (pre-check -> fetch -> mutex{reload -> recheck -> save -> emit}); persistence-failure tests added for both fail-before-write and completed-write-then-throw, plus a chain-not-poisoned assertion, with the overclaim softened (idempotency, not atomicity, is the retry guarantee); challenge fetch-args assertion added; zero-payout no-emit test added; rank<1 guard confined to the challenge ladder (maps already total).
-
-Rejected (1/7, partially — the DST-pinning fix): a controlled-timezone regression harness is not available in-process (Dart has no per-test TZ injection; flutter test inherits the host TZ, so any such test is environment-flaky or vacuously green on UTC machines). Logged as an honest structural guarantee instead: every construction in the touched helpers goes through DateTime.utc, verified at diff review; boundary-value tests pin the arithmetic.
-
-## Round 3 — Codex
-
-Round-2 findings are addressed, including commit-only serialization, challenge arguments, emission tests, error-chain recovery, and the reduced rank guard.
-
-- **Post-write failure leaves Cubit state stale:** if `saveProfile` writes then throws, the guard blocks retry while coins/crowns were never emitted. **Fix:** have the commit helper report failure, reload persistence, and reconcile state when the expected guard was stamped; test state as well as storage.
-- **Unrelated-write safety is still overclaimed:** [PLAN.md:22](C:/Users/dat1k/Projects/connect_merge/PLAN.md:22) calls load→save a “microtask,” but `saveProfile` is asynchronous and other cubits do not share this mutex. **Fix:** claim only prize-to-prize serialization; defer cross-cubit atomicity to a storage-level update mechanism.
-- **Repository planning workflow is missing:** AGENTS.md requires a dated spec and task-by-task implementation plan under `docs/superpowers/` for nontrivial work. **Fix:** add their creation as the first task, with failing test → implementation → passing test → commit steps.
-
-VERDICT: REVISE
-### Claude's response
-
-Accepted (3/3): write-then-throw now reconciles cubit state from storage in the catch path (coins/crowns can't sit stranded behind a stamped guard), tested on both storage and state; the mutex claim is scoped honestly to prize-to-prize serialization only, with cross-writer atomicity named as a future storage-level primitive; docs/superpowers spec + task plan added as step 0, matching candidates #1 and #2.
-
-## Round 4 — Codex
-
-All round-3 findings are addressed. No new material flaws found.
-
-Implementation constraint: post-write reconciliation must emit only when persisted coins/crowns differ from state, preserving the planned no-emit behavior for failures before writing.
+These are non-blocking; the golden and existing behavioral tests should catch incorrect implementations.
 
 VERDICT: APPROVED
-## Act 3 — Build
+### Claude's response
 
-### Round 1 — Codex build
-
-Thread 019f7404-6285-7311-a437-57dd757b9bfe (gpt-5.6-sol). Implemented all of PLAN.md in one pass: docs/superpowers spec + task plan (step 0), shared helpers (_myRankByTier, _bestQualifyingRank, _serializedPrizeCommit, total payout functions), four public methods rewritten to the normative ordering (pre-check -> fetch outside mutex -> serialized commit with reload + lexical >= recheck -> emit-iff-changed -> catch reconcile-from-storage), previousUtcDay + weekly/monthly helpers UTC-explicit, 18 new tests written red-first (rollback guard, weekly abort/retry, mixed-rank crowns, cross-week retention, rank-0/11, fetch-args, zero-payout no-emit, concurrency lost-update, both persistence-failure variants, leap/year boundaries). Reported deviations: none. No git mutations (verified: status shows only working-tree edits).
-
-### Claude's verdict
-
-Full diff read: faithful to the plan, correct ordering, chain cannot be poisoned (body errors caught inside each link), reconcile emits only when persisted coins/crowns differ from state (round-4 constraint honored), crowns keep Difficulty insertion order, style matches repo. Scope exactly respected — no main.dart, no infrastructure, no supabase/, no schema. Proof re-run by Claude: flutter analyze clean; flutter test 521/521 (was 503). PASSED review, round 1 of 2 — no fix rounds needed.
+All three non-blocking cleanups folded into the plan: bestRank example removed from the single-field list (no production write site — avoids scope creep); grantAdCosmetic contract states union-not-replace and claimLoot states add-plus-stamp; toJson required to enumerate all 23 keys directly in golden order (no per-group spreading). Plan final.
