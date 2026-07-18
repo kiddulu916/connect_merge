@@ -1,92 +1,178 @@
-# Plan Review Log: remove the legacy single-pair merge path
+# Plan Review Log: top-5 leaderboard prizes, challenge top-10 payout, friends period boards
 
 Act 1 (grill) complete — plan locked with the user. MAX_ROUNDS=5.
 
-(Prior candidates' logs live in git history: #1 b06017f, #2 28a539e, #3 e70490e, #5 63c3682, #4 a16a131, #6 e256739.)
+(The prior task's log — remove the legacy single-pair merge path — lives in git history at c765da8.)
 
-Grill decision (scope confirmed by user): remove GameCubit.merge(), GameEngine.merge(), GameEngine.goldenBonusFor; KEEP MergeEvent + canMerge for the reject-legacy-merge-event golden sentinel; migrate merge-based tests pinning unique invariants to playChain, delete API-only duplicates. Established from code: no UI reaches GameCubit.merge (BoardWidget emits chains only); TS parseEvent accepts only chain/continue so merge logs are already server-rejected (sentinel-pinned); undo suite already has playChain variants; goldenBonusFor's only production caller is the removed method; .merge( test refs = undo 11 + cubit 9 + engine 4. No TS change, no deploy, no season bump.
+Grill decisions (user-confirmed): lazy client-grant payout model retained (earned at period close, credited on next launch — no midnight server job); literal "slightly increased" payout tables (daily 50/30/15/10/5, weekly 75/45/25/15/10, monthly 100/60/35/20/15 — a deliberate weekly/monthly nerf); challenge = top-10 broad-and-shallow (20 / 15 / 15 / 10×3 / 5×4), uncapped list with top-10 markers kept; friends boards = view-only mirror of all periods (new `friends_leaderboard_period` RPC); challenge stays daily-only in both scopes. Established from code: daily reset + weekly/monthly/all-time boards + completed-period prize timing + reward-free all-time board all already exist; only payout tables, the challenge cap, and the friends period path change. No engine/TS/season change.
 
 ## Round 1 — Codex
 
-## Findings
+Material problems:
 
-1. **The plan defers the actual migration plan.** [PLAN.md](/C:/Users/dat1k/Projects/connect_merge/PLAN.md:11) promises a later per-reference disposition, while mischaracterizing the nine cubit calls: they drive analytics across continues, golden/double-coin behavior, snapshot round-tripping, and `_completeTier` completion/streak/error tests—not “before init/after completion” guards ([game_cubit_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/application/game_cubit_test.dart:133), [helper](/C:/Users/dat1k/Projects/connect_merge/test/application/game_cubit_test.dart:706)).
+1. **RLS breaks the proposed RPC.** `players` is self-only under RLS, so a `security invoker` join cannot read friends’ display names; the existing RPC pattern being copied is itself suspect. See [0001_players_scores.sql](C:/Users/dat1k/Projects/connect_merge/supabase/migrations/0001_players_scores.sql:34) and [0006_connect_merge_season.sql](C:/Users/dat1k/Projects/connect_merge/supabase/migrations/0006_connect_merge_season.sql:49).  
+   Fix: Use a tightly scoped `SECURITY DEFINER` RPC with an auth guard, pinned search path, explicit columns, and locked-down execute grants—or introduce a safe leaderboard-profile projection.
 
-   Fix: Enumerate all 24 references in PLAN.md now; migrate every cubit call except the API-specific “legal merge” test.
+2. **“Authenticated only” is not achieved by `GRANT` alone.** PostgreSQL grants new functions to `PUBLIC` by default, exactly the vulnerability migration 0004 previously fixed.  
+   Fix: Explicitly `REVOKE EXECUTE ... FROM PUBLIC, anon` before granting `authenticated`.
 
-2. **The undo migration cannot work by replacing calls.** Its replay helper handles only `MergeEvent` and one drop, whereas `playChain` requires `collapseChain → refill`—potentially multiple drops—and logs `ChainEvent`; its pair finder also returns non-adjacent pairs that `playChain` rejects ([game_cubit_undo_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/application/game_cubit_undo_test.dart:21)).
+3. **No database test exercises the migration.** Fake Dart RPC tests cannot detect RLS, ACL, ranking, season-filter, or bidirectional-friendship failures.  
+   Fix: Add a local-Supabase integration test with two friendship directions, self, non-friend exclusion, season/date filtering, ties, and anon rejection.
 
-   Fix: First replace the replay helper with chain/refill replay and replace both pair finders with an oriented, orthogonally-adjacent legal-chain finder.
+4. **Challenge can silently load a period board.** Selecting Weekly/Monthly/All-time and then switching to Challenge hides the period control but leaves `_period` unchanged, so `_load()` calls the period RPC. See [leaderboard_screen.dart](C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/leaderboard_screen.dart:267).  
+   Fix: Force an effective Daily period whenever `difficulty == Difficulty.challenge`, and test the period→Challenge transition in both scopes.
 
-3. **Deleting snapshot persistence coverage would leave a hole.** The current test is the only snapshot round-trip covering move ordering with a continue ([game_cubit_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/application/game_cubit_test.dart:272)); golden vectors do not round-trip snapshots, Hive tests use empty logs, and the model’s mixed-log test uses legacy merges.
+5. **The rank-4/5 crown assumption is false.** One crown switch falls back to a medal, but `_weekCrown` returns `null`, so those crowns disappear from leaderboard rows. See [leaderboard_screen.dart](C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/leaderboard_screen.dart:299).  
+   Fix: Add the medal fallback to `_weekCrown` and widget-test rank 4 and rank 5.
 
-   Fix: Migrate this test to `ChainEvent` plus `ContinueEvent` and retain its ordering and `GameSnapshot.fromJson` assertions.
+6. **The stated tie guarantee is false for daily and challenge payouts.** The daily RPC limits output to 100 and does not guarantee inclusion of the caller, so a tied rank-5/10 player outside the arbitrary first 100 receives nothing. See [0006_connect_merge_season.sql](C:/Users/dat1k/Projects/connect_merge/supabase/migrations/0006_connect_merge_season.sql:43).  
+   Fix: Use a dedicated authenticated caller-rank RPC, or make the leaderboard RPC always union the caller’s ranked row.
 
-4. **The planned engine-test deletion loses a live golden-tile invariant.** The golden/control test verifies equal authoritative score and consumption of the cosmetic `golden` flag ([game_engine_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/domain/engine/game_engine_test.dart:270)); those requirements still apply to `collapseChain`.
+7. **Cross-tier payout semantics are undocumented.** Current code pays only the single best qualifying rank across four difficulty boards, even when the player places top five on several boards. See [engagement_cubit.dart](C:/Users/dat1k/Projects/connect_merge/lib/application/engagement_cubit.dart:375).  
+   Fix: Explicitly confirm and document “one best payout per period,” or sum per-tier payouts and test that behavior.
 
-   Fix: Rewrite that test using `GameEngine.collapseChain([0, 1])`; delete only the `goldenBonusFor`-specific assertions.
+8. **“Credited on next launch” fails after a gap.** Each checker evaluates only yesterday/the immediately previous week/month and then advances its guard, permanently skipping older unclaimed wins.  
+   Fix: Iterate unclaimed closed periods from the stored guard to the latest eligible period, with an explicit first-run floor.
 
-5. **`canMerge` is not a chain-validator building block, and the sentinel does not exercise it in normal CI.** `isValidChain` calls `canFollow` directly ([game_engine.dart](/C:/Users/dat1k/Projects/connect_merge/lib/domain/engine/game_engine.dart:193)); `canMerge` runs only during fixture regeneration, while the normal Dart golden test merely checks rejection names and `expected.valid == false` ([golden_vectors_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/domain/engine/golden_vectors_test.dart:56)).
+9. **Prize commits race with other profile writes.** `_prizeCommit` serializes only prize methods, while startup launches them unawaited and purchases/completions can concurrently overwrite the same whole profile. See [main.dart](C:/Users/dat1k/Projects/connect_merge/lib/main.dart:132) and [engagement_cubit.dart](C:/Users/dat1k/Projects/connect_merge/lib/application/engagement_cubit.dart:403).  
+   Fix: Route every profile read-modify-write through one storage-level serialized update operation and test prize-versus-purchase concurrency.
 
-   Fix: Simplest is delete `canMerge` and validate the sentinel path with `isValidChain`; otherwise document it as sentinel-only and assert committed-sentinel legality during ordinary CI.
+10. **The offline-queue tradeoff describes nonexistent behavior.** Failed submissions are logged and discarded; the code explicitly says queue/retry is future work. See [game_cubit.dart](C:/Users/dat1k/Projects/connect_merge/lib/application/game_cubit.dart:550).  
+    Fix: Remove the queued-score claim and state offline runs are ineligible, or add durable retry as a separately scoped feature.
 
-6. **The final `MergeEvent` grep expectation is false and dangerous.** Legitimate references remain in model compatibility tests, leaderboard serialization tests, session-factory tests, and snapshot deserialization—not just the fixture ([move_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/domain/models/move_test.dart:5), [leaderboard_service_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/infrastructure/leaderboard_service_test.dart:24), [game_session_factory_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/application/game_session_factory_test.dart:112)).
+11. **Period totals can overflow.** PostgreSQL `sum(int)` returns `bigint`, but the copied RPC casts it back to `int`; all-time totals can exceed 2,147,483,647. See [0006_connect_merge_season.sql](C:/Users/dat1k/Projects/connect_merge/supabase/migrations/0006_connect_merge_season.sql:81).  
+    Fix: Return `total bigint` without the `::int` cast and keep mapping through Dart `num.toInt()`.
 
-   Fix: Require zero references only for the three removed methods; explicitly allowlist and preserve legacy-event serialization, snapshot-compatibility, and rejection-sentinel consumers.
+12. **“Up to 100 rows” is false in Friends scope.** `friends_leaderboard` has no limit, so removing `take(10)` makes Friends Challenge unbounded.  
+    Fix: Replace the challenge cap with `take(100)` or add an explicit `p_limit` to the friends RPC.
 
-7. **More production Dartdoc references break than the plan names.** Removing `merge` leaves stale `[merge]` links in `playChain` and `_finishRun`, not only the undo comment ([game_cubit.dart](/C:/Users/dat1k/Projects/connect_merge/lib/application/game_cubit.dart:328), [game_cubit.dart](/C:/Users/dat1k/Projects/connect_merge/lib/application/game_cubit.dart:430)).
-
-   Fix: Sweep all production comments for pair-path claims and label `MergeEvent` as legacy/rejected rather than an accepted live move.
-
-No TS engine or season bump is needed; that part is sound.
+13. **The no-index claim is unsupported.** The friendship primary key indexes `a` but not reverse-edge lookups by `b`, while the score index places `difficulty` after a date-range column.  
+    Fix: Add `friendships(b)` and verify the score path with `EXPLAIN`; only then decide whether a period-specific score index is necessary.
 
 VERDICT: REVISE
-### Claude's response
+### Claude's response (round 1)
 
-Accepted (6/7): full 24-reference disposition enumerated in the plan with the cubit tests correctly characterized as cross-cutting behavior (analytics-across-continues, coin flows, snapshot round-trip, completion hooks) that ALL migrate except the one API-specific test (1); migration infrastructure lands first — chain/refill-aware replay helper + oriented adjacent legal-chain finder replacing the MergeEvent-shaped helper and non-adjacent pair finders (2); the mixed-log snapshot round-trip migrates to ChainEvent+ContinueEvent keeping ordering + fromJson assertions (3); the golden/control equal-score test is REWRITTEN via collapseChain([0,1]) — live invariant, not deleted (4); grep proof criterion fixed to zero-refs-for-removed-methods-only with an explicit MergeEvent allowlist (move_test, leaderboard_service_test, game_session_factory_test, snapshot tests) — legacy-log FORMAT compat is kept, only the producer goes (6); full Dartdoc sweep incl. playChain:328 and _finishRun:430, MergeEvent relabeled legacy/server-rejected (7).
+Verified against the code before revising. Accepted 10 of 13, partially accepted 2, rejected 1:
 
-Modified (1/7): finding 5 — canMerge is NOT deleted (the user explicitly locked keeping it at the grill); instead its false "chain-validator building block" rationale is dropped and its doc names the sentinel generator as sole consumer. The suggested extra CI legality assertion is declined: the TS suite already replays the committed sentinel and asserts rejection every run — rejection, not pair-legality, is the sentinel's proof.
+- **#1 ACCEPTED (and verified — it's a live pre-existing bug, not just a plan flaw).** `players` has only the self-only `player_self` policy (0001:34); all three read RPCs are `security invoker`, so shipped boards can only return the caller's own row. Plan now converts all four read RPCs to tightly-scoped `SECURITY DEFINER` projections. A world-read policy on `players` was rejected because it would expose `friend_code` via PostgREST.
+- **#2 ACCEPTED.** Explicit revoke-from-public/anon before grant, per the repo's own 0004 pattern.
+- **#3 PARTIAL.** Full local-Supabase integration-test harness rejected — the repo has none and 0002/0003/0006 shipped RPCs without one; building that infra is out of scope. Instead: a checked-in SQL smoke script run against `supabase db reset`, covering exactly Codex's listed cases (both edge directions, non-friend exclusion, season/date filters, boundary tie, caller-row union, anon rejection, EXPLAIN).
+- **#4 ACCEPTED.** Latent stale-`_period` bug on the challenge tab confirmed at `leaderboard_screen.dart:275` — `_load()` never checks difficulty. Challenge is forced to daily in `_load()`, tested in both scopes.
+- **#5 ACCEPTED.** `_weekCrown` returns null above rank 3; 🏅 fallback added + widget tests for ranks 4/5.
+- **#6 ACCEPTED.** Stronger than Codex stated, even: in a deterministic daily puzzle mass ties at the optimum are *plausible*, not exotic. `leaderboard` RPC now unions the caller's ranked row.
+- **#7 ACCEPTED as documentation.** One-best-payout-per-period across tiers kept (summing would ~4× the economy for multi-tier players and wasn't requested); now stated explicitly in the plan.
+- **#8 ACCEPTED with bounds.** Catch-up iteration from the stored guard, bounded at 7 days / 4 weeks / 2 months / 7 challenge days; null-guard first run checks only the newest closed period.
+- **#9 REJECTED (logged, risk documented).** The profile-write race is a pre-existing trait of *every* profile writer; adopting a serialized `updateProfile` only in prize code would not close the race with non-adopting writers, and the full refactor is separately scoped. Added to Risks and Out of scope.
+- **#10 ACCEPTED.** The plan's "offline-queued" wording described nonexistent behavior (submissions are dropped on failure, `game_cubit.dart:550`); risk reworded, durable queue listed as out of scope.
+- **#11 ACCEPTED.** `total` becomes `bigint` in both period RPCs; Dart mapping already goes through `num.toInt()`.
+- **#12 ACCEPTED.** Client-side `take(100)` on the challenge board (simpler than adding `p_limit` to the friends RPC).
+- **#13 PARTIAL.** No speculative `friendships(b)` index — same access pattern as the shipped `friends_leaderboard` on tiny friend sets; the smoke script's EXPLAIN is the gate. Plan wording softened from "no new index needed" to "EXPLAIN decides".
 
 ## Round 2 — Codex
 
-Most prior findings are addressed: snapshot coverage, golden-tile invariants, legacy-reference allowlisting, and Dartdoc cleanup are now explicit. Three material gaps remain.
+Most prior findings are addressed: RLS/ACLs, caller-row inclusion, bigint totals, challenge routing/cap, crowns, cross-tier semantics, missed-period intent, offline-queue wording, and database coverage.
 
-1. **Replay lifecycle remains incomplete in the plan.** [PLAN.md](/C:/Users/dat1k/Projects/connect_merge/PLAN.md:12) specifies `collapseChain → refill` but omits validation and `evaluateStatus`, both required to mirror `playChain` and server replay.
+Remaining/new problems:
 
-   Fix: Specify `playing guard → isValidChain → collapseChain → refill → evaluateStatus`, while preserving `ContinueEvent` handling.
+1. **Global period results become unbounded.** Fixing RLS makes `leaderboard_period` finally return every player to anonymous callers, with no limit.  
+   Fix: Add `p_limit` capped at 100 plus caller-row union, matching the daily RPC.
 
-2. **“Infrastructure first while green” is internally inconsistent.** Existing tests still feed `MergeEvent` into the replay helper ([game_cubit_undo_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/application/game_cubit_undo_test.dart:33)); replacing it with chain-only handling before migrating tests makes them fail.
+2. **`p_limit` remains attacker-controlled inside a DEFINER RPC.** `NULL` means unlimited and oversized values permit expensive responses.  
+   Fix: Apply `least(greatest(coalesce(p_limit, 100), 1), 100)` inside the function and test null/negative/huge inputs.
 
-   Fix: Add `ChainEvent` support alongside the temporary merge branch, then delete the merge branch atomically with the final migrated consumer.
+3. **Catch-up failure semantics are unsafe.** “Newest period actually evaluated” could advance past a failed older period and permanently skip it.  
+   Fix: Process oldest-first, stop on the first failed period, and advance only through the last contiguous success; add a failure/retry test.
 
-3. **A third finder remains unaddressed.** `_findMergePair` in [game_cubit_test.dart](/C:/Users/dat1k/Projects/connect_merge/test/application/game_cubit_test.dart:748) finds only equal-tier pairs, but migrated repeated-chain tests may encounter an ascend-only board even when `hasMergeAvailable` is true.
+4. **Catch-up cost is understated.** Worst case is 59 RPCs at startup: 28 daily + 16 weekly + 8 monthly + 7 challenge, with all four checkers launched concurrently.  
+   Fix: Batch catch-up ranks server-side into a small fixed number of calls, or reduce the catch-up promise.
 
-   Fix: Replace this helper too with an oriented adjacent path finder whose result passes `GameEngine.isValidChain`.
+5. **The profile-write race is acknowledged, not addressed.** Catch-up adds more prize activity while purchases and completions can still lose whole-profile updates.  
+   Fix: Add the storage-level serialized profile update before catch-up, then route all profile mutations through it.
 
-4. **The undo disposition still is not actually enumerated.** [PLAN.md](/C:/Users/dat1k/Projects/connect_merge/PLAN.md:14) leaves “chain-based duplicates” unnamed; the legacy basic-undo test asserts full `BoardState.toJson` equality, stronger than the existing chain test’s score/moves/drop assertions.
+6. **“Forward-only” conflicts with catch-up.** Unclaimed pre-release periods inside the lookback receive the new payout table retroactively.  
+   Fix: Define a rollout effective date and either skip earlier periods or apply the prior tables to them.
 
-   Fix: Name each deleted test and explicitly migrate the full-state equality assertion before deleting any weaker duplicate.
+7. **The reverse-edge index is still needed.** A small result set does not help: without `friendships(b)`, reverse lookups can scan the global friendship table.  
+   Fix: Add `create index if not exists idx_friendships_b on friendships(b)`.
+
+8. **The SQL smoke-test execution path is ambiguous.** `supabase db reset` does not automatically execute an arbitrary test script, while putting it in migrations risks deploying fixtures/assertions.  
+   Fix: Store it outside `supabase/migrations` and specify the exact post-reset `psql -f` command.
+
+9. **Several shipped comments will remain wrong.** `EngagementState` and prize-check documentation still describe top-three rewards.  
+   Fix: Update every `top-3` prize comment found by repository search, not only `WeeklyPrize.rank`.
 
 VERDICT: REVISE
-### Claude's response
+### Claude's response (round 2)
 
-Accepted (4/4): replay helper lifecycle fully specified (playing guard -> isValidChain -> collapseChain -> refill -> evaluateStatus, ContinueEvent preserved) (1); two-phase helper — ChainEvent branch added ALONGSIDE the temporary merge branch, merge branch deleted atomically with its last migrated consumer, so the suite is green at every step (2); the third finder (_findMergePair, game_cubit_test.dart:748, equal-tier-only) replaced too, all finders' outputs asserted to pass isValidChain (3); the legacy basic-undo test's full BoardState.toJson equality migrates to the chain test BEFORE any weaker duplicate is deleted, and the step-0 docs plan names every deleted test with its superseding chain test (4).
+Accepted 7 of 9, rejected 2 (one re-litigated, one replaced by a simpler decision):
+
+- **#1 + #2 ACCEPTED, solved together with #4.** `leaderboard_period` gains a server-clamped `p_limit` (`least(greatest(coalesce(p_limit,100),1),100)`), and instead of unioning caller rows into display RPCs, prize checks move to two new tiny caller-rank RPCs (`my_daily_ranks`, `my_period_ranks`). Display boards become clamped-and-dumb; rank checks become exact under mass ties; catch-up drops from a worst case of 59 RPCs to 7.
+- **#3 ACCEPTED.** Catch-up is oldest-first, halts at the first failed period, and advances the guard only through the last contiguous success — with a failure/retry test.
+- **#4 ACCEPTED** via the batching above (1 daily-window call + 4 weekly + 2 monthly).
+- **#5 REJECTED again (same grounds, unchanged by catch-up).** Catch-up adds a handful of serialized prize commits at startup — the race with non-prize profile writers is the same pre-existing race, same shape. A storage-level serialized `updateProfile` only helps if *every* writer adopts it; that refactor is separately scoped and now explicitly listed as such.
+- **#6 REJECTED as machinery, ACCEPTED as a decision.** No effective-date / dual-table logic: unclaimed periods inside the lookback are paid at the new (nerfed) tables. Active users' guards are current at update time so the window is tiny; the simplicity is worth more than transitional payout fidelity. Documented in the plan.
+- **#7 ACCEPTED, position reversed.** `auth.uid() in (a, b)` needs indexes on both columns to BitmapOr; the PK covers only `a`, so the reverse edge scans the global friendships table today. One-line `idx_friendships_b` beats an EXPLAIN gate.
+- **#8 ACCEPTED.** Smoke script lives at `supabase/tests/leaderboard_smoke.sql` (outside migrations, can never deploy), exact run command specified (`supabase db reset` + `psql ... -f`).
+- **#9 ACCEPTED.** Repo-wide `top-3`/`top-three` prize-comment sweep, not just `WeeklyPrize.rank`.
 
 ## Round 3 — Codex
 
-All four round-2 findings are addressed: full replay lifecycle, additive two-phase migration, all three relevant finders, and preservation of full-state undo coverage.
+Round-two findings addressed: period cap intent, limit clamping, ordered failure handling, lower catch-up fan-out, rollout semantics, reverse-edge index, smoke-test location, and stale comments.
 
-One minor omission: add [game_engine.dart](/C:/Users/dat1k/Projects/connect_merge/lib/domain/engine/game_engine.dart:215) to the doc sweep; its `Mirrors [merge]` link becomes stale after removal. The existing sweep/analyze requirement should catch it, so this is non-blocking.
+Remaining/new problems:
+
+1. **The new period signature breaks existing clients unless `p_limit` has a SQL default.** `fetchPeriod()` currently sends only four parameters.  
+   Fix: Declare `p_limit int default 100` or update every caller to pass it explicitly.
+
+2. **Caller-rank SQL can accidentally return rank 1 for everyone.** Filtering `player_id = auth.uid()` before the window function removes competitors before ranking.  
+   Fix: Rank all players in a CTE, then filter to `auth.uid()` in the outer query; test a non-winning caller in both `my_*` RPCs.
+
+3. **The `my_*` date ranges are unbounded trust-boundary inputs.** An authenticated caller can request an entire season and force expensive window/aggregation scans.  
+   Fix: Reject reversed/future ranges and enforce seven-day `my_daily_ranks` and 31-day `my_period_ranks` maximums.
+
+4. **“Bound every board” remains false.** Both friends RPCs lack `p_limit`, so large friend graphs produce unbounded results.  
+   Fix: Add a clamped, defaulted `p_limit` to both friends RPCs and pass/default 100 in the service.
+
+5. **The seven-call count lacks wiring.** Daily and challenge remain separate startup checkers, so each will call `myDailyRanks` unless a shared coordinator is added.  
+   Fix: Add one combined daily/challenge check that fetches ranks once, or document the actual eight-call total.
+
+6. **The `my_*` RPCs do not need DEFINER privileges.** They read only `scores`, whose SELECT policy is already world-readable.  
+   Fix: Keep `my_*` as `SECURITY INVOKER`, restricted to `authenticated`, and reserve DEFINER for functions joining protected player data.
+
+7. **The profile lost-update race is still only documented.** This remains a real wallet/purchase data-loss path while the feature adds catch-up commits.  
+   Fix: Make storage-level serialized `updateProfile` a prerequisite and migrate every profile read-modify-write caller.
+
+8. **Database verification omits the new period-rank failure mode.** Only a daily tie scenario is specified.  
+   Fix: Add a `my_period_ranks` fixture where the caller is rank greater than one and tied at a payout boundary.
+
+VERDICT: REVISE
+### Claude's response (round 3)
+
+Accepted 7 of 8, rejected 1 (third re-litigation):
+
+- **#1 ACCEPTED.** `p_limit int default 100` on `leaderboard_period` — existing 4-arg `fetchPeriod()` callers keep working.
+- **#2 ACCEPTED — real correctness landmine.** Both `my_*` RPCs rank all players in the inner query and filter to `auth.uid()` outside; a non-winning-caller fixture is added to the smoke script (and #8's period variant).
+- **#3 ACCEPTED.** `my_*` range guards: reject reversed/future ranges; span caps of 7 days (`my_daily_ranks`) and 31 days (`my_period_ranks`).
+- **#4 ACCEPTED.** Both friends RPCs get the clamped, defaulted `p_limit`.
+- **#5 ACCEPTED as a count correction, not a coordinator.** The daily and challenge checkers stay separate (separate guards); the honest worst case is 8 calls, now documented. Merging them to save one RPC would tangle two independent guards — rejected as machinery.
+- **#6 ACCEPTED.** `my_*` RPCs are `SECURITY INVOKER` — they read only world-readable `scores`; DEFINER stays reserved for the `players`-joining board projections.
+- **#7 REJECTED (third time, same grounds).** The lost-update race predates this feature, is shared by every profile writer, and partial adoption cannot close it. Making a storage-level `updateProfile` + migration of all callers a *prerequisite* would couple an unrelated refactor to a payout-table change. It stays separately scoped, documented in Risks and Out of scope. This is a standing disagreement, not an oversight.
+- **#8 ACCEPTED.** `my_period_ranks` smoke fixture with caller rank > 1, tied at a payout boundary.
+
+## Round 4 — Codex
+
+All material prior findings are addressed. The profile-write race remains logged as an accepted standing disagreement and is not counted against this review.
+
+New non-blocking corrections:
+
+- The tradeoff section still says catch-up costs 7 calls; the approach correctly calculates 8. Fix: change 7 to 8.
+- The challenge-list note says the friends RPC lacks a server limit, but it now has one. Fix: describe `take(100)` as defense-in-depth or remove it.
+- “All-time board: zero work” is stale because its RPC gains RLS repair, bigint totals, and a limit. Fix: change it to “no new gameplay behavior.”
+- Tiny smoke fixtures may make PostgreSQL choose sequential scans despite valid indexes. Fix: treat `EXPLAIN` as diagnostic unless the script loads representative volume.
 
 VERDICT: APPROVED
-## Act 3 — Build
+### Claude's response (round 4)
 
-### Round 1 — Codex build
+All four non-blocking corrections applied to PLAN.md: 7→8 calls in the tradeoff section; `take(100)` reframed as defense-in-depth; "all-time: zero work" → "no new gameplay behavior (inherits the RPC plumbing fixes)"; smoke-script EXPLAIN downgraded to diagnostic (tiny fixtures favor seq scans).
 
-Thread 019f7590-ca36-7413-bdd2-aa671b61e438 (gpt-5.6-sol). Implemented all of PLAN.md in one pass: docs/superpowers spec + plan with named per-test dispositions, two-phase undo-helper migration (ChainEvent replay branch mirroring verifyRun — guard/isValidChain/collapseChain/refill/evaluateStatus — landed alongside the merge branch, merge branch deleted with its last consumer), all three finders replaced with an oriented adjacent isValidChain-validated finder, full BoardState equality migrated into the chain undo test before duplicates died, cubit's 9 tests migrated with chain-derived values, golden/control invariant rewritten via collapseChain([0,1]), production removals + full doc sweep, MergeEvent relabeled legacy/server-rejected. Deviations: none. No git mutations.
-
-### Claude's verdict
-
-Full diff read: production removals exact; canMerge doc now names the sentinel generator as sole consumer; the migrated replay helper is a faithful client-side mirror of verifyRun with drift-detection guards. MergeEvent/canMerge/fixture/TS untouched as required. Proof re-run by Claude: flutter analyze clean; flutter test 540/540 (545 -> 540: net -5 from deleted API-only duplicates, every unique invariant retained per the named disposition); Flutter golden vectors green; deno test --frozen 45/45; zero references to the three removed methods. PASSED review, round 1 of 2 — no fix rounds needed.
-
-Shipped: committed to main and pushed after user sign-off; CI validates.
+**Converged: APPROVED in round 4 of 5.** Standing disagreement on record: the storage-level serialized profile-update refactor (Codex rounds 1–3) is acknowledged as a real pre-existing lost-update path but deliberately excluded — it requires migrating every profile writer and is unchanged in kind by this feature.
