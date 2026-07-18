@@ -71,3 +71,15 @@ VERDICT: APPROVED
 ### Claude's response
 
 All three non-blocking cleanups folded into the plan: bestRank example removed from the single-field list (no production write site — avoids scope creep); grantAdCosmetic contract states union-not-replace and claimLoot states add-plus-stamp; toJson required to enumerate all 23 keys directly in golden order (no per-group spreading). Plan final.
+
+## Act 3 — Build
+
+### Round 1 — Codex build
+
+Thread 019f74a4-d5b8-7693-bf40-f330dede7964 (gpt-5.6-sol). Implemented all of PLAN.md in one pass: docs/superpowers spec + red-green plan with the rg-derived checklist (17 production writes / 30 fixtures), 7 sub-records, toJson enumerating all 23 flat keys in golden order, 12 intent helpers with the normative contracts, dead clear* flags deleted, both addCoins impls routed through creditCoins, ~150 call sites migrated across 7 lib files + 12 test files, wire golden generated from the CURRENT class before restructuring and held after. Deviations: none. No git mutations.
+
+### Claude's verdict
+
+Full diff read: sub-records and helpers match every contract (award* add+append+stamp-at-zero, no guard/emit/storage; setRival/clearRival rebuild the Rivalry record so last-seen resets; recordPurchase leaves validation in the cubit; creditCoins clamps). Call-site migrations are purely mechanical — no asserted value changed anywhere. Independently confirmed the golden string's key order matches the pre-refactor toJson read during the grill. Proof re-run by Claude: flutter analyze clean; flutter test 529/529 (was 521; +3 wire goldens, +5 helper-contract tests). PASSED review, round 1 of 2 — no fix rounds needed.
+
+Shipped: committed to main and pushed after user sign-off; CI validates.
