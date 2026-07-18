@@ -69,3 +69,14 @@ Accepted (1/1, fully): dispose() scoped to closing ONLY the newly hoisted LootCu
 Round-3 finding is addressed: teardown now closes only the newly hoisted `LootCubit`, avoiding deep-link and engagement-task races. Async-init wording, account reset, fallback removal, and route-level coverage remain consistent. No new material issues found.
 
 VERDICT: APPROVED
+## Act 3 — Build
+
+### Round 1 — Codex build
+
+Thread 019f74ec-273f-7132-9eb0-f9b07f28dc94 (gpt-5.6-sol). Implemented all of PLAN.md in one pass: docs/superpowers spec + red-green plan, GameSessionFactory (exact _startTier/_onTierCompleted/_creditCoins/_submitRun wiring, unawaited init cascade, engagement-before-afterCompleted ordering, zero-delta coins no-op, offline null submit), LootCubit hoisted to main.dart with dispose() closing ONLY it, _onAccountDeleted reloading engagement/rivalry/loot, screen bridges deleted with sessions! past the onTierSelected override, cubit fallbacks intact, 6 factory unit tests + 1 root-to-route widget test. Deviations: none. No git mutations.
+
+### Claude's verdict
+
+Full diff read: factory wiring is line-for-line faithful to the old screen bridges; main.dart is now the sole production composition root; dispose/reload scoping matches the round-3 review decision exactly; remaining screen changes are dart-format cosmetics. Existing widget tests untouched. Proof re-run by Claude: flutter analyze clean; flutter test 535/535 (was 529; +7 new, one pre-existing count overlap). PASSED review, round 1 of 2 — no fix rounds needed.
+
+Shipped: committed to main and pushed after user sign-off; CI validates.
