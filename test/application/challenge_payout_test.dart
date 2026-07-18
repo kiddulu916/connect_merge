@@ -70,7 +70,7 @@ void main() {
         fakeFetch(11));
     await Future<void>.delayed(Duration.zero);
 
-    expect(storage.loadProfile().lastChallengeCheckDate, '2026-06-22');
+    expect(storage.loadProfile().prizes.lastChallengeCheckDate, '2026-06-22');
     expect(emitted, isEmpty);
     await subscription.cancel();
   });

@@ -18,8 +18,11 @@ void main() {
   });
 
   test('load: already claimed today -> sealed', () async {
-    await storage.saveProfile(
-        const PlayerProfile(lastLootClaimDate: '2026-06-11', coins: 42));
+    await storage.saveProfile(const PlayerProfile(
+        wallet: Wallet(
+      lastLootClaimDate: '2026-06-11',
+      coins: 42,
+    )));
     final c = make('2026-06-11')..load();
     expect(c.state, isA<LootSealed>());
     expect(c.state.coins, 42);
@@ -36,23 +39,23 @@ void main() {
     expect(state.coins, expected.coins);
 
     final profile = storage.loadProfile();
-    expect(profile.coins, expected.coins);
-    expect(profile.lastLootClaimDate, '2026-06-11');
+    expect(profile.wallet.coins, expected.coins);
+    expect(profile.wallet.lastLootClaimDate, '2026-06-11');
   });
 
   test('claiming twice in one UTC day credits only once', () async {
     final c = make('2026-06-11')..load();
     await c.claim();
-    final afterFirst = storage.loadProfile().coins;
+    final afterFirst = storage.loadProfile().wallet.coins;
     await c.claim(); // second attempt same day
-    expect(storage.loadProfile().coins, afterFirst);
+    expect(storage.loadProfile().wallet.coins, afterFirst);
     expect(c.state, isA<LootSealed>());
   });
 
   test('resuming the same day after a claim is sealed', () async {
     final c1 = make('2026-06-11')..load();
     await c1.claim();
-    final coins = storage.loadProfile().coins;
+    final coins = storage.loadProfile().wallet.coins;
 
     final c2 = make('2026-06-11')..load();
     expect(c2.state, isA<LootSealed>());
@@ -80,7 +83,7 @@ void main() {
     expect(state.reward.doubled, isTrue);
     expect(state.reward.coins, base * 2);
     expect(state.coins, base * 2);
-    expect(storage.loadProfile().coins, base * 2);
+    expect(storage.loadProfile().wallet.coins, base * 2);
   });
 
   test('doubleReward is idempotent (no triple credit)', () async {
@@ -89,21 +92,21 @@ void main() {
     final base = (c.state as LootClaimed).reward.coins;
     await c.doubleReward();
     await c.doubleReward(); // second call is a no-op
-    expect(storage.loadProfile().coins, base * 2);
+    expect(storage.loadProfile().wallet.coins, base * 2);
   });
 
   test('doubleReward without a prior claim is a no-op', () async {
     final c = make('2026-06-11')..load();
     await c.doubleReward();
     expect(c.state, isA<LootReady>());
-    expect(storage.loadProfile().coins, 0);
+    expect(storage.loadProfile().wallet.coins, 0);
   });
 
   test('claim accumulates onto an existing wallet balance', () async {
-    await storage.saveProfile(const PlayerProfile(coins: 100));
+    await storage.saveProfile(const PlayerProfile(wallet: Wallet(coins: 100)));
     final c = make('2026-06-11')..load();
     await c.claim();
     final reward = DailyLoot.forDate('2026-06-11');
-    expect(storage.loadProfile().coins, 100 + reward.coins);
+    expect(storage.loadProfile().wallet.coins, 100 + reward.coins);
   });
 }

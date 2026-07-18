@@ -79,8 +79,8 @@ void main() {
       expect(c.state.hasRival, isTrue);
       expect(c.state.rivalId, 'p1');
       expect(c.state.rivalName, 'Ann');
-      expect(storage.loadProfile().rivalId, 'p1');
-      expect(storage.loadProfile().rivalName, 'Ann');
+      expect(storage.loadProfile().rivalry.rivalId, 'p1');
+      expect(storage.loadProfile().rivalry.rivalName, 'Ann');
     });
 
     test('clearRival removes the rival', () async {
@@ -89,8 +89,8 @@ void main() {
       await c.clearRival();
       expect(c.state.hasRival, isFalse);
       expect(c.state.rivalId, isNull);
-      expect(storage.loadProfile().rivalId, isNull);
-      expect(storage.loadProfile().rivalName, isNull);
+      expect(storage.loadProfile().rivalry.rivalId, isNull);
+      expect(storage.loadProfile().rivalry.rivalName, isNull);
     });
 
     test('switching rival clears stale last-seen so no spurious nudge', () async {

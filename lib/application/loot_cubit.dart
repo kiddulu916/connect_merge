@@ -24,18 +24,20 @@ class LootCubit extends Cubit<LootState> {
     required this.storage,
     String Function()? todayProvider,
   })  : todayProvider = todayProvider ?? utcToday,
-        super(LootSealed(storage.loadProfile().coins));
+        super(LootSealed(storage.loadProfile().wallet.coins));
 
   /// Hydrate: ready when today's chest is unclaimed, otherwise sealed.
   void load() {
     final profile = storage.loadProfile();
-    final claimable = profile.lastLootClaimDate != todayProvider();
-    emit(claimable ? LootReady(profile.coins) : LootSealed(profile.coins));
+    final claimable = profile.wallet.lastLootClaimDate != todayProvider();
+    emit(claimable
+        ? LootReady(profile.wallet.coins)
+        : LootSealed(profile.wallet.coins));
   }
 
   /// Whether today's chest can still be claimed.
   bool get isClaimable =>
-      storage.loadProfile().lastLootClaimDate != todayProvider();
+      storage.loadProfile().wallet.lastLootClaimDate != todayProvider();
 
   /// Claim today's chest: compute the seed-derived reward, persist the claim
   /// stamp + credited coins BEFORE emitting (so an app kill mid-claim can't
@@ -43,15 +45,16 @@ class LootCubit extends Cubit<LootState> {
   Future<void> claim() async {
     final today = todayProvider();
     final profile = storage.loadProfile();
-    if (profile.lastLootClaimDate == today) {
-      emit(LootSealed(profile.coins));
+    if (profile.wallet.lastLootClaimDate == today) {
+      emit(LootSealed(profile.wallet.coins));
       return;
     }
     final reward = DailyLoot.forDate(today);
-    final coins = profile.coins + reward.coins;
-    await storage.saveProfile(
-      profile.copyWith(coins: coins, lastLootClaimDate: today),
-    );
+    final coins = profile.wallet.coins + reward.coins;
+    await storage.saveProfile(profile.claimLoot(
+      today,
+      awardCoins: reward.coins,
+    ));
     _claimed = reward;
     emit(LootClaimed(coins: coins, reward: reward));
   }
@@ -64,8 +67,8 @@ class LootCubit extends Cubit<LootState> {
     final base = _claimed;
     if (s is! LootClaimed || base == null || base.doubled) return;
     final profile = storage.loadProfile();
-    final coins = profile.coins + base.coins; // credit the same amount again
-    await storage.saveProfile(profile.copyWith(coins: coins));
+    final coins = profile.wallet.coins + base.coins; // credit the same amount again
+    await storage.saveProfile(profile.creditCoins(base.coins));
     final doubled = base.asDoubled();
     _claimed = doubled;
     emit(LootClaimed(coins: coins, reward: doubled));

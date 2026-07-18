@@ -16,7 +16,7 @@ class _DelayedDailySaveStorage extends InMemoryStorageService {
 
   @override
   Future<void> saveProfile(PlayerProfile profile) async {
-    if (!_delayed && profile.lastDailyPrizeDate != null) {
+    if (!_delayed && profile.prizes.lastDailyPrizeDate != null) {
       _delayed = true;
       dailySaveStarted.complete();
       await releaseDailySave.future;
@@ -128,12 +128,16 @@ void main() {
       await c.onTierCompleted();
       expect(c.state.dailyActiveStreak, 1);
       expect(c.state.lastActiveDate, '2026-06-07');
-      expect(storage.loadProfile().dailyActiveStreak, 1);
+      expect(storage.loadProfile().activity.dailyActiveStreak, 1);
     });
 
     test('consecutive day increments the headline streak', () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 4, lastActiveDate: '2026-06-06'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 4,
+          lastActiveDate: '2026-06-06',
+        ),
+      ));
       final c = make()..load();
       await c.onTierCompleted();
       expect(c.state.dailyActiveStreak, 5);
@@ -141,7 +145,11 @@ void main() {
 
     test('same-day re-completion is idempotent', () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 4, lastActiveDate: '2026-06-07'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 4,
+          lastActiveDate: '2026-06-07',
+        ),
+      ));
       final c = make()..load();
       await c.onTierCompleted();
       expect(c.state.dailyActiveStreak, 4);
@@ -150,7 +158,11 @@ void main() {
     test('gap with a banked freeze token keeps the streak + consumes a token',
         () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 8, lastActiveDate: '2026-06-01'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 8,
+          lastActiveDate: '2026-06-01',
+        ),
+      ));
       // Bank a freeze token on the easy tier.
       await storage.saveStats(
           Difficulty.easy,
@@ -175,7 +187,11 @@ void main() {
         'a genuine gap with NO freeze token fires streak_broken with the pre-reset length',
         () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 8, lastActiveDate: '2026-06-01'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 8,
+          lastActiveDate: '2026-06-01',
+        ),
+      ));
       final events = <MapEntry<String, Map<String, Object?>?>>[];
       final c = EngagementCubit(
         storage: storage,
@@ -194,7 +210,11 @@ void main() {
     test('a gap bridged by a freeze token does NOT fire streak_broken',
         () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 8, lastActiveDate: '2026-06-01'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 8,
+          lastActiveDate: '2026-06-01',
+        ),
+      ));
       await storage.saveStats(
           Difficulty.easy,
           const LifetimeStats(
@@ -217,7 +237,11 @@ void main() {
 
     test('consecutive-day completion does NOT fire streak_broken', () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 4, lastActiveDate: '2026-06-06'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 4,
+          lastActiveDate: '2026-06-06',
+        ),
+      ));
       final events = <MapEntry<String, Map<String, Object?>?>>[];
       final c = EngagementCubit(
         storage: storage,
@@ -261,7 +285,11 @@ void main() {
 
     test('gap with NO freeze resets the streak to 1', () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 8, lastActiveDate: '2026-06-01'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 8,
+          lastActiveDate: '2026-06-01',
+        ),
+      ));
       final c = make()..load();
       await c.onTierCompleted();
       expect(c.state.dailyActiveStreak, 1);
@@ -270,7 +298,11 @@ void main() {
     test('reaching 7-day streak unlocks sevenDayStreak + surfaces it once',
         () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 6, lastActiveDate: '2026-06-06'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 6,
+          lastActiveDate: '2026-06-06',
+        ),
+      ));
       final c = make()..load();
       await c.onTierCompleted();
       expect(c.state.dailyActiveStreak, 7);
@@ -280,13 +312,17 @@ void main() {
       c.acknowledgeNewlyUnlocked();
       expect(c.state.newlyUnlocked, isEmpty);
       // Persisted.
-      expect(storage.loadProfile().unlockedAchievements,
+      expect(storage.loadProfile().progression.unlockedAchievements,
           contains(Achievement.sevenDayStreak.name));
     });
 
     test('streak unlocks the ocean cosmetic at 3 days', () async {
       await storage.saveProfile(const PlayerProfile(
-          dailyActiveStreak: 2, lastActiveDate: '2026-06-06'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 2,
+          lastActiveDate: '2026-06-06',
+        ),
+      ));
       final c = make()..load();
       await c.onTierCompleted(); // -> 3
       expect(c.state.unlockedCosmetics, contains(Cosmetic.ocean));
@@ -309,7 +345,7 @@ void main() {
       final c = make()..load();
       await c.selectCosmetic(Cosmetic.classic);
       expect(c.state.selectedCosmetic, Cosmetic.classic);
-      expect(storage.loadProfile().selectedCosmetic, 'classic');
+      expect(storage.loadProfile().cosmetics.selectedCosmetic, 'classic');
     });
 
     test('grantAdCosmetic unlocks a rewarded cosmetic; then selectable',
@@ -352,12 +388,12 @@ void main() {
       await Future.wait([daily, weekly, monthly, challenge]);
 
       final profile = storage.loadProfile();
-      expect(profile.lastDailyPrizeDate, '2026-06-23');
-      expect(profile.lastWeeklyPrizeDate, '2026-06-15');
-      expect(profile.lastMonthlyPrizeMonth, '2026-05');
-      expect(profile.lastChallengeCheckDate, '2026-06-23');
-      expect(profile.coins, 2700);
-      expect(profile.weeklyPrizes, hasLength(4));
+      expect(profile.prizes.lastDailyPrizeDate, '2026-06-23');
+      expect(profile.prizes.lastWeeklyPrizeDate, '2026-06-15');
+      expect(profile.prizes.lastMonthlyPrizeMonth, '2026-05');
+      expect(profile.prizes.lastChallengeCheckDate, '2026-06-23');
+      expect(profile.wallet.coins, 2700);
+      expect(profile.prizes.weeklyPrizes, hasLength(4));
       expect(cubit.state.coins, 2700);
       expect(cubit.state.weeklyPrizes, hasLength(4));
     });
@@ -380,17 +416,17 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(errors, hasLength(1));
-      expect(storage.loadProfile().lastDailyPrizeDate, isNull);
-      expect(storage.loadProfile().coins, 0);
+      expect(storage.loadProfile().prizes.lastDailyPrizeDate, isNull);
+      expect(storage.loadProfile().wallet.coins, 0);
       expect(emitted, isEmpty);
 
       storage.failBeforeWrite = false;
       await cubit.checkWeeklyPrizes(_rankOnePeriod);
       await cubit.checkDailyPrizes(_rankOneDaily);
 
-      expect(storage.loadProfile().lastWeeklyPrizeDate, '2026-06-15');
-      expect(storage.loadProfile().lastDailyPrizeDate, '2026-06-23');
-      expect(storage.loadProfile().coins, 550);
+      expect(storage.loadProfile().prizes.lastWeeklyPrizeDate, '2026-06-15');
+      expect(storage.loadProfile().prizes.lastDailyPrizeDate, '2026-06-23');
+      expect(storage.loadProfile().wallet.coins, 550);
       expect(cubit.state.coins, 550);
     });
 
@@ -421,9 +457,9 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(errors, hasLength(1));
-      expect(storage.loadProfile().lastWeeklyPrizeDate, '2026-06-15');
-      expect(storage.loadProfile().coins, 500);
-      expect(storage.loadProfile().weeklyPrizes, hasLength(4));
+      expect(storage.loadProfile().prizes.lastWeeklyPrizeDate, '2026-06-15');
+      expect(storage.loadProfile().wallet.coins, 500);
+      expect(storage.loadProfile().prizes.weeklyPrizes, hasLength(4));
       expect(cubit.state.coins, 500);
       expect(cubit.state.weeklyPrizes, hasLength(4));
       expect(emitted, hasLength(1));
@@ -431,8 +467,8 @@ void main() {
       await cubit.checkWeeklyPrizes(fetch);
 
       expect(fetches, 4);
-      expect(storage.loadProfile().coins, 500);
-      expect(storage.loadProfile().weeklyPrizes, hasLength(4));
+      expect(storage.loadProfile().wallet.coins, 500);
+      expect(storage.loadProfile().prizes.weeklyPrizes, hasLength(4));
       expect(emitted, hasLength(1));
     });
   });

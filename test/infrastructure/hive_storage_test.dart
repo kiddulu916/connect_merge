@@ -73,46 +73,53 @@ void main() {
     final s = HiveStorageService();
     await s.init();
     // Empty by default (migration-free).
-    expect(s.loadProfile().dailyActiveStreak, 0);
-    expect(s.loadProfile().selectedCosmetic, 'classic');
+    expect(s.loadProfile().activity.dailyActiveStreak, 0);
+    expect(s.loadProfile().cosmetics.selectedCosmetic, 'classic');
 
     // Phase 1 + Phase 2 fields default migration-free.
-    expect(s.loadProfile().coins, 0);
-    expect(s.loadProfile().purchasedCosmetics, isEmpty);
-    expect(s.loadProfile().lifetimeXp, 0);
-    expect(s.loadProfile().almanacCounts, isEmpty);
+    expect(s.loadProfile().wallet.coins, 0);
+    expect(s.loadProfile().cosmetics.purchasedCosmetics, isEmpty);
+    expect(s.loadProfile().progression.lifetimeXp, 0);
+    expect(s.loadProfile().progression.almanacCounts, isEmpty);
 
     const profile = PlayerProfile(
-      dailyActiveStreak: 7,
-      lastActiveDate: '2026-06-07',
-      unlockedAchievements: {'sevenDayStreak'},
-      selectedCosmetic: 'ocean',
-      adUnlockedCosmetics: {'neon'},
-      notificationsEnabled: true,
-      reminderMinutes: 20 * 60,
-      bestRankByDifficulty: {'hard': 3},
-      coins: 250,
-      lastLootClaimDate: '2026-06-07',
-      purchasedCosmetics: {'forest'},
-      lifetimeXp: 1234,
-      almanacCounts: {'9': 2, '11': 1},
+      activity: ActivityStreak(
+        dailyActiveStreak: 7,
+        lastActiveDate: '2026-06-07',
+      ),
+      progression: Progression(
+        unlockedAchievements: {'sevenDayStreak'},
+        bestRankByDifficulty: {'hard': 3},
+        lifetimeXp: 1234,
+        almanacCounts: {'9': 2, '11': 1},
+      ),
+      cosmetics: CosmeticsInventory(
+        selectedCosmetic: 'ocean',
+        adUnlockedCosmetics: {'neon'},
+        purchasedCosmetics: {'forest'},
+      ),
+      settings: PlayerSettings(
+        notificationsEnabled: true,
+        reminderMinutes: 20 * 60,
+      ),
+      wallet: Wallet(coins: 250, lastLootClaimDate: '2026-06-07'),
     );
     await s.saveProfile(profile);
 
     final loaded = s.loadProfile();
-    expect(loaded.dailyActiveStreak, 7);
-    expect(loaded.lastActiveDate, '2026-06-07');
-    expect(loaded.unlockedAchievements, {'sevenDayStreak'});
-    expect(loaded.selectedCosmetic, 'ocean');
-    expect(loaded.adUnlockedCosmetics, {'neon'});
-    expect(loaded.notificationsEnabled, isTrue);
-    expect(loaded.reminderMinutes, 20 * 60);
-    expect(loaded.bestRankByDifficulty, {'hard': 3});
+    expect(loaded.activity.dailyActiveStreak, 7);
+    expect(loaded.activity.lastActiveDate, '2026-06-07');
+    expect(loaded.progression.unlockedAchievements, {'sevenDayStreak'});
+    expect(loaded.cosmetics.selectedCosmetic, 'ocean');
+    expect(loaded.cosmetics.adUnlockedCosmetics, {'neon'});
+    expect(loaded.settings.notificationsEnabled, isTrue);
+    expect(loaded.settings.reminderMinutes, 20 * 60);
+    expect(loaded.progression.bestRankByDifficulty, {'hard': 3});
     // Phase 1 + Phase 2 round-trip.
-    expect(loaded.coins, 250);
-    expect(loaded.lastLootClaimDate, '2026-06-07');
-    expect(loaded.purchasedCosmetics, {'forest'});
-    expect(loaded.lifetimeXp, 1234);
-    expect(loaded.almanacCounts, {'9': 2, '11': 1});
+    expect(loaded.wallet.coins, 250);
+    expect(loaded.wallet.lastLootClaimDate, '2026-06-07');
+    expect(loaded.cosmetics.purchasedCosmetics, {'forest'});
+    expect(loaded.progression.lifetimeXp, 1234);
+    expect(loaded.progression.almanacCounts, {'9': 2, '11': 1});
   });
 }

@@ -146,26 +146,27 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// + per-tier stats so any externally-changed progress is reflected.
   void load() {
     final profile = storage.loadProfile();
-    final unlocked = _decodeAchievements(profile.unlockedAchievements);
-    final adCosmetics = _decodeCosmetics(profile.adUnlockedCosmetics);
-    final purchased = _decodeCosmetics(profile.purchasedCosmetics);
+    final unlocked =
+        _decodeAchievements(profile.progression.unlockedAchievements);
+    final adCosmetics = _decodeCosmetics(profile.cosmetics.adUnlockedCosmetics);
+    final purchased = _decodeCosmetics(profile.cosmetics.purchasedCosmetics);
     emit(EngagementState(
-      dailyActiveStreak: profile.dailyActiveStreak,
-      lastActiveDate: profile.lastActiveDate,
+      dailyActiveStreak: profile.activity.dailyActiveStreak,
+      lastActiveDate: profile.activity.lastActiveDate,
       unlocked: unlocked,
       newlyUnlocked: const {},
-      selectedCosmetic: _cosmeticByName(profile.selectedCosmetic),
+      selectedCosmetic: _cosmeticByName(profile.cosmetics.selectedCosmetic),
       unlockedCosmetics: unlockedCosmetics(
-        dailyActiveStreak: profile.dailyActiveStreak,
+        dailyActiveStreak: profile.activity.dailyActiveStreak,
         achievements: unlocked,
         adUnlocked: adCosmetics,
         purchased: purchased,
       ),
       freezeTokens: _maxTierFreezeTokens(),
-      coins: profile.coins,
-      lifetimeXp: profile.lifetimeXp,
-      almanac: Almanac.fromStorage(profile.almanacCounts),
-      weeklyPrizes: profile.weeklyPrizes,
+      coins: profile.wallet.coins,
+      lifetimeXp: profile.progression.lifetimeXp,
+      almanac: Almanac.fromStorage(profile.progression.almanacCounts),
+      weeklyPrizes: profile.prizes.weeklyPrizes,
     ));
   }
 
@@ -195,8 +196,8 @@ class EngagementCubit extends Cubit<EngagementState> {
     // --- Streak transition (headline, "any tier today"). ---
     final hasFreeze = _maxTierFreezeTokens() > 0;
     final result = nextStreak(
-      prev: profile.dailyActiveStreak,
-      last: profile.lastActiveDate,
+      prev: profile.activity.dailyActiveStreak,
+      last: profile.activity.lastActiveDate,
       today: today,
       hasFreeze: hasFreeze,
     );
@@ -207,25 +208,26 @@ class EngagementCubit extends Cubit<EngagementState> {
     // no freeze token bridged is a direct churn-risk signal — surface it once,
     // using the streak length BEFORE the reset.
     final yesterday = previousUtcDay(today);
-    final hadGap = profile.lastActiveDate != null &&
-        profile.lastActiveDate != today &&
-        profile.lastActiveDate != yesterday;
+    final hadGap = profile.activity.lastActiveDate != null &&
+        profile.activity.lastActiveDate != today &&
+        profile.activity.lastActiveDate != yesterday;
     if (hadGap && !result.freezeConsumed) {
       onAnalyticsEvent?.call('streak_broken', {
         'streakType': 'daily',
-        'length': profile.dailyActiveStreak,
+        'length': profile.activity.dailyActiveStreak,
       });
     }
 
     // --- Progress + achievements. ---
     final progress = _buildProgress(dailyActiveStreak: result.streak);
-    final already = _decodeAchievements(profile.unlockedAchievements);
+    final already =
+        _decodeAchievements(profile.progression.unlockedAchievements);
     final fresh = newlyUnlocked(progress, already);
     final allUnlocked = already.union(fresh);
 
     // --- Cosmetics. ---
-    final adCosmetics = _decodeCosmetics(profile.adUnlockedCosmetics);
-    final purchased = _decodeCosmetics(profile.purchasedCosmetics);
+    final adCosmetics = _decodeCosmetics(profile.cosmetics.adUnlockedCosmetics);
+    final purchased = _decodeCosmetics(profile.cosmetics.purchasedCosmetics);
     final cosmetics = unlockedCosmetics(
       dailyActiveStreak: result.streak,
       achievements: allUnlocked,
@@ -234,14 +236,14 @@ class EngagementCubit extends Cubit<EngagementState> {
     );
 
     // --- Meta-progression: XP + Almanac (pure client-side flair). ---
-    final lifetimeXp = profile.lifetimeXp + xpForScore(score);
+    final lifetimeXp = profile.progression.lifetimeXp + xpForScore(score);
     final almanacCounts =
-        foldRunIntoAlmanac(profile.almanacCounts, highestTier);
+        foldRunIntoAlmanac(profile.progression.almanacCounts, highestTier);
 
-    final updated = profile.copyWith(
-      dailyActiveStreak: result.streak,
-      lastActiveDate: today,
-      unlockedAchievements: allUnlocked.map((a) => a.name).toSet(),
+    final updated = profile.advanceActivity(
+      streak: result.streak,
+      date: today,
+      achievements: allUnlocked.map((a) => a.name).toSet(),
       lifetimeXp: lifetimeXp,
       almanacCounts: almanacCounts,
     );
@@ -254,7 +256,7 @@ class EngagementCubit extends Cubit<EngagementState> {
       newlyUnlocked: fresh,
       unlockedCosmetics: cosmetics,
       freezeTokens: _maxTierFreezeTokens(),
-      coins: updated.coins,
+      coins: updated.wallet.coins,
       lifetimeXp: lifetimeXp,
       almanac: Almanac.fromStorage(almanacCounts),
     ));
@@ -271,7 +273,7 @@ class EngagementCubit extends Cubit<EngagementState> {
   Future<void> selectCosmetic(Cosmetic cosmetic) async {
     if (!state.unlockedCosmetics.contains(cosmetic)) return;
     final profile = storage.loadProfile();
-    await storage.saveProfile(profile.copyWith(selectedCosmetic: cosmetic.name));
+    await storage.saveProfile(profile.selectCosmetic(cosmetic.name));
     emit(state.copyWith(selectedCosmetic: cosmetic));
   }
 
@@ -280,8 +282,7 @@ class EngagementCubit extends Cubit<EngagementState> {
   Future<void> grantAdCosmetic(Cosmetic cosmetic) async {
     if (cosmetic.unlock != CosmeticUnlock.rewardedAd) return;
     final profile = storage.loadProfile();
-    final ad = {...profile.adUnlockedCosmetics, cosmetic.name};
-    await storage.saveProfile(profile.copyWith(adUnlockedCosmetics: ad));
+    await storage.saveProfile(profile.grantAdCosmetic(cosmetic.name));
     emit(state.copyWith(
       unlockedCosmetics: {...state.unlockedCosmetics, cosmetic},
     ));
@@ -291,7 +292,7 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// credited outside this cubit (golden tiles, loot chest), so call this before
   /// gating a purchase so the displayed balance is current. No-op if unchanged.
   void refreshWallet() {
-    final coins = storage.loadProfile().coins;
+    final coins = storage.loadProfile().wallet.coins;
     if (coins == state.coins) return;
     emit(state.copyWith(coins: coins));
   }
@@ -309,16 +310,16 @@ class EngagementCubit extends Cubit<EngagementState> {
     if (cosmetic.unlock != CosmeticUnlock.purchase) return false;
     final profile = storage.loadProfile();
     // Idempotency: already owned -> no debit, no-op.
-    if (profile.purchasedCosmetics.contains(cosmetic.name)) return false;
+    if (profile.cosmetics.purchasedCosmetics.contains(cosmetic.name)) {
+      return false;
+    }
     // Overspend guard: can't afford -> no debit.
-    if (profile.coins < cosmetic.price) return false;
+    if (profile.wallet.coins < cosmetic.price) return false;
 
-    final newCoins = profile.coins - cosmetic.price;
-    final purchased = {...profile.purchasedCosmetics, cosmetic.name};
-    await storage.saveProfile(profile.copyWith(
-      coins: newCoins,
-      purchasedCosmetics: purchased,
-    ));
+    final newCoins = profile.wallet.coins - cosmetic.price;
+    await storage.saveProfile(
+      profile.recordPurchase(cosmetic.name, price: cosmetic.price),
+    );
     emit(state.copyWith(
       coins: newCoins,
       unlockedCosmetics: {...state.unlockedCosmetics, cosmetic},
@@ -405,11 +406,12 @@ class EngagementCubit extends Cubit<EngagementState> {
       } catch (error, stack) {
         _onError?.call(error, stack);
         final persisted = storage.loadProfile();
-        if (persisted.coins != state.coins ||
-            !_sameWeeklyPrizes(persisted.weeklyPrizes, state.weeklyPrizes)) {
+        if (persisted.wallet.coins != state.coins ||
+            !_sameWeeklyPrizes(
+                persisted.prizes.weeklyPrizes, state.weeklyPrizes)) {
           emit(state.copyWith(
-            coins: persisted.coins,
-            weeklyPrizes: persisted.weeklyPrizes,
+            coins: persisted.wallet.coins,
+            weeklyPrizes: persisted.prizes.weeklyPrizes,
           ));
         }
       }
@@ -432,7 +434,7 @@ class EngagementCubit extends Cubit<EngagementState> {
     }) fetchFn,
   ) async {
     final yesterday = previousUtcDay(todayProvider());
-    final guard = storage.loadProfile().lastDailyPrizeDate;
+    final guard = storage.loadProfile().prizes.lastDailyPrizeDate;
     if (guard != null && guard.compareTo(yesterday) >= 0) return;
 
     final ranks = await _myRankByTier(
@@ -445,17 +447,14 @@ class EngagementCubit extends Cubit<EngagementState> {
 
     await _serializedPrizeCommit(() async {
       final profile = storage.loadProfile();
-      final storedGuard = profile.lastDailyPrizeDate;
+      final storedGuard = profile.prizes.lastDailyPrizeDate;
       if (storedGuard != null && storedGuard.compareTo(yesterday) >= 0) return;
       final bestRank = _bestQualifyingRank(ranks, _dailyCoinsFor);
       final coins = bestRank == null ? 0 : _dailyCoinsFor(bestRank);
-      final updated = profile.copyWith(
-        lastDailyPrizeDate: yesterday,
-        coins: profile.coins + coins,
-      );
+      final updated = profile.awardDailyPrize(yesterday, awardCoins: coins);
       await storage.saveProfile(updated);
-      if (updated.coins != state.coins) {
-        emit(state.copyWith(coins: updated.coins));
+      if (updated.wallet.coins != state.coins) {
+        emit(state.copyWith(coins: updated.wallet.coins));
       }
     });
   }
@@ -506,7 +505,7 @@ class EngagementCubit extends Cubit<EngagementState> {
   ) async {
     final weekFrom = _prevWeekMonday(todayProvider());
     final weekTo = _weekSunday(weekFrom);
-    final guard = storage.loadProfile().lastWeeklyPrizeDate;
+    final guard = storage.loadProfile().prizes.lastWeeklyPrizeDate;
     if (guard != null && guard.compareTo(weekFrom) >= 0) return;
 
     final ranks = await _myRankByTier(
@@ -523,7 +522,7 @@ class EngagementCubit extends Cubit<EngagementState> {
 
     await _serializedPrizeCommit(() async {
       final profile = storage.loadProfile();
-      final storedGuard = profile.lastWeeklyPrizeDate;
+      final storedGuard = profile.prizes.lastWeeklyPrizeDate;
       if (storedGuard != null && storedGuard.compareTo(weekFrom) >= 0) return;
       final bestRank = _bestQualifyingRank(ranks, _weeklyCoinsFor);
       final coins = bestRank == null ? 0 : _weeklyCoinsFor(bestRank);
@@ -533,18 +532,19 @@ class EngagementCubit extends Cubit<EngagementState> {
                 weekStart: weekFrom,
                 tier: entry.key,
                 rank: entry.value,
-              ));
-      final updated = profile.copyWith(
-        lastWeeklyPrizeDate: weekFrom,
-        weeklyPrizes: [...profile.weeklyPrizes, ...crowns],
-        coins: profile.coins + coins,
+              ))
+          .toList();
+      final updated = profile.awardWeeklyPrize(
+        weekFrom,
+        awardCoins: coins,
+        crowns: crowns,
       );
       await storage.saveProfile(updated);
-      if (updated.coins != state.coins ||
-          !_sameWeeklyPrizes(updated.weeklyPrizes, state.weeklyPrizes)) {
+      if (updated.wallet.coins != state.coins ||
+          !_sameWeeklyPrizes(updated.prizes.weeklyPrizes, state.weeklyPrizes)) {
         emit(state.copyWith(
-          coins: updated.coins,
-          weeklyPrizes: updated.weeklyPrizes,
+          coins: updated.wallet.coins,
+          weeklyPrizes: updated.prizes.weeklyPrizes,
         ));
       }
     });
@@ -584,7 +584,7 @@ class EngagementCubit extends Cubit<EngagementState> {
     final monthKey = _lastMonthKey(todayProvider());
     final from = _firstOfMonth(monthKey);
     final to = _lastOfMonth(monthKey);
-    final guard = storage.loadProfile().lastMonthlyPrizeMonth;
+    final guard = storage.loadProfile().prizes.lastMonthlyPrizeMonth;
     if (guard != null && guard.compareTo(monthKey) >= 0) return;
 
     final ranks = await _myRankByTier(
@@ -597,17 +597,14 @@ class EngagementCubit extends Cubit<EngagementState> {
 
     await _serializedPrizeCommit(() async {
       final profile = storage.loadProfile();
-      final storedGuard = profile.lastMonthlyPrizeMonth;
+      final storedGuard = profile.prizes.lastMonthlyPrizeMonth;
       if (storedGuard != null && storedGuard.compareTo(monthKey) >= 0) return;
       final bestRank = _bestQualifyingRank(ranks, _monthlyCoinsFor);
       final coins = bestRank == null ? 0 : _monthlyCoinsFor(bestRank);
-      final updated = profile.copyWith(
-        lastMonthlyPrizeMonth: monthKey,
-        coins: profile.coins + coins,
-      );
+      final updated = profile.awardMonthlyPrize(monthKey, awardCoins: coins);
       await storage.saveProfile(updated);
-      if (updated.coins != state.coins) {
-        emit(state.copyWith(coins: updated.coins));
+      if (updated.wallet.coins != state.coins) {
+        emit(state.copyWith(coins: updated.wallet.coins));
       }
     });
   }
@@ -625,7 +622,7 @@ class EngagementCubit extends Cubit<EngagementState> {
     }) fetchFn,
   ) async {
     final yesterday = previousUtcDay(todayProvider());
-    final guard = storage.loadProfile().lastChallengeCheckDate;
+    final guard = storage.loadProfile().prizes.lastChallengeCheckDate;
     if (guard != null && guard.compareTo(yesterday) >= 0) return;
 
     final ranks = await _myRankByTier(
@@ -636,17 +633,14 @@ class EngagementCubit extends Cubit<EngagementState> {
 
     await _serializedPrizeCommit(() async {
       final profile = storage.loadProfile();
-      final storedGuard = profile.lastChallengeCheckDate;
+      final storedGuard = profile.prizes.lastChallengeCheckDate;
       if (storedGuard != null && storedGuard.compareTo(yesterday) >= 0) return;
       final bestRank = _bestQualifyingRank(ranks, _challengeCoinsFor);
       final coins = bestRank == null ? 0 : _challengeCoinsFor(bestRank);
-      final updated = profile.copyWith(
-        lastChallengeCheckDate: yesterday,
-        coins: profile.coins + coins,
-      );
+      final updated = profile.awardChallengeCheck(yesterday, awardCoins: coins);
       await storage.saveProfile(updated);
-      if (updated.coins != state.coins) {
-        emit(state.copyWith(coins: updated.coins));
+      if (updated.wallet.coins != state.coins) {
+        emit(state.copyWith(coins: updated.wallet.coins));
       }
     });
   }
@@ -712,8 +706,8 @@ class EngagementCubit extends Cubit<EngagementState> {
       bestTier[d] = s.bestTier;
     }
     final profile = storage.loadProfile();
-    final bestRank = profile.bestRankByDifficulty.map(
-        (k, v) => MapEntry(Difficulty.values.byName(k), v));
+    final bestRank = profile.progression.bestRankByDifficulty
+        .map((k, v) => MapEntry(Difficulty.values.byName(k), v));
     return PlayerProgress(
       dailyActiveStreak: dailyActiveStreak,
       perTierStreak: perTierStreak,

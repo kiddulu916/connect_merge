@@ -74,9 +74,9 @@ class RivalryCubit extends Cubit<RivalryState> {
   void load() {
     final p = storage.loadProfile();
     emit(RivalryState(
-      rivalId: p.rivalId,
-      rivalName: p.rivalName,
-      lastSeenRivalScoreByTier: p.lastSeenRivalScoreByTier,
+      rivalId: p.rivalry.rivalId,
+      rivalName: p.rivalry.rivalName,
+      lastSeenRivalScoreByTier: p.rivalry.lastSeenRivalScoreByTier,
     ));
   }
 
@@ -88,11 +88,7 @@ class RivalryCubit extends Cubit<RivalryState> {
     required String rivalName,
   }) async {
     final p = storage.loadProfile();
-    await storage.saveProfile(p.copyWith(
-      rivalId: rivalId,
-      rivalName: rivalName,
-      lastSeenRivalScoreByTier: const {},
-    ));
+    await storage.saveProfile(p.setRival(rivalId, rivalName));
     emit(state.copyWith(
       rivalId: rivalId,
       rivalName: rivalName,
@@ -103,10 +99,7 @@ class RivalryCubit extends Cubit<RivalryState> {
   /// Remove the current rival. Persists and clears last-seen scores.
   Future<void> clearRival() async {
     final p = storage.loadProfile();
-    await storage.saveProfile(p.copyWith(
-      clearRival: true,
-      lastSeenRivalScoreByTier: const {},
-    ));
+    await storage.saveProfile(p.clearRival());
     emit(state.copyWith(
       clearRival: true,
       lastSeenRivalScoreByTier: const {},
@@ -136,7 +129,7 @@ class RivalryCubit extends Cubit<RivalryState> {
     required int rivalScore,
   }) async {
     final p = storage.loadProfile();
-    final lastSeen = p.lastSeenRivalScoreByTier[difficulty.name] ?? 0;
+    final lastSeen = p.rivalry.lastSeenRivalScoreByTier[difficulty.name] ?? 0;
     final passed = rivalPassedMe(
       myScore: myScore,
       rivalScore: rivalScore,
@@ -146,10 +139,11 @@ class RivalryCubit extends Cubit<RivalryState> {
     // a transient lower score can't re-arm the nudge for an old overtake.
     final newLastSeen = rivalScore > lastSeen ? rivalScore : lastSeen;
     if (newLastSeen != lastSeen) {
-      final updated = Map<String, int>.from(p.lastSeenRivalScoreByTier)
+      final updated = Map<String, int>.from(p.rivalry.lastSeenRivalScoreByTier)
         ..[difficulty.name] = newLastSeen;
-      await storage.saveProfile(
-          p.copyWith(lastSeenRivalScoreByTier: updated));
+      await storage.saveProfile(p.copyWith(
+        rivalry: p.rivalry.copyWith(lastSeenRivalScoreByTier: updated),
+      ));
       emit(state.copyWith(lastSeenRivalScoreByTier: updated));
     }
     return passed;

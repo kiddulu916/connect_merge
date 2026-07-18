@@ -106,7 +106,7 @@ void main() {
       await cubit.checkWeeklyPrizes(_FakeLeaderboard(4).fetchPeriod);
       await Future<void>.delayed(Duration.zero);
 
-      expect(storage.loadProfile().lastWeeklyPrizeDate, '2026-06-15');
+      expect(storage.loadProfile().prizes.lastWeeklyPrizeDate, '2026-06-15');
       expect(emitted, isEmpty);
       await subscription.cancel();
     });
@@ -127,16 +127,16 @@ void main() {
 
       await cubit.checkWeeklyPrizes(fetch);
 
-      expect(storage.loadProfile().lastWeeklyPrizeDate, isNull);
-      expect(storage.loadProfile().coins, 0);
-      expect(storage.loadProfile().weeklyPrizes, isEmpty);
+      expect(storage.loadProfile().prizes.lastWeeklyPrizeDate, isNull);
+      expect(storage.loadProfile().wallet.coins, 0);
+      expect(storage.loadProfile().prizes.weeklyPrizes, isEmpty);
       expect(cubit.state.coins, 0);
       expect(cubit.state.weeklyPrizes, isEmpty);
 
       failMedium = false;
       await cubit.checkWeeklyPrizes(fetch);
 
-      expect(storage.loadProfile().lastWeeklyPrizeDate, '2026-06-15');
+      expect(storage.loadProfile().prizes.lastWeeklyPrizeDate, '2026-06-15');
       expect(cubit.state.coins, 500);
       expect(cubit.state.weeklyPrizes, hasLength(4));
     });
@@ -182,7 +182,7 @@ void main() {
     await second.checkWeeklyPrizes(_FakeLeaderboard(2).fetchPeriod);
 
     expect(second.state.weeklyPrizes, hasLength(8));
-    expect(storage.loadProfile().weeklyPrizes, hasLength(8));
+    expect(storage.loadProfile().prizes.weeklyPrizes, hasLength(8));
     expect(
       second.state.weeklyPrizes.map((prize) => prize.weekStart).toSet(),
       {'2026-06-15', '2026-06-22'},

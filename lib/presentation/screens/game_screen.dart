@@ -80,15 +80,17 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     final profile = widget.storage.loadProfile();
-    _showTutorial = !profile.tutorialSeen;
-    _colorblind = profile.colorblindMode;
+    _showTutorial = !profile.settings.tutorialSeen;
+    _colorblind = profile.settings.colorblindMode;
   }
 
   /// Persist `tutorialSeen` BEFORE removing the overlay so it can never reappear
   /// on relaunch (failure mode: shows every launch).
   Future<void> _dismissTutorial() async {
     final profile = widget.storage.loadProfile();
-    await widget.storage.saveProfile(profile.copyWith(tutorialSeen: true));
+    await widget.storage.saveProfile(profile.copyWith(
+      settings: profile.settings.copyWith(tutorialSeen: true),
+    ));
     if (mounted) setState(() => _showTutorial = false);
   }
 

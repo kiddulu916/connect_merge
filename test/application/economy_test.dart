@@ -17,46 +17,50 @@ void main() {
 
   group('purchaseCosmetic (economy guards)', () {
     test('debits exactly the price and records the purchase', () async {
-      await storage.saveProfile(PlayerProfile(coins: buyable.price));
+      await storage
+          .saveProfile(PlayerProfile(wallet: Wallet(coins: buyable.price)));
       final c = make()..load();
 
       final ok = await c.purchaseCosmetic(buyable);
 
       expect(ok, isTrue);
       final profile = storage.loadProfile();
-      expect(profile.coins, 0); // debited exactly the price
-      expect(profile.purchasedCosmetics, contains(buyable.name));
+      expect(profile.wallet.coins, 0); // debited exactly the price
+      expect(profile.cosmetics.purchasedCosmetics, contains(buyable.name));
       expect(c.state.coins, 0);
       expect(c.state.unlockedCosmetics, contains(buyable));
     });
 
     test('buying with surplus leaves the remainder', () async {
-      await storage.saveProfile(PlayerProfile(coins: buyable.price + 25));
+      await storage.saveProfile(
+          PlayerProfile(wallet: Wallet(coins: buyable.price + 25)));
       final c = make()..load();
       expect(await c.purchaseCosmetic(buyable), isTrue);
-      expect(storage.loadProfile().coins, 25);
+      expect(storage.loadProfile().wallet.coins, 25);
     });
 
     test('overspend (1 coin short) is rejected; balance unchanged', () async {
-      await storage.saveProfile(PlayerProfile(coins: buyable.price - 1));
+      await storage
+          .saveProfile(PlayerProfile(wallet: Wallet(coins: buyable.price - 1)));
       final c = make()..load();
 
       final ok = await c.purchaseCosmetic(buyable);
 
       expect(ok, isFalse);
-      expect(storage.loadProfile().coins, buyable.price - 1); // no debit
-      expect(storage.loadProfile().purchasedCosmetics, isEmpty);
+      expect(storage.loadProfile().wallet.coins, buyable.price - 1); // no debit
+      expect(storage.loadProfile().cosmetics.purchasedCosmetics, isEmpty);
       expect(c.state.unlockedCosmetics.contains(buyable), isFalse);
     });
 
     test('zero balance cannot buy a priced cosmetic', () async {
       final c = make()..load();
       expect(await c.purchaseCosmetic(buyable), isFalse);
-      expect(storage.loadProfile().coins, 0);
+      expect(storage.loadProfile().wallet.coins, 0);
     });
 
     test('double purchase is idempotent: debited once', () async {
-      await storage.saveProfile(PlayerProfile(coins: buyable.price * 2));
+      await storage
+          .saveProfile(PlayerProfile(wallet: Wallet(coins: buyable.price * 2)));
       final c = make()..load();
 
       final first = await c.purchaseCosmetic(buyable);
@@ -64,24 +68,31 @@ void main() {
 
       expect(first, isTrue);
       expect(second, isFalse); // already owned -> no-op
-      expect(storage.loadProfile().coins, buyable.price); // debited ONCE
+      expect(storage.loadProfile().wallet.coins, buyable.price); // debited ONCE
       expect(
-          storage.loadProfile().purchasedCosmetics.where((n) => n == buyable.name).length,
+          storage
+              .loadProfile()
+              .cosmetics
+              .purchasedCosmetics
+              .where((n) => n == buyable.name)
+              .length,
           1);
     });
 
     test('non-purchase cosmetics cannot be bought (no debit)', () async {
-      await storage.saveProfile(const PlayerProfile(coins: 9999));
+      await storage
+          .saveProfile(const PlayerProfile(wallet: Wallet(coins: 9999)));
       final c = make()..load();
       final free = Cosmetic.values
           .firstWhere((c) => c.unlock == CosmeticUnlock.rewardedAd);
       expect(await c.purchaseCosmetic(free), isFalse);
-      expect(storage.loadProfile().coins, 9999);
+      expect(storage.loadProfile().wallet.coins, 9999);
     });
 
     test('purchased cosmetic survives a reload (migration-free persistence)',
         () async {
-      await storage.saveProfile(PlayerProfile(coins: buyable.price));
+      await storage
+          .saveProfile(PlayerProfile(wallet: Wallet(coins: buyable.price)));
       await (make()..load()).purchaseCosmetic(buyable);
 
       final reloaded = make()..load();
@@ -95,7 +106,7 @@ void main() {
       final c = make()..load();
       expect(c.state.coins, 0);
       // Golden tiles / loot chest credit coins directly on the profile.
-      await storage.saveProfile(const PlayerProfile(coins: 80));
+      await storage.saveProfile(const PlayerProfile(wallet: Wallet(coins: 80)));
       c.refreshWallet();
       expect(c.state.coins, 80);
     });
@@ -106,12 +117,15 @@ void main() {
       // Simulate the result-screen "double coins" reward: the run earned N
       // coins (already on the wallet); the rewarded ad credits N again.
       const earned = 30;
-      await storage.saveProfile(const PlayerProfile(coins: earned));
+      await storage
+          .saveProfile(const PlayerProfile(wallet: Wallet(coins: earned)));
 
       final profile = storage.loadProfile();
-      await storage.saveProfile(profile.copyWith(coins: profile.coins + earned));
+      await storage.saveProfile(profile.copyWith(
+        wallet: profile.wallet.copyWith(coins: profile.wallet.coins + earned),
+      ));
 
-      expect(storage.loadProfile().coins, earned * 2);
+      expect(storage.loadProfile().wallet.coins, earned * 2);
     });
   });
 
@@ -121,8 +135,8 @@ void main() {
       await c.onTierCompleted(date: '2026-06-12', score: 200, highestTier: 9);
 
       final profile = storage.loadProfile();
-      expect(profile.lifetimeXp, xpForScore(200));
-      expect(profile.almanacCounts['9'], 1);
+      expect(profile.progression.lifetimeXp, xpForScore(200));
+      expect(profile.progression.almanacCounts['9'], 1);
       expect(c.state.lifetimeXp, xpForScore(200));
       expect(c.state.almanac.countFor(9), 1);
       expect(c.state.level, levelForXp(xpForScore(200)));
@@ -130,7 +144,12 @@ void main() {
 
     test('XP is monotonic across consecutive completions', () async {
       await storage.saveProfile(const PlayerProfile(
-          lifetimeXp: 500, dailyActiveStreak: 1, lastActiveDate: '2026-06-11'));
+        activity: ActivityStreak(
+          dailyActiveStreak: 1,
+          lastActiveDate: '2026-06-11',
+        ),
+        progression: Progression(lifetimeXp: 500),
+      ));
       final c = make()..load();
       final before = c.state.lifetimeXp;
 
@@ -147,8 +166,8 @@ void main() {
       final c = make()..load();
       await c.onTierCompleted(date: '2026-06-12');
       expect(c.state.dailyActiveStreak, 1);
-      expect(storage.loadProfile().lifetimeXp, 0);
-      expect(storage.loadProfile().almanacCounts, isEmpty);
+      expect(storage.loadProfile().progression.lifetimeXp, 0);
+      expect(storage.loadProfile().progression.almanacCounts, isEmpty);
     });
   });
 }

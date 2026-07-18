@@ -214,23 +214,23 @@ void main() {
       final c = await goldenCubit(date, diff, onCoins);
 
       final n = 2 * kGoldenMergeBonus; // two golden tiles consumed
-      expect(storage.loadProfile().coins, 0);
+      expect(storage.loadProfile().wallet.coins, 0);
 
       // Merge the two golden tiles -> wallet credited N, run tally N.
       await c.merge(fromIndex: 0, toIndex: 1);
       expect(c.coinsEarnedThisRun, n);
-      expect(storage.loadProfile().coins, n);
+      expect(storage.loadProfile().wallet.coins, n);
 
       // Undo -> wallet refunded back to 0, run tally back to 0.
       await c.undo();
       expect(c.coinsEarnedThisRun, 0);
-      expect(storage.loadProfile().coins, 0,
+      expect(storage.loadProfile().wallet.coins, 0,
           reason: 'undo must refund the golden coins (no farming)');
 
       // Re-merge the SAME golden tiles -> credits exactly once more, not twice.
       await c.merge(fromIndex: 0, toIndex: 1);
       expect(c.coinsEarnedThisRun, n);
-      expect(storage.loadProfile().coins, n,
+      expect(storage.loadProfile().wallet.coins, n,
           reason: 'merge→undo→re-merge nets a single credit, never farmed');
     });
   });
@@ -277,20 +277,20 @@ void main() {
       expect(c.objective.target, 4,
           reason: 'seed mismatch — test setup requires target==4');
 
-      expect(storage.loadProfile().coins, 0);
+      expect(storage.loadProfile().wallet.coins, 0);
 
       // Play the 4-tile chain — this is the first chain that meets the
       // objective, so it earns kObjectiveRewardCoins.
       await c.playChain([0, 1, 2, 3]);
       expect(c.coinsEarnedThisRun, greaterThanOrEqualTo(kObjectiveRewardCoins),
           reason: 'objective reward must be credited');
-      final walletAfterPlay = storage.loadProfile().coins;
+      final walletAfterPlay = storage.loadProfile().wallet.coins;
       expect(walletAfterPlay, greaterThanOrEqualTo(kObjectiveRewardCoins));
 
       // Undo — wallet must be refunded exactly to the pre-play amount (0).
       expect(c.canUndo, isTrue);
       await c.undo();
-      expect(storage.loadProfile().coins, 0,
+      expect(storage.loadProfile().wallet.coins, 0,
           reason: 'undo must refund the objective reward (no farming)');
       expect(c.coinsEarnedThisRun, 0,
           reason: 'run tally must be back to 0 after undo');
@@ -299,14 +299,15 @@ void main() {
       await c.playChain([0, 1, 2, 3]);
       expect(c.coinsEarnedThisRun, greaterThanOrEqualTo(kObjectiveRewardCoins),
           reason: 're-play must re-credit the objective reward exactly once');
-      expect(storage.loadProfile().coins, walletAfterPlay,
+      expect(storage.loadProfile().wallet.coins, walletAfterPlay,
           reason: 'net wallet after undo + re-play == single objective credit');
     });
   });
 
   test('undo after a chain restores board, score, and drop streams', () async {
     final storage = InMemoryStorageService();
-    final cubit = GameCubit(storage: storage, todayProvider: () => '2026-06-20');
+    final cubit =
+        GameCubit(storage: storage, todayProvider: () => '2026-06-20');
     await cubit.init(difficulty: Difficulty.easy);
     final before = (cubit.state as GamePlaying).board;
 
@@ -318,7 +319,11 @@ void main() {
         if (n >= kCellCount) continue;
         if (n == i + 1 && (i % kGridSize) == kGridSize - 1) continue;
         final u = before.cells[n];
-        if (u != null && u.tier == t.tier) { from = i; to = n; break; }
+        if (u != null && u.tier == t.tier) {
+          from = i;
+          to = n;
+          break;
+        }
       }
     }
     await cubit.playChain([from!, to!]);

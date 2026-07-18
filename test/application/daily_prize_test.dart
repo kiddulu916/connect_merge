@@ -53,8 +53,8 @@ void main() {
     await cubit.checkDailyPrizes(fake.fetch);
 
     expect(cubit.state.coins, 50);
-    expect(storage.loadProfile().coins, 50);
-    expect(storage.loadProfile().lastDailyPrizeDate, '2026-06-22');
+    expect(storage.loadProfile().wallet.coins, 50);
+    expect(storage.loadProfile().prizes.lastDailyPrizeDate, '2026-06-22');
   });
 
   test('same-day guard prevents a second fetch and payout', () async {
@@ -82,8 +82,8 @@ void main() {
 
   test('future guard blocks clock-rollback fetch and payment', () async {
     await storage.saveProfile(const PlayerProfile(
-      coins: 75,
-      lastDailyPrizeDate: '2026-06-23',
+      wallet: Wallet(coins: 75),
+      prizes: PrizeLedger(lastDailyPrizeDate: '2026-06-23'),
     ));
     cubit.load();
     final fake = _FakeLeaderboard(1);
@@ -91,8 +91,8 @@ void main() {
     await cubit.checkDailyPrizes(fake.fetch);
 
     expect(fake.calls, isEmpty);
-    expect(storage.loadProfile().lastDailyPrizeDate, '2026-06-23');
-    expect(storage.loadProfile().coins, 75);
+    expect(storage.loadProfile().prizes.lastDailyPrizeDate, '2026-06-23');
+    expect(storage.loadProfile().wallet.coins, 75);
     expect(cubit.state.coins, 75);
   });
 }

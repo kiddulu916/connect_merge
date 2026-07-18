@@ -90,9 +90,9 @@ class HiveStorageService implements StorageService {
   @override
   Future<int> addCoins(int delta) async {
     final profile = loadProfile();
-    final next = (profile.coins + delta) < 0 ? 0 : profile.coins + delta;
-    await saveProfile(profile.copyWith(coins: next));
-    return next;
+    final updated = profile.creditCoins(delta);
+    await saveProfile(updated);
+    return updated.wallet.coins;
   }
 
   @override

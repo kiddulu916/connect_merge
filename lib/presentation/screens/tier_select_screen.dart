@@ -205,18 +205,18 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     final notif = widget.notifications;
     if (notif == null) return;
     final profile = widget.storage.loadProfile();
-    final streak = profile.dailyActiveStreak;
+    final streak = profile.activity.dailyActiveStreak;
     final today = widget.today();
     // Streak is at risk if there's an active streak that hasn't advanced today.
-    final atRisk = streak > 0 && profile.lastActiveDate != today;
+    final atRisk = streak > 0 && profile.activity.lastActiveDate != today;
     try {
       await notif.reschedule(
         now: tz.TZDateTime.now(tz.local),
-        reminderMinutes: profile.reminderMinutes,
-        enabled: profile.notificationsEnabled,
+        reminderMinutes: profile.settings.reminderMinutes,
+        enabled: profile.settings.notificationsEnabled,
         allTiersDoneToday: _allTiersDoneToday(),
         streakAtRisk: atRisk,
-        lootUnclaimed: profile.lastLootClaimDate != today,
+        lootUnclaimed: profile.wallet.lastLootClaimDate != today,
       );
     } catch (_) {
       // Notifications are best-effort; never block the UI.
@@ -391,7 +391,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     final notif = widget.notifications;
     if (notif == null) return;
     var profile = widget.storage.loadProfile();
-    if (!profile.notificationsEnabled) {
+    if (!profile.settings.notificationsEnabled) {
       bool granted = false;
       try {
         granted = await notif.requestPermission();
@@ -399,7 +399,9 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
         granted = false;
       }
       if (granted) {
-        profile = profile.copyWith(notificationsEnabled: true);
+        profile = profile.copyWith(
+          settings: profile.settings.copyWith(notificationsEnabled: true),
+        );
         await widget.storage.saveProfile(profile);
       }
     }

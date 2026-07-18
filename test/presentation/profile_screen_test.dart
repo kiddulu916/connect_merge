@@ -22,7 +22,7 @@ void main() {
       (tester) async {
     final auth = _FakeAuthService();
     final storage = InMemoryStorageService();
-    await storage.saveProfile(const PlayerProfile(coins: 42));
+    await storage.saveProfile(const PlayerProfile(wallet: Wallet(coins: 42)));
     var deleted = false;
 
     await tester.pumpWidget(MaterialApp(
@@ -46,7 +46,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(auth.deleteCalls, 1);
-    expect(storage.loadProfile().coins, 0); // wiped back to empty
+    expect(storage.loadProfile().wallet.coins, 0); // wiped back to empty
     expect(deleted, isTrue);
   });
 

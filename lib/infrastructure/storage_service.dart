@@ -34,7 +34,8 @@ class GameSnapshot {
   static GameSnapshot fromJson(Map<String, dynamic> j) => GameSnapshot(
         date: j['date'] as String,
         difficulty: Difficulty.values.byName(j['difficulty'] as String),
-        board: BoardState.fromJson(Map<String, dynamic>.from(j['board'] as Map)),
+        board:
+            BoardState.fromJson(Map<String, dynamic>.from(j['board'] as Map)),
         completed: j['completed'] as bool,
         version: (j['v'] as int?) ?? 1,
       );
@@ -99,262 +100,415 @@ class LifetimeStats {
       );
 }
 
-/// Cross-tier player profile (Phase 4): the headline daily-active streak,
-/// unlocked achievements, selected + ad-unlocked cosmetics, and local
-/// notification preferences. Single record (not per-tier).
-class PlayerProfile {
-  /// "Any tier today" headline streak.
+class ActivityStreak {
   final int dailyActiveStreak;
-
-  /// UTC date of the last day any tier was completed (drives the headline
-  /// streak transition). Null until the first completion.
   final String? lastActiveDate;
 
-  /// Achievement enum `name`s already unlocked (stable storage tokens).
-  final Set<String> unlockedAchievements;
-
-  /// Currently selected cosmetic enum `name`.
-  final String selectedCosmetic;
-
-  /// Cosmetic enum `name`s unlocked specifically via rewarded ad.
-  final Set<String> adUnlockedCosmetics;
-
-  /// Local-notification preferences.
-  final bool notificationsEnabled;
-
-  /// Reminder time as minutes past local midnight (e.g. 1140 == 19:00).
-  final int reminderMinutes;
-
-  /// Best (lowest) leaderboard rank ever observed per difficulty `name`. Only
-  /// populated lazily after a leaderboard fetch (powers rank-based achievements).
-  final Map<String, int> bestRankByDifficulty;
-
-  /// Soft-currency wallet balance (Phase 1). A purely client-side economy:
-  /// coins NEVER affect `BoardState.score` or the move log. Migration-free
-  /// default 0.
-  final int coins;
-
-  /// UTC date (`YYYY-MM-DD`) of the last Daily Loot Chest claim, or null if the
-  /// chest has never been claimed. Guards once-per-UTC-day claiming.
-  /// Migration-free default null.
-  final String? lastLootClaimDate;
-
-  /// Cosmetic enum `name`s bought with coins (Phase 2). A purely client-side
-  /// purchase ledger — buying debits [coins] and records the name here.
-  /// Migration-free default empty.
-  final Set<String> purchasedCosmetics;
-
-  /// Cumulative client-side XP (Phase 2), derived from already-recorded run
-  /// scores. Drives the player level (pure flair); NEVER affects score or
-  /// replay. Migration-free default 0.
-  final int lifetimeXp;
-
-  /// Merge Almanac counts (Phase 2): tier (as a string key) -> times that tier
-  /// was the highest reached in a run. Migration-free default empty.
-  final Map<String, int> almanacCounts;
-
-  /// The chosen rival's stable player id (Phase 3), or null if no rival is set.
-  /// Migration-free default null.
-  final String? rivalId;
-
-  /// The chosen rival's display name (Phase 3), for the you-vs-them chip.
-  /// Migration-free default null.
-  final String? rivalName;
-
-  /// Last seen rival score per tier (`difficulty.name` -> score) (Phase 3). The
-  /// "your rival passed you" nudge fires only when the rival's fetched score
-  /// exceeds BOTH the player's score AND this last-seen value, so a single
-  /// overtake fires at most one notification (no spam). Migration-free default
-  /// empty.
-  final Map<String, int> lastSeenRivalScoreByTier;
-
-  /// Whether the first-run tutorial overlay has been shown+dismissed (Phase 4).
-  /// Gates the one-time coachmarks. Migration-free default false.
-  final bool tutorialSeen;
-
-  /// Whether colorblind-safe tile patterns are enabled (Phase 4). Numerals are
-  /// always rendered; this opt-in adds a per-tier pattern overlay so tiles are
-  /// distinguishable without hue. Migration-free default false.
-  final bool colorblindMode;
-
-  /// ISO week-start Monday of the last weekly prize check. Guards once-per-week
-  /// claiming. Migration-free default null.
-  final String? lastWeeklyPrizeDate;
-
-  /// Permanent history of weekly top-3 finishes, serialised as raw JSON list.
-  /// Migration-free default empty.
-  final List<WeeklyPrize> weeklyPrizes;
-
-  /// UTC date of the last challenge payout check (`YYYY-MM-DD`). Guards
-  /// once-per-day claiming. Migration-free default null.
-  final String? lastChallengeCheckDate;
-
-  /// UTC date of the last daily-prize check (`YYYY-MM-DD`). Guards
-  /// once-per-day claiming. Migration-free default null.
-  final String? lastDailyPrizeDate;
-
-  /// `YYYY-MM` string of the last monthly-prize check. Guards
-  /// once-per-month claiming. Migration-free default null.
-  final String? lastMonthlyPrizeMonth;
-
-  const PlayerProfile({
+  const ActivityStreak({
     this.dailyActiveStreak = 0,
     this.lastActiveDate,
+  });
+
+  ActivityStreak copyWith({
+    int? dailyActiveStreak,
+    String? lastActiveDate,
+  }) =>
+      ActivityStreak(
+        dailyActiveStreak: dailyActiveStreak ?? this.dailyActiveStreak,
+        lastActiveDate: lastActiveDate ?? this.lastActiveDate,
+      );
+}
+
+class Progression {
+  final Set<String> unlockedAchievements;
+  final Map<String, int> bestRankByDifficulty;
+  final int lifetimeXp;
+  final Map<String, int> almanacCounts;
+
+  const Progression({
     this.unlockedAchievements = const {},
-    this.selectedCosmetic = 'classic',
-    this.adUnlockedCosmetics = const {},
-    this.notificationsEnabled = false,
-    this.reminderMinutes = 19 * 60,
     this.bestRankByDifficulty = const {},
-    this.coins = 0,
-    this.lastLootClaimDate,
-    this.purchasedCosmetics = const {},
     this.lifetimeXp = 0,
     this.almanacCounts = const {},
+  });
+
+  Progression copyWith({
+    Set<String>? unlockedAchievements,
+    Map<String, int>? bestRankByDifficulty,
+    int? lifetimeXp,
+    Map<String, int>? almanacCounts,
+  }) =>
+      Progression(
+        unlockedAchievements: unlockedAchievements ?? this.unlockedAchievements,
+        bestRankByDifficulty: bestRankByDifficulty ?? this.bestRankByDifficulty,
+        lifetimeXp: lifetimeXp ?? this.lifetimeXp,
+        almanacCounts: almanacCounts ?? this.almanacCounts,
+      );
+}
+
+class CosmeticsInventory {
+  final String selectedCosmetic;
+  final Set<String> adUnlockedCosmetics;
+  final Set<String> purchasedCosmetics;
+
+  const CosmeticsInventory({
+    this.selectedCosmetic = 'classic',
+    this.adUnlockedCosmetics = const {},
+    this.purchasedCosmetics = const {},
+  });
+
+  CosmeticsInventory copyWith({
+    String? selectedCosmetic,
+    Set<String>? adUnlockedCosmetics,
+    Set<String>? purchasedCosmetics,
+  }) =>
+      CosmeticsInventory(
+        selectedCosmetic: selectedCosmetic ?? this.selectedCosmetic,
+        adUnlockedCosmetics: adUnlockedCosmetics ?? this.adUnlockedCosmetics,
+        purchasedCosmetics: purchasedCosmetics ?? this.purchasedCosmetics,
+      );
+}
+
+class PlayerSettings {
+  final bool notificationsEnabled;
+  final int reminderMinutes;
+  final bool tutorialSeen;
+  final bool colorblindMode;
+
+  const PlayerSettings({
+    this.notificationsEnabled = false,
+    this.reminderMinutes = 19 * 60,
+    this.tutorialSeen = false,
+    this.colorblindMode = false,
+  });
+
+  PlayerSettings copyWith({
+    bool? notificationsEnabled,
+    int? reminderMinutes,
+    bool? tutorialSeen,
+    bool? colorblindMode,
+  }) =>
+      PlayerSettings(
+        notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+        reminderMinutes: reminderMinutes ?? this.reminderMinutes,
+        tutorialSeen: tutorialSeen ?? this.tutorialSeen,
+        colorblindMode: colorblindMode ?? this.colorblindMode,
+      );
+}
+
+class Wallet {
+  final int coins;
+  final String? lastLootClaimDate;
+
+  const Wallet({
+    this.coins = 0,
+    this.lastLootClaimDate,
+  });
+
+  Wallet copyWith({
+    int? coins,
+    String? lastLootClaimDate,
+  }) =>
+      Wallet(
+        coins: coins ?? this.coins,
+        lastLootClaimDate: lastLootClaimDate ?? this.lastLootClaimDate,
+      );
+}
+
+class Rivalry {
+  final String? rivalId;
+  final String? rivalName;
+  final Map<String, int> lastSeenRivalScoreByTier;
+
+  const Rivalry({
     this.rivalId,
     this.rivalName,
     this.lastSeenRivalScoreByTier = const {},
-    this.tutorialSeen = false,
-    this.colorblindMode = false,
-    this.lastWeeklyPrizeDate,
-    this.weeklyPrizes = const [],
-    this.lastChallengeCheckDate,
+  });
+
+  Rivalry copyWith({
+    String? rivalId,
+    String? rivalName,
+    Map<String, int>? lastSeenRivalScoreByTier,
+  }) =>
+      Rivalry(
+        rivalId: rivalId ?? this.rivalId,
+        rivalName: rivalName ?? this.rivalName,
+        lastSeenRivalScoreByTier:
+            lastSeenRivalScoreByTier ?? this.lastSeenRivalScoreByTier,
+      );
+}
+
+class PrizeLedger {
+  final String? lastDailyPrizeDate;
+  final String? lastWeeklyPrizeDate;
+  final String? lastMonthlyPrizeMonth;
+  final String? lastChallengeCheckDate;
+  final List<WeeklyPrize> weeklyPrizes;
+
+  const PrizeLedger({
     this.lastDailyPrizeDate,
+    this.lastWeeklyPrizeDate,
     this.lastMonthlyPrizeMonth,
+    this.lastChallengeCheckDate,
+    this.weeklyPrizes = const [],
+  });
+
+  PrizeLedger copyWith({
+    String? lastDailyPrizeDate,
+    String? lastWeeklyPrizeDate,
+    String? lastMonthlyPrizeMonth,
+    String? lastChallengeCheckDate,
+    List<WeeklyPrize>? weeklyPrizes,
+  }) =>
+      PrizeLedger(
+        lastDailyPrizeDate: lastDailyPrizeDate ?? this.lastDailyPrizeDate,
+        lastWeeklyPrizeDate: lastWeeklyPrizeDate ?? this.lastWeeklyPrizeDate,
+        lastMonthlyPrizeMonth:
+            lastMonthlyPrizeMonth ?? this.lastMonthlyPrizeMonth,
+        lastChallengeCheckDate:
+            lastChallengeCheckDate ?? this.lastChallengeCheckDate,
+        weeklyPrizes: weeklyPrizes ?? this.weeklyPrizes,
+      );
+}
+
+/// Cross-tier profile grouped by the systems that own each persisted field.
+/// Its JSON representation remains the original flat 23-key map.
+class PlayerProfile {
+  final ActivityStreak activity;
+  final Progression progression;
+  final CosmeticsInventory cosmetics;
+  final PlayerSettings settings;
+  final Wallet wallet;
+  final Rivalry rivalry;
+  final PrizeLedger prizes;
+
+  const PlayerProfile({
+    this.activity = const ActivityStreak(),
+    this.progression = const Progression(),
+    this.cosmetics = const CosmeticsInventory(),
+    this.settings = const PlayerSettings(),
+    this.wallet = const Wallet(),
+    this.rivalry = const Rivalry(),
+    this.prizes = const PrizeLedger(),
   });
 
   static const empty = PlayerProfile();
 
   PlayerProfile copyWith({
-    int? dailyActiveStreak,
-    String? lastActiveDate,
-    Set<String>? unlockedAchievements,
-    String? selectedCosmetic,
-    Set<String>? adUnlockedCosmetics,
-    bool? notificationsEnabled,
-    int? reminderMinutes,
-    Map<String, int>? bestRankByDifficulty,
-    int? coins,
-    String? lastLootClaimDate,
-    Set<String>? purchasedCosmetics,
-    int? lifetimeXp,
-    Map<String, int>? almanacCounts,
-    String? rivalId,
-    bool clearRival = false,
-    String? rivalName,
-    Map<String, int>? lastSeenRivalScoreByTier,
-    bool? tutorialSeen,
-    bool? colorblindMode,
-    String? lastWeeklyPrizeDate,
-    bool clearLastWeeklyPrizeDate = false,
-    List<WeeklyPrize>? weeklyPrizes,
-    String? lastChallengeCheckDate,
-    bool clearLastChallengeCheckDate = false,
-    String? lastDailyPrizeDate,
-    bool clearLastDailyPrizeDate = false,
-    String? lastMonthlyPrizeMonth,
-    bool clearLastMonthlyPrizeMonth = false,
+    ActivityStreak? activity,
+    Progression? progression,
+    CosmeticsInventory? cosmetics,
+    PlayerSettings? settings,
+    Wallet? wallet,
+    Rivalry? rivalry,
+    PrizeLedger? prizes,
   }) =>
       PlayerProfile(
-        dailyActiveStreak: dailyActiveStreak ?? this.dailyActiveStreak,
-        lastActiveDate: lastActiveDate ?? this.lastActiveDate,
-        unlockedAchievements: unlockedAchievements ?? this.unlockedAchievements,
-        selectedCosmetic: selectedCosmetic ?? this.selectedCosmetic,
-        adUnlockedCosmetics: adUnlockedCosmetics ?? this.adUnlockedCosmetics,
-        notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
-        reminderMinutes: reminderMinutes ?? this.reminderMinutes,
-        bestRankByDifficulty:
-            bestRankByDifficulty ?? this.bestRankByDifficulty,
-        coins: coins ?? this.coins,
-        lastLootClaimDate: lastLootClaimDate ?? this.lastLootClaimDate,
-        purchasedCosmetics: purchasedCosmetics ?? this.purchasedCosmetics,
-        lifetimeXp: lifetimeXp ?? this.lifetimeXp,
-        almanacCounts: almanacCounts ?? this.almanacCounts,
-        // [clearRival] wins so a rival can be explicitly removed (set to null).
-        rivalId: clearRival ? null : (rivalId ?? this.rivalId),
-        rivalName: clearRival ? null : (rivalName ?? this.rivalName),
-        lastSeenRivalScoreByTier:
-            lastSeenRivalScoreByTier ?? this.lastSeenRivalScoreByTier,
-        tutorialSeen: tutorialSeen ?? this.tutorialSeen,
-        colorblindMode: colorblindMode ?? this.colorblindMode,
-        lastWeeklyPrizeDate: clearLastWeeklyPrizeDate
-            ? null
-            : (lastWeeklyPrizeDate ?? this.lastWeeklyPrizeDate),
-        weeklyPrizes: weeklyPrizes ?? this.weeklyPrizes,
-        lastChallengeCheckDate: clearLastChallengeCheckDate
-            ? null
-            : (lastChallengeCheckDate ?? this.lastChallengeCheckDate),
-        lastDailyPrizeDate: clearLastDailyPrizeDate
-            ? null
-            : (lastDailyPrizeDate ?? this.lastDailyPrizeDate),
-        lastMonthlyPrizeMonth: clearLastMonthlyPrizeMonth
-            ? null
-            : (lastMonthlyPrizeMonth ?? this.lastMonthlyPrizeMonth),
+        activity: activity ?? this.activity,
+        progression: progression ?? this.progression,
+        cosmetics: cosmetics ?? this.cosmetics,
+        settings: settings ?? this.settings,
+        wallet: wallet ?? this.wallet,
+        rivalry: rivalry ?? this.rivalry,
+        prizes: prizes ?? this.prizes,
       );
 
+  /// Adds [awardCoins] and stamps [date], including for a zero award.
+  /// Guard checks, persistence, and emission remain the caller's responsibility.
+  PlayerProfile awardDailyPrize(
+    String date, {
+    required int awardCoins,
+  }) =>
+      copyWith(
+        wallet: wallet.copyWith(coins: wallet.coins + awardCoins),
+        prizes: prizes.copyWith(lastDailyPrizeDate: date),
+      );
+
+  /// Adds [awardCoins], appends [crowns], and stamps [weekFrom].
+  /// Guard checks, persistence, and emission remain the caller's responsibility.
+  PlayerProfile awardWeeklyPrize(
+    String weekFrom, {
+    required int awardCoins,
+    required List<WeeklyPrize> crowns,
+  }) =>
+      copyWith(
+        wallet: wallet.copyWith(coins: wallet.coins + awardCoins),
+        prizes: prizes.copyWith(
+          lastWeeklyPrizeDate: weekFrom,
+          weeklyPrizes: [...prizes.weeklyPrizes, ...crowns],
+        ),
+      );
+
+  /// Adds [awardCoins] and stamps [monthKey], including for a zero award.
+  /// Guard checks, persistence, and emission remain the caller's responsibility.
+  PlayerProfile awardMonthlyPrize(
+    String monthKey, {
+    required int awardCoins,
+  }) =>
+      copyWith(
+        wallet: wallet.copyWith(coins: wallet.coins + awardCoins),
+        prizes: prizes.copyWith(lastMonthlyPrizeMonth: monthKey),
+      );
+
+  /// Adds [awardCoins] and stamps [date], including for a zero award.
+  /// Guard checks, persistence, and emission remain the caller's responsibility.
+  PlayerProfile awardChallengeCheck(
+    String date, {
+    required int awardCoins,
+  }) =>
+      copyWith(
+        wallet: wallet.copyWith(coins: wallet.coins + awardCoins),
+        prizes: prizes.copyWith(lastChallengeCheckDate: date),
+      );
+
+  PlayerProfile advanceActivity({
+    required int streak,
+    required String date,
+    required Set<String> achievements,
+    required int lifetimeXp,
+    required Map<String, int> almanacCounts,
+  }) =>
+      copyWith(
+        activity: activity.copyWith(
+          dailyActiveStreak: streak,
+          lastActiveDate: date,
+        ),
+        progression: progression.copyWith(
+          unlockedAchievements: achievements,
+          lifetimeXp: lifetimeXp,
+          almanacCounts: almanacCounts,
+        ),
+      );
+
+  /// Records a caller-validated purchase by debiting and unioning its name.
+  /// Unlock-kind, idempotency, and funds checks stay in EngagementCubit.
+  PlayerProfile recordPurchase(
+    String cosmeticName, {
+    required int price,
+  }) =>
+      copyWith(
+        wallet: wallet.copyWith(coins: wallet.coins - price),
+        cosmetics: cosmetics.copyWith(
+          purchasedCosmetics: {
+            ...cosmetics.purchasedCosmetics,
+            cosmeticName,
+          },
+        ),
+      );
+
+  PlayerProfile grantAdCosmetic(String name) => copyWith(
+        cosmetics: cosmetics.copyWith(
+          adUnlockedCosmetics: {...cosmetics.adUnlockedCosmetics, name},
+        ),
+      );
+
+  PlayerProfile selectCosmetic(String name) => copyWith(
+        cosmetics: cosmetics.copyWith(selectedCosmetic: name),
+      );
+
+  PlayerProfile claimLoot(
+    String date, {
+    required int awardCoins,
+  }) =>
+      copyWith(
+        wallet: wallet.copyWith(
+          coins: wallet.coins + awardCoins,
+          lastLootClaimDate: date,
+        ),
+      );
+
+  PlayerProfile creditCoins(int delta) => copyWith(
+        wallet: wallet.copyWith(
+          coins: wallet.coins + delta < 0 ? 0 : wallet.coins + delta,
+        ),
+      );
+
+  PlayerProfile setRival(String id, String name) => copyWith(
+        rivalry: Rivalry(rivalId: id, rivalName: name),
+      );
+
+  PlayerProfile clearRival() => copyWith(rivalry: const Rivalry());
+
   Map<String, dynamic> toJson() => {
-        'dailyActiveStreak': dailyActiveStreak,
-        'lastActiveDate': lastActiveDate,
-        'unlockedAchievements': unlockedAchievements.toList(),
-        'selectedCosmetic': selectedCosmetic,
-        'adUnlockedCosmetics': adUnlockedCosmetics.toList(),
-        'notificationsEnabled': notificationsEnabled,
-        'reminderMinutes': reminderMinutes,
-        'bestRankByDifficulty': bestRankByDifficulty,
-        'coins': coins,
-        'lastLootClaimDate': lastLootClaimDate,
-        'purchasedCosmetics': purchasedCosmetics.toList(),
-        'lifetimeXp': lifetimeXp,
-        'almanacCounts': almanacCounts,
-        'rivalId': rivalId,
-        'rivalName': rivalName,
-        'lastSeenRivalScoreByTier': lastSeenRivalScoreByTier,
-        'tutorialSeen': tutorialSeen,
-        'colorblindMode': colorblindMode,
-        'lastWeeklyPrizeDate': lastWeeklyPrizeDate,
-        'weeklyPrizes': weeklyPrizes.map((p) => p.toJson()).toList(),
-        'lastChallengeCheckDate': lastChallengeCheckDate,
-        'lastDailyPrizeDate': lastDailyPrizeDate,
-        'lastMonthlyPrizeMonth': lastMonthlyPrizeMonth,
+        'dailyActiveStreak': activity.dailyActiveStreak,
+        'lastActiveDate': activity.lastActiveDate,
+        'unlockedAchievements': progression.unlockedAchievements.toList(),
+        'selectedCosmetic': cosmetics.selectedCosmetic,
+        'adUnlockedCosmetics': cosmetics.adUnlockedCosmetics.toList(),
+        'notificationsEnabled': settings.notificationsEnabled,
+        'reminderMinutes': settings.reminderMinutes,
+        'bestRankByDifficulty': progression.bestRankByDifficulty,
+        'coins': wallet.coins,
+        'lastLootClaimDate': wallet.lastLootClaimDate,
+        'purchasedCosmetics': cosmetics.purchasedCosmetics.toList(),
+        'lifetimeXp': progression.lifetimeXp,
+        'almanacCounts': progression.almanacCounts,
+        'rivalId': rivalry.rivalId,
+        'rivalName': rivalry.rivalName,
+        'lastSeenRivalScoreByTier': rivalry.lastSeenRivalScoreByTier,
+        'tutorialSeen': settings.tutorialSeen,
+        'colorblindMode': settings.colorblindMode,
+        'lastWeeklyPrizeDate': prizes.lastWeeklyPrizeDate,
+        'weeklyPrizes': prizes.weeklyPrizes.map((p) => p.toJson()).toList(),
+        'lastChallengeCheckDate': prizes.lastChallengeCheckDate,
+        'lastDailyPrizeDate': prizes.lastDailyPrizeDate,
+        'lastMonthlyPrizeMonth': prizes.lastMonthlyPrizeMonth,
       };
 
   static PlayerProfile fromJson(Map<String, dynamic> j) => PlayerProfile(
-        dailyActiveStreak: (j['dailyActiveStreak'] as int?) ?? 0,
-        lastActiveDate: j['lastActiveDate'] as String?,
-        unlockedAchievements:
-            ((j['unlockedAchievements'] as List?) ?? const [])
-                .map((e) => e as String)
-                .toSet(),
-        selectedCosmetic: (j['selectedCosmetic'] as String?) ?? 'classic',
-        adUnlockedCosmetics: ((j['adUnlockedCosmetics'] as List?) ?? const [])
-            .map((e) => e as String)
-            .toSet(),
-        notificationsEnabled: (j['notificationsEnabled'] as bool?) ?? false,
-        reminderMinutes: (j['reminderMinutes'] as int?) ?? 19 * 60,
-        bestRankByDifficulty: ((j['bestRankByDifficulty'] as Map?) ?? const {})
-            .map((k, v) => MapEntry(k as String, (v as num).toInt())),
-        coins: (j['coins'] as int?) ?? 0,
-        lastLootClaimDate: j['lastLootClaimDate'] as String?,
-        purchasedCosmetics: ((j['purchasedCosmetics'] as List?) ?? const [])
-            .map((e) => e as String)
-            .toSet(),
-        lifetimeXp: (j['lifetimeXp'] as int?) ?? 0,
-        almanacCounts: ((j['almanacCounts'] as Map?) ?? const {})
-            .map((k, v) => MapEntry(k as String, (v as num).toInt())),
-        rivalId: j['rivalId'] as String?,
-        rivalName: j['rivalName'] as String?,
-        lastSeenRivalScoreByTier:
-            ((j['lastSeenRivalScoreByTier'] as Map?) ?? const {})
-                .map((k, v) => MapEntry(k as String, (v as num).toInt())),
-        tutorialSeen: (j['tutorialSeen'] as bool?) ?? false,
-        colorblindMode: (j['colorblindMode'] as bool?) ?? false,
-        lastWeeklyPrizeDate: j['lastWeeklyPrizeDate'] as String?,
-        weeklyPrizes: ((j['weeklyPrizes'] as List?) ?? const [])
-            .map((e) => WeeklyPrize.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList(),
-        lastChallengeCheckDate: j['lastChallengeCheckDate'] as String?,
-        lastDailyPrizeDate: j['lastDailyPrizeDate'] as String?,
-        lastMonthlyPrizeMonth: j['lastMonthlyPrizeMonth'] as String?,
+        activity: ActivityStreak(
+          dailyActiveStreak: (j['dailyActiveStreak'] as int?) ?? 0,
+          lastActiveDate: j['lastActiveDate'] as String?,
+        ),
+        progression: Progression(
+          unlockedAchievements:
+              ((j['unlockedAchievements'] as List?) ?? const [])
+                  .map((e) => e as String)
+                  .toSet(),
+          bestRankByDifficulty:
+              ((j['bestRankByDifficulty'] as Map?) ?? const {})
+                  .map((k, v) => MapEntry(k as String, (v as num).toInt())),
+          lifetimeXp: (j['lifetimeXp'] as int?) ?? 0,
+          almanacCounts: ((j['almanacCounts'] as Map?) ?? const {})
+              .map((k, v) => MapEntry(k as String, (v as num).toInt())),
+        ),
+        cosmetics: CosmeticsInventory(
+          selectedCosmetic: (j['selectedCosmetic'] as String?) ?? 'classic',
+          adUnlockedCosmetics: ((j['adUnlockedCosmetics'] as List?) ?? const [])
+              .map((e) => e as String)
+              .toSet(),
+          purchasedCosmetics: ((j['purchasedCosmetics'] as List?) ?? const [])
+              .map((e) => e as String)
+              .toSet(),
+        ),
+        settings: PlayerSettings(
+          notificationsEnabled: (j['notificationsEnabled'] as bool?) ?? false,
+          reminderMinutes: (j['reminderMinutes'] as int?) ?? 19 * 60,
+          tutorialSeen: (j['tutorialSeen'] as bool?) ?? false,
+          colorblindMode: (j['colorblindMode'] as bool?) ?? false,
+        ),
+        wallet: Wallet(
+          coins: (j['coins'] as int?) ?? 0,
+          lastLootClaimDate: j['lastLootClaimDate'] as String?,
+        ),
+        rivalry: Rivalry(
+          rivalId: j['rivalId'] as String?,
+          rivalName: j['rivalName'] as String?,
+          lastSeenRivalScoreByTier:
+              ((j['lastSeenRivalScoreByTier'] as Map?) ?? const {})
+                  .map((k, v) => MapEntry(k as String, (v as num).toInt())),
+        ),
+        prizes: PrizeLedger(
+          lastWeeklyPrizeDate: j['lastWeeklyPrizeDate'] as String?,
+          weeklyPrizes: ((j['weeklyPrizes'] as List?) ?? const [])
+              .map((e) =>
+                  WeeklyPrize.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList(),
+          lastChallengeCheckDate: j['lastChallengeCheckDate'] as String?,
+          lastDailyPrizeDate: j['lastDailyPrizeDate'] as String?,
+          lastMonthlyPrizeMonth: j['lastMonthlyPrizeMonth'] as String?,
+        ),
       );
 }
 
@@ -436,9 +590,8 @@ class InMemoryStorageService implements StorageService {
 
   @override
   Future<int> addCoins(int delta) async {
-    final next = (_profile.coins + delta) < 0 ? 0 : _profile.coins + delta;
-    _profile = _profile.copyWith(coins: next);
-    return next;
+    _profile = _profile.creditCoins(delta);
+    return _profile.wallet.coins;
   }
 
   @override
