@@ -44,8 +44,9 @@ class GameSnapshot {
 /// Lifetime, cross-day stats for a single difficulty tier. Streaks/best are
 /// independent per tier (a Hard streak does not affect an Easy streak).
 ///
-/// [streakFreezeTokens] (Phase 4) shield this tier's streak from a single missed
-/// UTC day; capped at [kMaxStreakFreezeTokens] to prevent infinite shielding.
+/// [streakFreezeTokens] (Phase 4) are banked per tier but consumed exclusively
+/// to shield the headline streak; per-tier streaks never consume one. Capped at
+/// [kMaxStreakFreezeTokens] to prevent infinite shielding.
 class LifetimeStats {
   final int streak;
   final String? lastCompletedDate;

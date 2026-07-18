@@ -23,6 +23,9 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - run: flutter test test/domain/date_utils_test.dart test/presentation/leaderboard_period_range_test.dart test/application/game_cubit_test.dart
+        env:
+          TZ: Africa/Cairo
 
   deno:
     name: Deno

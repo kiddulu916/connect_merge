@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../domain/date_utils.dart'
+    show formatDate, mondayOfWeek, parseUtcDate, previousUtcDay, utcToday;
 import '../domain/engine/almanac_progress.dart';
 import '../domain/models/achievement.dart';
 import '../domain/models/almanac.dart';
@@ -7,10 +9,9 @@ import '../domain/models/cosmetic.dart';
 import '../domain/models/difficulty.dart';
 import '../domain/models/leaderboard_entry.dart';
 import '../domain/models/player_level.dart';
-import '../domain/models/streak.dart';
+import '../domain/models/streak.dart' show nextStreak;
 import '../domain/models/weekly_prize.dart';
 import '../infrastructure/storage_service.dart';
-import 'game_cubit.dart' show formatDate, utcToday;
 
 /// Immutable view of the player's retention state for the UI.
 class EngagementState {
@@ -465,15 +466,11 @@ class EngagementCubit extends Cubit<EngagementState> {
 
   /// Returns the Monday of the ISO week that contains [today].
   /// Monday=1 through Sunday=7 in Dart's weekday numbering.
-  static String _thisWeekMonday(String today) {
-    final d = _parseUtcDate(today);
-    final daysSinceMonday = (d.weekday - 1) % 7;
-    return formatDate(DateTime.utc(d.year, d.month, d.day - daysSinceMonday));
-  }
+  static String _thisWeekMonday(String today) => mondayOfWeek(today);
 
   /// Returns the Sunday that is 6 days after [monday].
   static String _weekSunday(String monday) {
-    final m = _parseUtcDate(monday);
+    final m = parseUtcDate(monday);
     return formatDate(DateTime.utc(m.year, m.month, m.day + 6));
   }
 
@@ -482,13 +479,8 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// once the period has fully closed, so the full week's data is available.
   static String _prevWeekMonday(String today) {
     final thisMonday = _thisWeekMonday(today);
-    final d = _parseUtcDate(thisMonday);
+    final d = parseUtcDate(thisMonday);
     return formatDate(DateTime.utc(d.year, d.month, d.day - 7));
-  }
-
-  static DateTime _parseUtcDate(String date) {
-    final parts = date.split('-').map(int.parse).toList();
-    return DateTime.utc(parts[0], parts[1], parts[2]);
   }
 
   /// Check if the player placed top-3 in last week's leaderboard for any tier.
@@ -556,7 +548,7 @@ class EngagementCubit extends Cubit<EngagementState> {
 
   /// `YYYY-MM` for the calendar month BEFORE [today].
   static String _lastMonthKey(String today) {
-    final d = _parseUtcDate(today);
+    final d = parseUtcDate(today);
     final prev = DateTime.utc(d.year, d.month - 1, 1);
     return '${prev.year.toString().padLeft(4, '0')}-${prev.month.toString().padLeft(2, '0')}';
   }
