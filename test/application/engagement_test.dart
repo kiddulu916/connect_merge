@@ -1,13 +1,90 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'dart:async';
+
 import 'package:connect_merge/application/engagement_cubit.dart';
 import 'package:connect_merge/domain/models/achievement.dart';
 import 'package:connect_merge/domain/models/cosmetic.dart';
 import 'package:connect_merge/domain/models/difficulty.dart';
+import 'package:connect_merge/domain/models/leaderboard_entry.dart';
 import 'package:connect_merge/domain/models/streak.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+class _DelayedDailySaveStorage extends InMemoryStorageService {
+  final dailySaveStarted = Completer<void>();
+  final releaseDailySave = Completer<void>();
+  var _delayed = false;
+
+  @override
+  Future<void> saveProfile(PlayerProfile profile) async {
+    if (!_delayed && profile.lastDailyPrizeDate != null) {
+      _delayed = true;
+      dailySaveStarted.complete();
+      await releaseDailySave.future;
+    }
+    await super.saveProfile(profile);
+  }
+}
+
+class _ThrowBeforeWriteStorage extends InMemoryStorageService {
+  bool failBeforeWrite = true;
+
+  @override
+  Future<void> saveProfile(PlayerProfile profile) async {
+    if (failBeforeWrite) throw StateError('save failed before write');
+    await super.saveProfile(profile);
+  }
+}
+
+class _WriteThenThrowStorage extends InMemoryStorageService {
+  bool throwAfterWrite = true;
+
+  @override
+  Future<void> saveProfile(PlayerProfile profile) async {
+    await super.saveProfile(profile);
+    if (throwAfterWrite) {
+      throwAfterWrite = false;
+      throw StateError('save failed after write');
+    }
+  }
+}
+
+Future<List<LeaderboardEntry>> _rankOneDaily({
+  required Difficulty difficulty,
+  required String date,
+}) async =>
+    const [
+      LeaderboardEntry(
+        rank: 1,
+        displayName: 'Me',
+        score: 1000,
+        isMe: true,
+      ),
+    ];
+
+Future<List<LeaderboardEntry>> _rankOnePeriod({
+  required Difficulty difficulty,
+  required String from,
+  required String to,
+}) async =>
+    const [
+      LeaderboardEntry(
+        rank: 1,
+        displayName: 'Me',
+        score: 1000,
+        isMe: true,
+      ),
+    ];
 
 void main() {
   group('nextStreak (pure)', () {
+    test('previousUtcDay crosses a year boundary', () {
+      expect(previousUtcDay('2026-01-01'), '2025-12-31');
+    });
+
+    test('previousUtcDay returns leap day', () {
+      expect(previousUtcDay('2024-03-01'), '2024-02-29');
+    });
+
     test('last == yesterday -> +1, no freeze consumed', () {
       final r = nextStreak(
           prev: 3, last: '2026-06-06', today: '2026-06-07', hasFreeze: false);
@@ -94,7 +171,8 @@ void main() {
       expect(c.state.freezeTokens, 0);
     });
 
-    test('a genuine gap with NO freeze token fires streak_broken with the pre-reset length',
+    test(
+        'a genuine gap with NO freeze token fires streak_broken with the pre-reset length',
         () async {
       await storage.saveProfile(const PlayerProfile(
           dailyActiveStreak: 8, lastActiveDate: '2026-06-01'));
@@ -251,6 +329,111 @@ void main() {
       for (final d in Difficulty.values) {
         expect(storage.loadStats(d).streakFreezeTokens, 1);
       }
+    });
+  });
+
+  group('prize commit serialization and failures', () {
+    test('concurrent checks retain every guard payout and crown', () async {
+      final storage = _DelayedDailySaveStorage();
+      final cubit = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-24',
+      )..load();
+      addTearDown(cubit.close);
+
+      final daily = cubit.checkDailyPrizes(_rankOneDaily);
+      final weekly = cubit.checkWeeklyPrizes(_rankOnePeriod);
+      final monthly = cubit.checkMonthlyPrizes(_rankOnePeriod);
+      final challenge = cubit.checkChallengePayouts(_rankOneDaily);
+
+      await storage.dailySaveStarted.future;
+      await Future<void>.delayed(Duration.zero);
+      storage.releaseDailySave.complete();
+      await Future.wait([daily, weekly, monthly, challenge]);
+
+      final profile = storage.loadProfile();
+      expect(profile.lastDailyPrizeDate, '2026-06-23');
+      expect(profile.lastWeeklyPrizeDate, '2026-06-15');
+      expect(profile.lastMonthlyPrizeMonth, '2026-05');
+      expect(profile.lastChallengeCheckDate, '2026-06-23');
+      expect(profile.coins, 2700);
+      expect(profile.weeklyPrizes, hasLength(4));
+      expect(cubit.state.coins, 2700);
+      expect(cubit.state.weeklyPrizes, hasLength(4));
+    });
+
+    test('pre-write failure reports without emit and does not poison retries',
+        () async {
+      final storage = _ThrowBeforeWriteStorage();
+      final errors = <Object>[];
+      final cubit = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-24',
+        onError: (error, stack, {fatal = false}) => errors.add(error),
+      )..load();
+      addTearDown(cubit.close);
+      final emitted = <EngagementState>[];
+      final subscription = cubit.stream.listen(emitted.add);
+      addTearDown(subscription.cancel);
+
+      await cubit.checkDailyPrizes(_rankOneDaily);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(errors, hasLength(1));
+      expect(storage.loadProfile().lastDailyPrizeDate, isNull);
+      expect(storage.loadProfile().coins, 0);
+      expect(emitted, isEmpty);
+
+      storage.failBeforeWrite = false;
+      await cubit.checkWeeklyPrizes(_rankOnePeriod);
+      await cubit.checkDailyPrizes(_rankOneDaily);
+
+      expect(storage.loadProfile().lastWeeklyPrizeDate, '2026-06-15');
+      expect(storage.loadProfile().lastDailyPrizeDate, '2026-06-23');
+      expect(storage.loadProfile().coins, 550);
+      expect(cubit.state.coins, 550);
+    });
+
+    test('write-then-throw reconciles crowns and retry cannot pay twice',
+        () async {
+      final storage = _WriteThenThrowStorage();
+      final errors = <Object>[];
+      final cubit = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-24',
+        onError: (error, stack, {fatal = false}) => errors.add(error),
+      )..load();
+      addTearDown(cubit.close);
+      final emitted = <EngagementState>[];
+      final subscription = cubit.stream.listen(emitted.add);
+      addTearDown(subscription.cancel);
+      var fetches = 0;
+      Future<List<LeaderboardEntry>> fetch({
+        required Difficulty difficulty,
+        required String from,
+        required String to,
+      }) {
+        fetches++;
+        return _rankOnePeriod(difficulty: difficulty, from: from, to: to);
+      }
+
+      await cubit.checkWeeklyPrizes(fetch);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(errors, hasLength(1));
+      expect(storage.loadProfile().lastWeeklyPrizeDate, '2026-06-15');
+      expect(storage.loadProfile().coins, 500);
+      expect(storage.loadProfile().weeklyPrizes, hasLength(4));
+      expect(cubit.state.coins, 500);
+      expect(cubit.state.weeklyPrizes, hasLength(4));
+      expect(emitted, hasLength(1));
+
+      await cubit.checkWeeklyPrizes(fetch);
+
+      expect(fetches, 4);
+      expect(storage.loadProfile().coins, 500);
+      expect(storage.loadProfile().weeklyPrizes, hasLength(4));
+      expect(emitted, hasLength(1));
     });
   });
 }

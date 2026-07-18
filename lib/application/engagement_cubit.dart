@@ -131,6 +131,8 @@ class EngagementCubit extends Cubit<EngagementState> {
   final void Function(String name, [Map<String, Object?>? params])?
       onAnalyticsEvent;
 
+  Future<void> _prizeCommit = Future.value();
+
   EngagementCubit({
     required this.storage,
     String Function()? todayProvider,
@@ -336,6 +338,86 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// Big monthly top-3 coin rewards.
   static const _monthlyCoins = {1: 2000, 2: 1000, 3: 500};
 
+  static int _dailyCoinsFor(int rank) => _dailyCoins[rank] ?? 0;
+
+  static int _weeklyCoinsFor(int rank) => _weeklyCoins[rank] ?? 0;
+
+  static int _monthlyCoinsFor(int rank) => _monthlyCoins[rank] ?? 0;
+
+  static int _challengeCoinsFor(int rank) {
+    if (rank < 1) return 0;
+    if (rank == 1) return 150;
+    if (rank <= 3) return 100;
+    if (rank <= 10) return 50;
+    return 0;
+  }
+
+  Future<Map<Difficulty, int>?> _myRankByTier(
+    List<Difficulty> tiers,
+    Future<List<LeaderboardEntry>> Function(Difficulty) fetch,
+  ) async {
+    final ranks = <Difficulty, int>{};
+    for (final tier in tiers) {
+      try {
+        final entries = await fetch(tier);
+        final myEntry = entries.where((entry) => entry.isMe).firstOrNull;
+        if (myEntry != null) ranks[tier] = myEntry.rank;
+      } catch (error, stack) {
+        _onError?.call(error, stack);
+        return null;
+      }
+    }
+    return ranks;
+  }
+
+  static int? _bestQualifyingRank(
+    Map<Difficulty, int> ranks,
+    int Function(int) coinsForRank,
+  ) {
+    int? best;
+    for (final rank in ranks.values) {
+      if (coinsForRank(rank) > 0 && (best == null || rank < best)) {
+        best = rank;
+      }
+    }
+    return best;
+  }
+
+  static bool _sameWeeklyPrizes(
+    List<WeeklyPrize> left,
+    List<WeeklyPrize> right,
+  ) {
+    if (left.length != right.length) return false;
+    for (var i = 0; i < left.length; i++) {
+      final a = left[i];
+      final b = right[i];
+      if (a.weekStart != b.weekStart || a.tier != b.tier || a.rank != b.rank) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<void> _serializedPrizeCommit(Future<void> Function() body) {
+    final commit = _prizeCommit.then((_) async {
+      try {
+        await body();
+      } catch (error, stack) {
+        _onError?.call(error, stack);
+        final persisted = storage.loadProfile();
+        if (persisted.coins != state.coins ||
+            !_sameWeeklyPrizes(persisted.weeklyPrizes, state.weeklyPrizes)) {
+          emit(state.copyWith(
+            coins: persisted.coins,
+            weeklyPrizes: persisted.weeklyPrizes,
+          ));
+        }
+      }
+    });
+    _prizeCommit = commit;
+    return commit;
+  }
+
   // ---------------------------------------------------------------------------
   // Daily prize helpers
   // ---------------------------------------------------------------------------
@@ -349,37 +431,33 @@ class EngagementCubit extends Cubit<EngagementState> {
       required String date,
     }) fetchFn,
   ) async {
-    final today = todayProvider();
-    final yesterday = previousUtcDay(today);
+    final yesterday = previousUtcDay(todayProvider());
+    final guard = storage.loadProfile().lastDailyPrizeDate;
+    if (guard != null && guard.compareTo(yesterday) >= 0) return;
 
-    final profile = storage.loadProfile();
-    if (profile.lastDailyPrizeDate == yesterday) return;
-
-    int? bestRank;
-    for (final difficulty in Difficulty.values) {
-      if (difficulty == Difficulty.challenge) continue;
-      try {
-        final entries = await fetchFn(difficulty: difficulty, date: yesterday);
-        final myEntry = entries.where((e) => e.isMe).firstOrNull;
-        if (myEntry == null) continue;
-        if (_dailyCoins.containsKey(myEntry.rank)) {
-          if (bestRank == null || myEntry.rank < bestRank) {
-            bestRank = myEntry.rank;
-          }
-        }
-      } catch (e, st) {
-        _onError?.call(e, st);
-        return; // network failure: skip; retry on next app open
-      }
-    }
-
-    final coins = bestRank != null ? (_dailyCoins[bestRank] ?? 0) : 0;
-    final updatedProfile = profile.copyWith(
-      lastDailyPrizeDate: yesterday,
-      coins: profile.coins + coins,
+    final ranks = await _myRankByTier(
+      Difficulty.values
+          .where((difficulty) => difficulty != Difficulty.challenge)
+          .toList(),
+      (difficulty) => fetchFn(difficulty: difficulty, date: yesterday),
     );
-    await storage.saveProfile(updatedProfile);
-    if (coins > 0) emit(state.copyWith(coins: updatedProfile.coins));
+    if (ranks == null) return;
+
+    await _serializedPrizeCommit(() async {
+      final profile = storage.loadProfile();
+      final storedGuard = profile.lastDailyPrizeDate;
+      if (storedGuard != null && storedGuard.compareTo(yesterday) >= 0) return;
+      final bestRank = _bestQualifyingRank(ranks, _dailyCoinsFor);
+      final coins = bestRank == null ? 0 : _dailyCoinsFor(bestRank);
+      final updated = profile.copyWith(
+        lastDailyPrizeDate: yesterday,
+        coins: profile.coins + coins,
+      );
+      await storage.saveProfile(updated);
+      if (updated.coins != state.coins) {
+        emit(state.copyWith(coins: updated.coins));
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -389,16 +467,15 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// Returns the Monday of the ISO week that contains [today].
   /// Monday=1 through Sunday=7 in Dart's weekday numbering.
   static String _thisWeekMonday(String today) {
-    final d = DateTime.parse(today);
+    final d = _parseUtcDate(today);
     final daysSinceMonday = (d.weekday - 1) % 7;
-    final monday = d.subtract(Duration(days: daysSinceMonday));
-    return monday.toIso8601String().substring(0, 10);
+    return formatDate(DateTime.utc(d.year, d.month, d.day - daysSinceMonday));
   }
 
   /// Returns the Sunday that is 6 days after [monday].
   static String _weekSunday(String monday) {
-    final m = DateTime.parse(monday);
-    return m.add(const Duration(days: 6)).toIso8601String().substring(0, 10);
+    final m = _parseUtcDate(monday);
+    return formatDate(DateTime.utc(m.year, m.month, m.day + 6));
   }
 
   /// Returns the Monday of the most recently COMPLETED ISO week (Mon–Sun that
@@ -406,9 +483,13 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// once the period has fully closed, so the full week's data is available.
   static String _prevWeekMonday(String today) {
     final thisMonday = _thisWeekMonday(today);
-    final d = DateTime.parse(thisMonday);
-    // DateTime.utc handles month/year rollover correctly (e.g. Jun-1 - 7 = May 25).
+    final d = _parseUtcDate(thisMonday);
     return formatDate(DateTime.utc(d.year, d.month, d.day - 7));
+  }
+
+  static DateTime _parseUtcDate(String date) {
+    final parts = date.split('-').map(int.parse).toList();
+    return DateTime.utc(parts[0], parts[1], parts[2]);
   }
 
   /// Check if the player placed top-3 in last week's leaderboard for any tier.
@@ -423,57 +504,50 @@ class EngagementCubit extends Cubit<EngagementState> {
       required String to,
     }) fetchPeriod,
   ) async {
-    final today = todayProvider();
-    final weekFrom = _prevWeekMonday(today); // previous week's Monday
-    final weekTo = _weekSunday(weekFrom);    // previous week's Sunday
+    final weekFrom = _prevWeekMonday(todayProvider());
+    final weekTo = _weekSunday(weekFrom);
+    final guard = storage.loadProfile().lastWeeklyPrizeDate;
+    if (guard != null && guard.compareTo(weekFrom) >= 0) return;
 
-    final profile = storage.loadProfile();
-    if (profile.lastWeeklyPrizeDate == weekFrom) return;
-
-    int? bestRank; // best (lowest) rank across all non-challenge tiers
-    final newCrowns = <WeeklyPrize>[];
-
-    for (final difficulty in Difficulty.values) {
-      if (difficulty == Difficulty.challenge) continue; // challenge has its own payout
-      try {
-        final entries = await fetchPeriod(
-          difficulty: difficulty,
-          from: weekFrom,
-          to: weekTo,
-        );
-        final myEntry = entries.where((e) => e.isMe).firstOrNull;
-        if (myEntry == null) continue;
-        if (_weeklyCoins.containsKey(myEntry.rank)) {
-          // Track best rank (lower = better)
-          if (bestRank == null || myEntry.rank < bestRank) {
-            bestRank = myEntry.rank;
-          }
-          newCrowns.add(WeeklyPrize(
-            weekStart: weekFrom,
-            tier: difficulty,
-            rank: myEntry.rank,
-          ));
-        }
-      } catch (e, st) {
-        _onError?.call(e, st);
-        // Network failure: skip this tier, try on next launch.
-      }
-    }
-
-    // Award coins once for the best rank achieved across all tiers last week.
-    final totalCoins = bestRank != null ? (_weeklyCoins[bestRank] ?? 0) : 0;
-
-    final updatedProfile = profile.copyWith(
-      lastWeeklyPrizeDate: weekFrom,
-      weeklyPrizes: [...profile.weeklyPrizes, ...newCrowns],
-      coins: profile.coins + totalCoins,
+    final ranks = await _myRankByTier(
+      Difficulty.values
+          .where((difficulty) => difficulty != Difficulty.challenge)
+          .toList(),
+      (difficulty) => fetchPeriod(
+        difficulty: difficulty,
+        from: weekFrom,
+        to: weekTo,
+      ),
     );
-    await storage.saveProfile(updatedProfile);
+    if (ranks == null) return;
 
-    emit(state.copyWith(
-      coins: updatedProfile.coins,
-      weeklyPrizes: updatedProfile.weeklyPrizes,
-    ));
+    await _serializedPrizeCommit(() async {
+      final profile = storage.loadProfile();
+      final storedGuard = profile.lastWeeklyPrizeDate;
+      if (storedGuard != null && storedGuard.compareTo(weekFrom) >= 0) return;
+      final bestRank = _bestQualifyingRank(ranks, _weeklyCoinsFor);
+      final coins = bestRank == null ? 0 : _weeklyCoinsFor(bestRank);
+      final crowns = ranks.entries
+          .where((entry) => _weeklyCoinsFor(entry.value) > 0)
+          .map((entry) => WeeklyPrize(
+                weekStart: weekFrom,
+                tier: entry.key,
+                rank: entry.value,
+              ));
+      final updated = profile.copyWith(
+        lastWeeklyPrizeDate: weekFrom,
+        weeklyPrizes: [...profile.weeklyPrizes, ...crowns],
+        coins: profile.coins + coins,
+      );
+      await storage.saveProfile(updated);
+      if (updated.coins != state.coins ||
+          !_sameWeeklyPrizes(updated.weeklyPrizes, state.weeklyPrizes)) {
+        emit(state.copyWith(
+          coins: updated.coins,
+          weeklyPrizes: updated.weeklyPrizes,
+        ));
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -482,7 +556,7 @@ class EngagementCubit extends Cubit<EngagementState> {
 
   /// `YYYY-MM` for the calendar month BEFORE [today].
   static String _lastMonthKey(String today) {
-    final d = DateTime.parse(today);
+    final d = _parseUtcDate(today);
     final prev = DateTime.utc(d.year, d.month - 1, 1);
     return '${prev.year.toString().padLeft(4, '0')}-${prev.month.toString().padLeft(2, '0')}';
   }
@@ -507,53 +581,40 @@ class EngagementCubit extends Cubit<EngagementState> {
       required String to,
     }) fetchPeriod,
   ) async {
-    final today = todayProvider();
-    final monthKey = _lastMonthKey(today);
-
-    final profile = storage.loadProfile();
-    if (profile.lastMonthlyPrizeMonth == monthKey) return;
-
+    final monthKey = _lastMonthKey(todayProvider());
     final from = _firstOfMonth(monthKey);
     final to = _lastOfMonth(monthKey);
+    final guard = storage.loadProfile().lastMonthlyPrizeMonth;
+    if (guard != null && guard.compareTo(monthKey) >= 0) return;
 
-    int? bestRank;
-    for (final difficulty in Difficulty.values) {
-      if (difficulty == Difficulty.challenge) continue;
-      try {
-        final entries =
-            await fetchPeriod(difficulty: difficulty, from: from, to: to);
-        final myEntry = entries.where((e) => e.isMe).firstOrNull;
-        if (myEntry == null) continue;
-        if (_monthlyCoins.containsKey(myEntry.rank)) {
-          if (bestRank == null || myEntry.rank < bestRank) {
-            bestRank = myEntry.rank;
-          }
-        }
-      } catch (e, st) {
-        _onError?.call(e, st);
-        return;
-      }
-    }
-
-    final coins = bestRank != null ? (_monthlyCoins[bestRank] ?? 0) : 0;
-    final updatedProfile = profile.copyWith(
-      lastMonthlyPrizeMonth: monthKey,
-      coins: profile.coins + coins,
+    final ranks = await _myRankByTier(
+      Difficulty.values
+          .where((difficulty) => difficulty != Difficulty.challenge)
+          .toList(),
+      (difficulty) => fetchPeriod(difficulty: difficulty, from: from, to: to),
     );
-    await storage.saveProfile(updatedProfile);
-    if (coins > 0) emit(state.copyWith(coins: updatedProfile.coins));
+    if (ranks == null) return;
+
+    await _serializedPrizeCommit(() async {
+      final profile = storage.loadProfile();
+      final storedGuard = profile.lastMonthlyPrizeMonth;
+      if (storedGuard != null && storedGuard.compareTo(monthKey) >= 0) return;
+      final bestRank = _bestQualifyingRank(ranks, _monthlyCoinsFor);
+      final coins = bestRank == null ? 0 : _monthlyCoinsFor(bestRank);
+      final updated = profile.copyWith(
+        lastMonthlyPrizeMonth: monthKey,
+        coins: profile.coins + coins,
+      );
+      await storage.saveProfile(updated);
+      if (updated.coins != state.coins) {
+        emit(state.copyWith(coins: updated.coins));
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
   // Challenge payout helpers
   // ---------------------------------------------------------------------------
-
-  static int _challengeCoinForRank(int rank) {
-    if (rank == 1) return 150;
-    if (rank <= 3) return 100;
-    if (rank <= 10) return 50;
-    return 0;
-  }
 
   /// Check if the player placed top-10 in yesterday's challenge leaderboard.
   /// [fetchFn] matches [LeaderboardService.fetch]'s signature.
@@ -563,34 +624,31 @@ class EngagementCubit extends Cubit<EngagementState> {
       required String date,
     }) fetchFn,
   ) async {
-    final today = todayProvider();
-    final yesterday = previousUtcDay(today);
+    final yesterday = previousUtcDay(todayProvider());
+    final guard = storage.loadProfile().lastChallengeCheckDate;
+    if (guard != null && guard.compareTo(yesterday) >= 0) return;
 
-    final profile = storage.loadProfile();
-    if (profile.lastChallengeCheckDate == yesterday) return; // already checked
-
-    int coins = 0;
-    try {
-      final entries = await fetchFn(
-        difficulty: Difficulty.challenge,
-        date: yesterday,
-      );
-      final myEntry = entries.where((e) => e.isMe).firstOrNull;
-      if (myEntry != null) {
-        coins = _challengeCoinForRank(myEntry.rank);
-      }
-    } catch (e, st) {
-      _onError?.call(e, st);
-      return; // network failure: skip; retry on next app open
-    }
-
-    final updatedProfile = profile.copyWith(
-      lastChallengeCheckDate: yesterday,
-      coins: profile.coins + coins,
+    final ranks = await _myRankByTier(
+      const [Difficulty.challenge],
+      (difficulty) => fetchFn(difficulty: difficulty, date: yesterday),
     );
-    await storage.saveProfile(updatedProfile);
+    if (ranks == null) return;
 
-    emit(state.copyWith(coins: updatedProfile.coins));
+    await _serializedPrizeCommit(() async {
+      final profile = storage.loadProfile();
+      final storedGuard = profile.lastChallengeCheckDate;
+      if (storedGuard != null && storedGuard.compareTo(yesterday) >= 0) return;
+      final bestRank = _bestQualifyingRank(ranks, _challengeCoinsFor);
+      final coins = bestRank == null ? 0 : _challengeCoinsFor(bestRank);
+      final updated = profile.copyWith(
+        lastChallengeCheckDate: yesterday,
+        coins: profile.coins + coins,
+      );
+      await storage.saveProfile(updated);
+      if (updated.coins != state.coins) {
+        emit(state.copyWith(coins: updated.coins));
+      }
+    });
   }
 
   /// Grant a streak-freeze token (e.g. from a rewarded ad). Banked on every tier

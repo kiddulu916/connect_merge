@@ -24,8 +24,10 @@ class StreakResult {
 
 /// The UTC day before [date] (YYYY-MM-DD), via the same canonical helper used
 /// everywhere else (avoids local/UTC off-by-one).
-String previousUtcDay(String date) =>
-    formatDate(DateTime.parse(date).subtract(const Duration(days: 1)));
+String previousUtcDay(String date) {
+  final parts = date.split('-').map(int.parse).toList();
+  return formatDate(DateTime.utc(parts[0], parts[1], parts[2] - 1));
+}
 
 /// Pure streak transition.
 ///

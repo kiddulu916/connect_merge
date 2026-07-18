@@ -1,8 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:connect_merge/application/engagement_cubit.dart';
 import 'package:connect_merge/domain/models/difficulty.dart';
 import 'package:connect_merge/domain/models/leaderboard_entry.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 LeaderboardEntry _entry(int rank, bool isMe) =>
     LeaderboardEntry(rank: rank, displayName: 'P', score: 100, isMe: isMe);
@@ -27,40 +27,78 @@ void main() {
       ];
 
   test('rank 1 grants 150 coins', () async {
-    await cubit.checkChallengePayouts(
-        ({required Difficulty difficulty, required String date}) =>
-            fakeFetch(1));
+    await cubit.checkChallengePayouts((
+            {required Difficulty difficulty, required String date}) =>
+        fakeFetch(1));
     expect(cubit.state.coins, equals(150));
   });
 
+  test('rank 0 grants nothing', () async {
+    await cubit.checkChallengePayouts((
+            {required Difficulty difficulty, required String date}) =>
+        fakeFetch(0));
+    expect(cubit.state.coins, equals(0));
+  });
+
   test('rank 2 grants 100 coins', () async {
-    await cubit.checkChallengePayouts(
-        ({required Difficulty difficulty, required String date}) =>
-            fakeFetch(2));
+    await cubit.checkChallengePayouts((
+            {required Difficulty difficulty, required String date}) =>
+        fakeFetch(2));
     expect(cubit.state.coins, equals(100));
   });
 
   test('rank 10 grants 50 coins', () async {
-    await cubit.checkChallengePayouts(
-        ({required Difficulty difficulty, required String date}) =>
-            fakeFetch(10));
+    await cubit.checkChallengePayouts((
+            {required Difficulty difficulty, required String date}) =>
+        fakeFetch(10));
     expect(cubit.state.coins, equals(50));
   });
 
   test('rank 11 grants nothing', () async {
-    await cubit.checkChallengePayouts(
-        ({required Difficulty difficulty, required String date}) =>
-            fakeFetch(11));
+    await cubit.checkChallengePayouts((
+            {required Difficulty difficulty, required String date}) =>
+        fakeFetch(11));
     expect(cubit.state.coins, equals(0));
   });
 
+  test('rank 11 stamps guard without emitting', () async {
+    final emitted = <EngagementState>[];
+    final subscription = cubit.stream.listen(emitted.add);
+
+    await cubit.checkChallengePayouts((
+            {required Difficulty difficulty, required String date}) =>
+        fakeFetch(11));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(storage.loadProfile().lastChallengeCheckDate, '2026-06-22');
+    expect(emitted, isEmpty);
+    await subscription.cancel();
+  });
+
+  test('fetches the challenge tier for yesterday', () async {
+    Difficulty? capturedDifficulty;
+    String? capturedDate;
+
+    await cubit.checkChallengePayouts(({
+      required Difficulty difficulty,
+      required String date,
+    }) async {
+      capturedDifficulty = difficulty;
+      capturedDate = date;
+      return fakeFetch(11);
+    });
+
+    expect(capturedDifficulty, Difficulty.challenge);
+    expect(capturedDate, '2026-06-22');
+  });
+
   test('second call same day is a no-op', () async {
-    await cubit.checkChallengePayouts(
-        ({required Difficulty difficulty, required String date}) =>
-            fakeFetch(1));
-    await cubit.checkChallengePayouts(
-        ({required Difficulty difficulty, required String date}) =>
-            fakeFetch(1));
+    await cubit.checkChallengePayouts((
+            {required Difficulty difficulty, required String date}) =>
+        fakeFetch(1));
+    await cubit.checkChallengePayouts((
+            {required Difficulty difficulty, required String date}) =>
+        fakeFetch(1));
     expect(cubit.state.coins, equals(150)); // not 300
   });
 }
