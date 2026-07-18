@@ -20,9 +20,10 @@ List<(int, int)?> _cellKeys(BoardState b) => b.cells.map(_cellKey).toList();
 
 /// Replays a final [moveLog] against the regenerated `(date,difficulty)` board
 /// the EXACT way the Phase 2 Supabase edge function does (see
-/// supabase/functions/_shared/engine.ts `verifyRun`): merge → drop → evaluate,
-/// per event. Returns the reconstructed terminal board so a test can assert the
-/// persisted moveLog reproduces the persisted board after any undo sequence.
+/// supabase/functions/_shared/engine.ts `verifyRun`): collapse → refill →
+/// evaluate, per chain event. Returns the reconstructed terminal board so a
+/// test can assert the persisted moveLog reproduces the persisted board after
+/// any undo sequence.
 BoardState replay(String date, Difficulty difficulty, List<MoveEvent> log) {
   final seeder = DailySeeder(date, difficulty);
   final start = seeder.generate();
@@ -31,16 +32,18 @@ BoardState replay(String date, Difficulty difficulty, List<MoveEvent> log) {
   var board = start.board;
 
   for (final ev in log) {
-    if (ev is MergeEvent) {
-      // Mirror the server: must be playing + legal.
+    if (ev is ChainEvent) {
       expect(board.status, GameStatus.playing,
-          reason: 'replay hit a non-playing merge — moveLog drifted');
-      expect(GameEngine.canMerge(board, ev.from, ev.to), isTrue,
-          reason: 'replay hit an illegal merge — moveLog drifted');
-      board = GameEngine.merge(board, fromIndex: ev.from, toIndex: ev.to);
-      // Apply one drop unconditionally, mirroring the cubit's new on-demand stream.
-      board = GameEngine.applyDrop(
-          board, seeder.dropTierAt(dropPrng, board.dropIndex), landing);
+          reason: 'replay hit a non-playing chain — moveLog drifted');
+      expect(GameEngine.isValidChain(board, ev.path), isTrue,
+          reason: 'replay hit an invalid chain — moveLog drifted');
+      board = GameEngine.collapseChain(board, ev.path);
+      board = GameEngine.refill(
+        board,
+        targetFill: difficulty.startingFill,
+        tierAt: (i) => seeder.dropTierAt(dropPrng, i),
+        landing: landing,
+      );
       board = GameEngine.evaluateStatus(board);
     } else if (ev is ContinueEvent) {
       board = board.copyWith(
@@ -53,38 +56,34 @@ BoardState replay(String date, Difficulty difficulty, List<MoveEvent> log) {
   return board;
 }
 
-/// Finds two distinct, mergeable cells whose tier is below the cap.
-(int, int) _findMergePair(BoardState b) {
-  final byTier = <int, int>{};
+/// Finds an oriented, orthogonally-adjacent 2-cell chain. When [avoid] is
+/// supplied, skips that undirected pair so undo tests can replay differently.
+List<int> _findChain(BoardState b, {List<int>? avoid}) {
   for (var i = 0; i < b.cells.length; i++) {
-    final t = b.cells[i];
-    if (t == null || t.tier >= kMaxTier) continue;
-    if (byTier.containsKey(t.tier)) return (byTier[t.tier]!, i);
-    byTier[t.tier] = i;
-  }
-  throw StateError('seeded board unexpectedly has no merge pair');
-}
-
-/// Finds a SECOND, different mergeable pair (disjoint from [avoid]) so the test
-/// can "re-merge differently" after an undo.
-(int, int)? _findOtherMergePair(BoardState b, (int, int) avoid) {
-  final byTier = <int, List<int>>{};
-  for (var i = 0; i < b.cells.length; i++) {
-    final t = b.cells[i];
-    if (t == null || t.tier >= kMaxTier) continue;
-    byTier.putIfAbsent(t.tier, () => []).add(i);
-  }
-  for (final cells in byTier.values) {
-    for (var x = 0; x < cells.length; x++) {
-      for (var y = x + 1; y < cells.length; y++) {
-        final pair = (cells[x], cells[y]);
-        if (pair != avoid && (pair.$1, pair.$2) != (avoid.$2, avoid.$1)) {
-          return pair;
+    final col = i % b.gridSize;
+    final row = i ~/ b.gridSize;
+    for (final neighbor in [
+      if (col + 1 < b.gridSize) i + 1,
+      if (row + 1 < b.gridSize) i + b.gridSize,
+    ]) {
+      if (avoid != null &&
+          avoid.length == 2 &&
+          avoid.contains(i) &&
+          avoid.contains(neighbor)) {
+        continue;
+      }
+      for (final path in [
+        [i, neighbor],
+        [neighbor, i],
+      ]) {
+        if (GameEngine.isValidChain(b, path)) {
+          expect(GameEngine.isValidChain(b, path), isTrue);
+          return path;
         }
       }
     }
   }
-  return null;
+  throw StateError('seeded board unexpectedly has no valid adjacent chain');
 }
 
 void main() {
@@ -94,32 +93,8 @@ void main() {
   setUp(() => storage = InMemoryStorageService());
 
   group('UNDO INVARIANT: run stays replay-consistent', () {
-    test('undo rewinds board, dropIndex, and moveLog together', () async {
-      const date = '2026-06-01';
-      const diff = Difficulty.medium;
-      final c = make(date);
-      await c.init(difficulty: diff);
-
-      final before = (c.state as GamePlaying).board;
-      final pair = _findMergePair(before);
-      await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
-
-      final merged = (c.state as GamePlaying).board;
-      expect(merged.dropIndex, before.dropIndex + 1);
-      expect(merged.moveLog.length, before.moveLog.length + 1);
-
-      await c.undo();
-      final restored = (c.state as GamePlaying).board;
-
-      // Board is byte-for-byte the pre-merge board (cells, score, dropIndex,
-      // moveLog all rewound together).
-      expect(restored.toJson(), before.toJson());
-      expect(restored.moveLog, before.moveLog);
-      expect(restored.dropIndex, before.dropIndex);
-    });
-
     test(
-        'merge → undo → re-merge-differently: final moveLog replays to the '
+        'chain → undo → re-chain-differently: final moveLog replays to the '
         'final board (no PRNG desync)', () async {
       const date = '2026-06-09';
       const diff = Difficulty.easy;
@@ -127,55 +102,51 @@ void main() {
       await c.init(difficulty: diff);
 
       final start = (c.state as GamePlaying).board;
-      final firstPair = _findMergePair(start);
-      final otherPair = _findOtherMergePair(start, firstPair);
-      expect(otherPair, isNotNull,
-          reason: 'need a second distinct pair to re-merge differently');
+      final firstPath = _findChain(start);
+      final otherPath = _findChain(start, avoid: firstPath);
 
-      // Merge one way...
-      await c.merge(fromIndex: firstPair.$1, toIndex: firstPair.$2);
+      // Play one way...
+      await c.playChain(firstPath);
       // ...undo it...
       await c.undo();
       expect((c.state as GamePlaying).board.toJson(), start.toJson());
-      // ...then merge a DIFFERENT pair.
-      await c.merge(fromIndex: otherPair!.$1, toIndex: otherPair.$2);
+      // ...then play a DIFFERENT path.
+      await c.playChain(otherPath);
 
       final finalBoard = (c.state as GamePlaying).board;
 
       // THE CRITICAL ASSERTION: the persisted moveLog replays (server-style)
       // to EXACTLY the persisted board. A landing-PRNG desync after undo would
-      // place the post-merge drop in a different cell and break this.
+      // place a post-chain refill tile in a different cell and break this.
       final replayed = replay(date, diff, finalBoard.moveLog);
       expect(_cellKeys(replayed), _cellKeys(finalBoard));
       expect(replayed.score, finalBoard.score);
       expect(replayed.dropIndex, finalBoard.dropIndex);
       expect(replayed.highestTier, finalBoard.highestTier);
 
-      // The move log holds exactly the single (re-)merge — the undone one is
+      // The move log holds exactly the single re-played chain — the undone one is
       // gone, so the persisted log equals the real board history.
-      expect(finalBoard.moveLog,
-          [MergeEvent(from: otherPair.$1, to: otherPair.$2)]);
+      expect(finalBoard.moveLog, [ChainEvent(path: otherPath)]);
     });
 
-    test('multiple merges then multiple undos all stay replay-consistent',
+    test('multiple chains then multiple undos all stay replay-consistent',
         () async {
       const date = '2026-06-10';
       const diff = Difficulty.medium;
       final c = make(date);
       await c.init(difficulty: diff);
 
-      // Make three merges.
+      // Play three chains.
       for (var i = 0; i < 3; i++) {
         final b = (c.state as GamePlaying).board;
-        final pair = _findMergePair(b);
-        await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
+        await c.playChain(_findChain(b));
       }
       // Undo two of them (depth is bounded at kUndoStackDepth >= 3).
       await c.undoAfterReward();
       await c.undoAfterReward();
 
       final board = (c.state as GamePlaying).board;
-      expect(board.moveLog.length, 1, reason: 'two of three merges undone');
+      expect(board.moveLog.length, 1, reason: 'two of three chains undone');
 
       final replayed = replay(date, diff, board.moveLog);
       expect(_cellKeys(replayed), _cellKeys(board));
@@ -185,8 +156,8 @@ void main() {
   });
 
   group('UNDO refunds golden coins (no farming)', () {
-    /// Resume a board with two golden tier-2 tiles in cells 0/1 so a single
-    /// merge credits a golden bonus without ending the day.
+    /// Resume a board with two golden tier-2 tiles in cells 0/1 so a 2-chain
+    /// credits a golden bonus without ending the day.
     Future<GameCubit> goldenCubit(String date, Difficulty diff,
         Future<void> Function(int delta) onCoins) async {
       final base = DailySeeder(date, diff).generate().board;
@@ -205,7 +176,7 @@ void main() {
     }
 
     test(
-        'golden merge credits N, undo refunds N (wallet net 0), re-merge '
+        'golden chain credits N, undo refunds N (wallet net 0), re-play '
         'credits once', () async {
       const date = '2026-06-06';
       const diff = Difficulty.medium;
@@ -213,11 +184,15 @@ void main() {
       Future<void> onCoins(int delta) => storage.addCoins(delta);
       final c = await goldenCubit(date, diff, onCoins);
 
-      final n = 2 * kGoldenMergeBonus; // two golden tiles consumed
+      final board = (c.state as GamePlaying).board;
+      final path = [0, 1];
+      expect(GameEngine.isValidChain(board, path), isTrue);
+      final n =
+          path.where((i) => board.cells[i]!.golden).length * kGoldenMergeBonus;
       expect(storage.loadProfile().wallet.coins, 0);
 
-      // Merge the two golden tiles -> wallet credited N, run tally N.
-      await c.merge(fromIndex: 0, toIndex: 1);
+      // Play the two golden tiles -> wallet credited N, run tally N.
+      await c.playChain(path);
       expect(c.coinsEarnedThisRun, n);
       expect(storage.loadProfile().wallet.coins, n);
 
@@ -227,11 +202,11 @@ void main() {
       expect(storage.loadProfile().wallet.coins, 0,
           reason: 'undo must refund the golden coins (no farming)');
 
-      // Re-merge the SAME golden tiles -> credits exactly once more, not twice.
-      await c.merge(fromIndex: 0, toIndex: 1);
+      // Re-play the SAME golden tiles -> credits exactly once more, not twice.
+      await c.playChain(path);
       expect(c.coinsEarnedThisRun, n);
       expect(storage.loadProfile().wallet.coins, n,
-          reason: 'merge→undo→re-merge nets a single credit, never farmed');
+          reason: 'play→undo→re-play nets a single credit, never farmed');
     });
   });
 
@@ -311,25 +286,17 @@ void main() {
     await cubit.init(difficulty: Difficulty.easy);
     final before = (cubit.state as GamePlaying).board;
 
-    int? from, to;
-    for (var i = 0; i < kCellCount && from == null; i++) {
-      final t = before.cells[i];
-      if (t == null || t.tier >= kMaxTier) continue;
-      for (final n in [i + 1, i + kGridSize]) {
-        if (n >= kCellCount) continue;
-        if (n == i + 1 && (i % kGridSize) == kGridSize - 1) continue;
-        final u = before.cells[n];
-        if (u != null && u.tier == t.tier) {
-          from = i;
-          to = n;
-          break;
-        }
-      }
-    }
-    await cubit.playChain([from!, to!]);
+    final path = _findChain(before);
+    await cubit.playChain(path);
+    final played = (cubit.state as GamePlaying).board;
+    final replayed = replay('2026-06-20', Difficulty.easy, played.moveLog);
+    expect(_cellKeys(replayed), _cellKeys(played));
+    expect(replayed.score, played.score);
+    expect(replayed.dropIndex, played.dropIndex);
     expect(cubit.canUndo, isTrue);
     await cubit.undo();
     final restored = (cubit.state as GamePlaying).board;
+    expect(restored.toJson(), before.toJson());
     expect(restored.score, before.score);
     expect(restored.movesRemaining, before.movesRemaining);
     expect(restored.dropIndex, before.dropIndex);
@@ -338,16 +305,15 @@ void main() {
   group('UNDO gating + bounds', () {
     test('free undo cap: exactly kFreeUndosPerDay free undos, then no-op',
         () async {
-      // Date chosen to give enough merges with the on-demand drop-tier stream.
+      // Date chosen to give enough chains with the on-demand drop-tier stream.
       const date = '2026-07-02';
       final c = make(date);
       await c.init(difficulty: Difficulty.medium);
 
-      // Build a stack with several merges so frames exist beyond the free cap.
+      // Build a stack with several chains so frames exist beyond the free cap.
       for (var i = 0; i < kFreeUndosPerDay + 2; i++) {
         final b = (c.state as GamePlaying).board;
-        final pair = _findMergePair(b);
-        await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
+        await c.playChain(_findChain(b));
       }
 
       var freeUndos = 0;
@@ -367,15 +333,14 @@ void main() {
     });
 
     test('rewarded undo grants exactly one extra past the free cap', () async {
-      // Date chosen to give enough merges with the on-demand drop-tier stream.
+      // Date chosen to give enough chains with the on-demand drop-tier stream.
       const date = '2026-07-02';
       final c = make(date);
       await c.init(difficulty: Difficulty.medium);
 
       for (var i = 0; i < kFreeUndosPerDay + 1; i++) {
         final b = (c.state as GamePlaying).board;
-        final pair = _findMergePair(b);
-        await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
+        await c.playChain(_findChain(b));
       }
       // Spend the free undo(s).
       while (c.canUndoFree) {
@@ -400,16 +365,15 @@ void main() {
     });
 
     test('undo stack is bounded at kUndoStackDepth', () async {
-      // Date chosen to give enough merges with the on-demand drop-tier stream.
+      // Date chosen to give enough chains with the on-demand drop-tier stream.
       const date = '2026-07-02';
       final c = make(date);
       await c.init(difficulty: Difficulty.medium);
 
-      // Make more merges than the stack depth.
+      // Make more chains than the stack depth.
       for (var i = 0; i < kUndoStackDepth + 3; i++) {
         final b = (c.state as GamePlaying).board;
-        final pair = _findMergePair(b);
-        await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
+        await c.playChain(_findChain(b));
       }
       // Only kUndoStackDepth frames are rewindable (oldest dropped).
       var undos = 0;
@@ -424,7 +388,7 @@ void main() {
         () async {
       const date = '2026-06-06';
       const diff = Difficulty.medium;
-      // Resume a near-complete board (1 move left), merge once to lock the day.
+      // Resume a near-complete board (1 move left), play once to lock the day.
       final start = const DailySeeder(date, diff).generate().board;
       await storage.saveSnapshot(GameSnapshot(
           date: date,
@@ -434,11 +398,10 @@ void main() {
       final c = make(date);
       await c.init(difficulty: diff);
       final b = (c.state as GamePlaying).board;
-      final pair = _findMergePair(b);
-      await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
+      await c.playChain(_findChain(b));
 
       expect(c.state, isA<GameOverShowScore>());
-      // No undo once locked, even though a merge just happened.
+      // No undo once locked, even though a chain just happened.
       expect(c.canUndo, isFalse);
       await c.undo();
       await c.undoAfterReward();

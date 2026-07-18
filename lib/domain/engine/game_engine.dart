@@ -14,33 +14,16 @@ class GameEngine {
   static bool canFollow(int prevTier, int nextTier) =>
       nextTier >= prevTier && nextTier <= prevTier + 1;
 
-  /// A legal merge: both cells hold tiles, distinct cells, and [toIndex]'s
-  /// tier is either equal to or exactly one higher than [fromIndex]'s tier
-  /// (same-tier merge, or ascend-by-1 into the destination), below the cap.
+  /// Legacy pair predicate retained only for the golden-vector rejection-
+  /// sentinel generator. Live chain validation uses [canFollow] directly.
+  /// Both cells must hold tiles, be distinct, and ascend by at most one tier
+  /// into a destination below the cap.
   static bool canMerge(BoardState s, int fromIndex, int toIndex) {
     if (fromIndex == toIndex) return false;
     final from = s.cells[fromIndex];
     final to = s.cells[toIndex];
     if (from == null || to == null) return false;
     return canFollow(from.tier, to.tier) && to.tier < kMaxTier;
-  }
-
-  /// Fuse [fromIndex] into [toIndex]: destination becomes tier+1 (keeping its
-  /// id for animation continuity), source empties, score += 2^newTier, one move
-  /// is spent, movesMade increments.
-  static BoardState merge(BoardState s,
-      {required int fromIndex, required int toIndex}) {
-    final to = s.cells[toIndex]!;
-    final newTier = to.tier + 1;
-    final cells = List<Tile?>.of(s.cells);
-    cells[toIndex] = Tile(id: to.id, tier: newTier);
-    cells[fromIndex] = null;
-    return s.copyWith(
-      cells: cells,
-      score: s.score + (1 << newTier),
-      movesRemaining: s.movesRemaining - 1,
-      movesMade: s.movesMade + 1,
-    );
   }
 
   /// Drop a tile of [tier] into a deterministically-chosen empty cell. The
@@ -105,20 +88,6 @@ class GameEngine {
     return board;
   }
 
-  /// Coins to credit when the merge of [fromIndex] into [toIndex] consumes one
-  /// or more golden tiles. Pure and read-only — it inspects [before] (the board
-  /// PRIOR to the merge) and returns a bonus; it NEVER mutates state or touches
-  /// `score`. The cubit applies this to the client-side wallet, keeping the
-  /// engine side-effect-free and replay fairness intact.
-  static int goldenBonusFor(BoardState before, int fromIndex, int toIndex) {
-    var golden = 0;
-    final from = before.cells[fromIndex];
-    final to = before.cells[toIndex];
-    if (from != null && from.golden) golden++;
-    if (to != null && to.golden) golden++;
-    return golden * kGoldenMergeBonus;
-  }
-
   /// True if any two orthogonally-adjacent live tiles could legally merge in
   /// SOME direction (a legal Connect-Merge of length 2): their tiers differ by
   /// at most one, and the higher of the two is below the cap. Position matters:
@@ -145,7 +114,7 @@ class GameEngine {
 
   /// True if two adjacent tiles could legally merge in SOME direction: their
   /// tiers differ by at most one, and the higher of the two is below the cap
-  /// (the higher tile is always the destination, per [canMerge]/[isValidChain]).
+  /// (a valid direction always runs from the lower tile to the higher tile).
   static bool _pairMergeable(int aTier, int bTier) {
     final lower = aTier < bTier ? aTier : bTier;
     final higher = aTier > bTier ? aTier : bTier;
@@ -212,8 +181,8 @@ class GameEngine {
   /// the endpoint becomes tier+1 (keeping its id for animation continuity), all
   /// other path cells empty, score gains the combo total PLUS an
   /// [ascendBonus] for every ascend transition in the path, one move is spent.
-  /// Caller must have checked [isValidChain]. Mirrors [merge]: no drop, no log
-  /// (the cubit applies the refill and records the [ChainEvent]).
+  /// Caller must have checked [isValidChain]. This performs no refill and
+  /// records no log (the cubit applies the refill and records the [ChainEvent]).
   ///
   /// [comboMultiplierFn] overrides the default [comboMultiplier] for challenge
   /// rules (e.g. [comboRushMultiplier] for the Combo Rush rule).

@@ -27,7 +27,8 @@ sealed class MoveEvent {
   }
 }
 
-/// An accepted merge: tile at cell [from] fused into the tile at cell [to].
+/// Legacy, server-rejected merge event — retained for log-format compatibility
+/// and the rejection sentinel.
 class MergeEvent extends MoveEvent {
   static const type = 'merge';
 

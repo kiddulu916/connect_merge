@@ -34,11 +34,13 @@ void main() {
   test('different tiers start with their own tile counts', () async {
     final easy = make('2026-06-06');
     await easy.init(difficulty: Difficulty.easy);
-    expect((easy.state as GamePlaying).board.filledCount, Difficulty.easy.startingFill);
+    expect((easy.state as GamePlaying).board.filledCount,
+        Difficulty.easy.startingFill);
 
     final legendary = make('2026-06-06');
     await legendary.init(difficulty: Difficulty.legendary);
-    expect((legendary.state as GamePlaying).board.filledCount, Difficulty.legendary.startingFill);
+    expect((legendary.state as GamePlaying).board.filledCount,
+        Difficulty.legendary.startingFill);
   });
 
   test('uses the UTC date provider by default', () {
@@ -46,7 +48,8 @@ void main() {
     expect(c.todayProvider(), formatDate(DateTime.now().toUtc()));
   });
 
-  test('completing a tier blocks a second run that day but leaves other tiers playable',
+  test(
+      'completing a tier blocks a second run that day but leaves other tiers playable',
       () async {
     final seeded = const DailySeeder('2026-06-06', Difficulty.hard)
         .generate()
@@ -81,19 +84,18 @@ void main() {
     expect(storage.loadStats(Difficulty.easy).streak, 2);
   });
 
-  test('onAnalyticsEvent fires run_completed exactly once with the terminal board\'s stats',
+  test(
+      'onAnalyticsEvent fires run_completed exactly once with the terminal board\'s stats',
       () async {
     final events = <MapEntry<String, Map<String, Object?>?>>[];
     await _completeTier(
       storage,
       '2026-06-06',
       Difficulty.easy,
-      onAnalyticsEvent: (name, [params]) =>
-          events.add(MapEntry(name, params)),
+      onAnalyticsEvent: (name, [params]) => events.add(MapEntry(name, params)),
     );
 
-    final runCompleted =
-        events.where((e) => e.key == 'run_completed').toList();
+    final runCompleted = events.where((e) => e.key == 'run_completed').toList();
     expect(runCompleted, hasLength(1));
     final params = runCompleted.single.value!;
     expect(params['difficulty'], 'easy');
@@ -111,8 +113,8 @@ void main() {
     const tier = Difficulty.easy;
 
     // Phase 1: drive to a genuine, continue-eligible out-of-moves state. For
-    // this fixed seed, a single merge from a movesRemaining:1 snapshot ends
-    // the run with a merge still available on the board (this is the exact
+    // this fixed seed, a single chain from a movesRemaining:1 snapshot ends
+    // the run with a chain still available on the board (this is the exact
     // construction that made the sibling "fires exactly once" test above
     // regress under the run_completed-gating fix, before _completeTier was
     // hardened with adContinuesUsed) — so canOfferAd is deterministically
@@ -125,12 +127,11 @@ void main() {
     final c = GameCubit(
       storage: storage,
       todayProvider: () => date,
-      onAnalyticsEvent: (name, [params]) =>
-          events.add(MapEntry(name, params)),
+      onAnalyticsEvent: (name, [params]) => events.add(MapEntry(name, params)),
     );
     await c.init(difficulty: tier);
-    final pair1 = _findMergePair((c.state as GamePlaying).board);
-    await c.merge(fromIndex: pair1.$1, toIndex: pair1.$2);
+    final path1 = _findChain((c.state as GamePlaying).board);
+    await c.playChain(path1);
 
     expect(c.state, isA<GameOverShowScore>());
     final board1 = (c.state as GameOverShowScore).board;
@@ -153,8 +154,8 @@ void main() {
     // continues exhausted) via a resumed snapshot — mirroring how the real
     // app resumes a persisted board, and the same determinism technique used
     // to harden _completeTier. Board topology (cells) is untouched by this
-    // copyWith, so the merge pair available on board1/continuedBoard is still
-    // present for the final merge.
+    // copyWith, so the chain available on board1/continuedBoard is still
+    // present for the final play.
     final finalNear = continuedBoard.copyWith(
       movesRemaining: 1,
       adContinuesUsed: kMaxAdContinuesPerDay,
@@ -163,8 +164,8 @@ void main() {
         date: date, difficulty: tier, board: finalNear, completed: false));
     await c.init(difficulty: tier);
     expect(c.state, isA<GamePlaying>());
-    final pair2 = _findMergePair((c.state as GamePlaying).board);
-    await c.merge(fromIndex: pair2.$1, toIndex: pair2.$2);
+    final path2 = _findChain((c.state as GamePlaying).board);
+    await c.playChain(path2);
 
     expect(c.state, isA<GameOverShowScore>());
     final finalBoard = (c.state as GameOverShowScore).board;
@@ -172,8 +173,7 @@ void main() {
     // first (proving this exercises two distinct completions, not one).
     expect(finalBoard.score, greaterThan(board1.score));
 
-    final runCompleted =
-        events.where((e) => e.key == 'run_completed').toList();
+    final runCompleted = events.where((e) => e.key == 'run_completed').toList();
     expect(runCompleted, hasLength(1));
     final params = runCompleted.single.value!;
     expect(params['score'], finalBoard.score);
@@ -181,7 +181,8 @@ void main() {
     expect(params['moveCount'], finalBoard.movesMade);
   });
 
-  test('per-tier streak_broken fires on a genuine gap, using the pre-reset length',
+  test(
+      'per-tier streak_broken fires on a genuine gap, using the pre-reset length',
       () async {
     await _completeTier(storage, '2026-06-01', Difficulty.easy);
     final events = <MapEntry<String, Map<String, Object?>?>>[];
@@ -189,8 +190,7 @@ void main() {
       storage,
       '2026-06-07', // 6-day gap since 2026-06-01; no freeze support at this layer
       Difficulty.easy,
-      onAnalyticsEvent: (name, [params]) =>
-          events.add(MapEntry(name, params)),
+      onAnalyticsEvent: (name, [params]) => events.add(MapEntry(name, params)),
     );
 
     final broken = events.where((e) => e.key == 'streak_broken').toList();
@@ -230,8 +230,7 @@ void main() {
       storage,
       '2026-06-01',
       Difficulty.easy,
-      onAnalyticsEvent: (name, [params]) =>
-          events.add(MapEntry(name, params)),
+      onAnalyticsEvent: (name, [params]) => events.add(MapEntry(name, params)),
     );
 
     expect(events.where((e) => e.key == 'streak_broken'), isEmpty);
@@ -251,57 +250,40 @@ void main() {
     expect(capturedError, isA<StateError>());
   });
 
-  test('a legal merge updates score, spends a move, triggers a drop, and logs a MergeEvent',
-      () async {
-    final c = make('2026-06-06');
-    await c.init(difficulty: Difficulty.medium);
-    final board = (c.state as GamePlaying).board;
-
-    final pair = _findMergePair(board);
-    await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
-
-    final after = (c.state as GamePlaying).board;
-    expect(after.movesMade, 1);
-    expect(after.movesRemaining, kMovesPerDay - 1);
-    expect(after.dropIndex, 1);
-    expect(after.score, greaterThan(0));
-    expect(after.filledCount, board.filledCount);
-    expect(after.moveLog, [MergeEvent(from: pair.$1, to: pair.$2)]);
-  });
-
-  test('move log records merges then a continue, in order, and survives snapshot json',
+  test(
+      'move log records chains then a continue, in order, and survives snapshot json',
       () async {
     final c = make('2026-06-06');
     await c.init(difficulty: Difficulty.medium);
 
     final expected = <MoveEvent>[];
-    // Drive merge loop by availability: only call _findMergePair when a pair is
-    // known to exist (so it never throws in normal flow).
-    var merges = 0;
-    while (merges < 3) {
+    // Drive the chain loop by availability, so the finder never runs on a
+    // board without a valid path.
+    var chains = 0;
+    while (chains < 3) {
       if (c.state is! GamePlaying) break;
       final board = (c.state as GamePlaying).board;
       if (!GameEngine.hasMergeAvailable(board)) break;
-      final pair = _findMergePair(board);
-      expected.add(MergeEvent(from: pair.$1, to: pair.$2));
-      await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
-      merges++;
+      final path = _findChain(board);
+      expected.add(ChainEvent(path: path));
+      await c.playChain(path);
+      chains++;
     }
-    // Verify at least one merge was recorded.
+    // Verify at least one chain was recorded.
     expect(expected.isNotEmpty, isTrue);
     // Assert moveLog unconditionally — read board from whichever state is current.
-    final boardAfterMerges = c.state is GamePlaying
+    final boardAfterChains = c.state is GamePlaying
         ? (c.state as GamePlaying).board
         : (c.state as GameOverShowScore).board;
-    expect(boardAfterMerges.moveLog, expected);
+    expect(boardAfterChains.moveLog, expected);
 
     // Force an out-of-moves state, then grant an ad continue.
     // The board might be deadlocked or completed; get its current state.
     final board = c.state is GamePlaying
         ? (c.state as GamePlaying).board
         : (c.state as GameOverShowScore).board;
-    final forced = board.copyWith(
-        movesRemaining: 0, status: GameStatus.outOfMoves);
+    final forced =
+        board.copyWith(movesRemaining: 0, status: GameStatus.outOfMoves);
     await storage.saveSnapshot(GameSnapshot(
         date: '2026-06-06',
         difficulty: Difficulty.medium,
@@ -311,11 +293,10 @@ void main() {
     await c2.init(difficulty: Difficulty.medium);
     expect(c2.state, isA<GameOverShowScore>());
 
-    if (c2.canOfferAd) {
-      await c2.grantAdReward();
-      expected.add(const ContinueEvent());
-      expect((c2.state as GamePlaying).board.moveLog, expected);
-    }
+    expect(c2.canOfferAd, isTrue);
+    await c2.grantAdReward();
+    expected.add(const ContinueEvent());
+    expect((c2.state as GamePlaying).board.moveLog, expected);
 
     // Round-trip the move log through snapshot json.
     final log = (c2.state is GamePlaying)
@@ -340,10 +321,10 @@ void main() {
     expect(restored.board.moveLog, log);
   });
 
-  test('grantAdReward adds moves, increments continues, resumes play', () async {
-    final start = const DailySeeder('2026-06-06', Difficulty.medium)
-        .generate()
-        .board;
+  test('grantAdReward adds moves, increments continues, resumes play',
+      () async {
+    final start =
+        const DailySeeder('2026-06-06', Difficulty.medium).generate().board;
     final outOfMoves =
         start.copyWith(movesRemaining: 0, status: GameStatus.outOfMoves);
     await storage.saveSnapshot(GameSnapshot(
@@ -377,9 +358,8 @@ void main() {
     });
 
     test('is a no-op when the result board is not out of moves', () async {
-      final board = const DailySeeder('2026-06-06', Difficulty.medium)
-          .generate()
-          .board;
+      final board =
+          const DailySeeder('2026-06-06', Difficulty.medium).generate().board;
       final c = await _resumeResult(storage, board);
       final before = c.state;
       await c.grantAdReward();
@@ -402,9 +382,8 @@ void main() {
     });
 
     test('is a no-op when no merge is available', () async {
-      final seeded = const DailySeeder('2026-06-06', Difficulty.medium)
-          .generate()
-          .board;
+      final seeded =
+          const DailySeeder('2026-06-06', Difficulty.medium).generate().board;
       final board = seeded.copyWith(
         cells: List<Tile?>.filled(seeded.cells.length, null),
         movesRemaining: 0,
@@ -440,7 +419,7 @@ void main() {
   });
 
   group('golden tiles credit coins (Phase 1)', () {
-    test('merging golden tiles fires onCoinsEarned without changing score',
+    test('playing golden tiles fires onCoinsEarned without changing score',
         () async {
       // Resume a seeded board with two golden, equal-tier tiles in cells 0/1.
       final base =
@@ -463,17 +442,21 @@ void main() {
       await c.init(difficulty: Difficulty.medium);
 
       final before = (c.state as GamePlaying).board;
-      await c.merge(fromIndex: 0, toIndex: 1);
+      final path = [0, 1];
+      expect(GameEngine.isValidChain(before, path), isTrue);
+      final expectedBonus =
+          path.where((i) => before.cells[i]!.golden).length * kGoldenMergeBonus;
+      final expectedScore = GameEngine.collapseChain(before, path).score;
+      await c.playChain(path);
       final after = (c.state as GamePlaying).board;
 
-      // Two golden tiles consumed => bonus credited; score is the merge only.
-      expect(credited, 2 * kGoldenMergeBonus);
-      expect(after.score, before.score + (1 << 3)); // tier 2 -> tier 3
-      // The move log records only the merge (no golden/coin artifacts).
-      expect(after.moveLog.last, const MergeEvent(from: 0, to: 1));
+      // Golden tiles affect economy only; authoritative chain score is unchanged.
+      expect(credited, expectedBonus);
+      expect(after.score, expectedScore);
+      expect(after.moveLog.last, ChainEvent(path: path));
     });
 
-    test('merging non-golden tiles credits nothing', () async {
+    test('playing non-golden tiles credits nothing', () async {
       final base =
           const DailySeeder('2026-06-06', Difficulty.medium).generate().board;
       final cells = List<Tile?>.of(base.cells);
@@ -492,13 +475,16 @@ void main() {
         onCoinsEarned: (delta) async => credited += delta,
       );
       await c.init(difficulty: Difficulty.medium);
-      await c.merge(fromIndex: 0, toIndex: 1);
+      const path = [0, 1];
+      expect(GameEngine.isValidChain((c.state as GamePlaying).board, path),
+          isTrue);
+      await c.playChain(path);
       expect(credited, 0);
     });
   });
 
   group('double coins on completion (Phase 2)', () {
-    /// Resume a board with two golden tier-2 tiles so a single merge credits
+    /// Resume a board with two golden tier-2 tiles so a 2-chain credits
     /// run coins without ending the day; returns the wired cubit + a coin sink.
     Future<(GameCubit, List<int>)> goldenRun() async {
       final base =
@@ -523,7 +509,7 @@ void main() {
 
     test('tracks coins earned this run and doubles them once', () async {
       final (c, credits) = await goldenRun();
-      await c.merge(fromIndex: 0, toIndex: 1);
+      await c.playChain([0, 1]);
 
       final earned = c.coinsEarnedThisRun;
       expect(earned, 2 * kGoldenMergeBonus);
@@ -538,7 +524,7 @@ void main() {
 
     test('doubleRunCoins is idempotent (no triple credit)', () async {
       final (c, _) = await goldenRun();
-      await c.merge(fromIndex: 0, toIndex: 1);
+      await c.playChain([0, 1]);
       final first = await c.doubleRunCoins();
       final second = await c.doubleRunCoins(); // second call is a no-op
       expect(first, greaterThan(0));
@@ -557,29 +543,13 @@ void main() {
   test('playChain collapses a valid 2-path, scores, and tops the board back up',
       () async {
     final storage = InMemoryStorageService();
-    final cubit = GameCubit(storage: storage, todayProvider: () => '2026-06-20');
+    final cubit =
+        GameCubit(storage: storage, todayProvider: () => '2026-06-20');
     await cubit.init(difficulty: Difficulty.easy);
     final before = (cubit.state as GamePlaying).board;
 
-    // Find any orthogonally-adjacent equal-tier pair on the seeded board.
-    int? from, to;
-    for (var i = 0; i < kCellCount && from == null; i++) {
-      final t = before.cells[i];
-      if (t == null || t.tier >= kMaxTier) continue;
-      for (final n in [i + 1, i + kGridSize]) {
-        if (n >= kCellCount) continue;
-        if (n == i + 1 && (i % kGridSize) == kGridSize - 1) continue; // row wrap
-        final u = before.cells[n];
-        if (u != null && u.tier == t.tier) {
-          from = i;
-          to = n;
-          break;
-        }
-      }
-    }
-    expect(from, isNotNull, reason: 'seeded easy board should have a merge');
-
-    await cubit.playChain([from!, to!]);
+    final path = _findChain(before);
+    await cubit.playChain(path);
     final after = (cubit.state as GamePlaying).board;
 
     expect(after.score, greaterThan(before.score));
@@ -591,7 +561,8 @@ void main() {
 
   test('playChain rejects an invalid path (no state change)', () async {
     final storage = InMemoryStorageService();
-    final cubit = GameCubit(storage: storage, todayProvider: () => '2026-06-20');
+    final cubit =
+        GameCubit(storage: storage, todayProvider: () => '2026-06-20');
     await cubit.init(difficulty: Difficulty.easy);
     final before = (cubit.state as GamePlaying).board;
     await cubit.playChain([0, 24]); // not adjacent / likely empty
@@ -602,7 +573,8 @@ void main() {
 
   test('peekDropTiers returns the next tiers without consuming them', () async {
     final storage = InMemoryStorageService();
-    final cubit = GameCubit(storage: storage, todayProvider: () => '2026-06-20');
+    final cubit =
+        GameCubit(storage: storage, todayProvider: () => '2026-06-20');
     await cubit.init(difficulty: Difficulty.easy);
     final a = cubit.peekDropTiers();
     final b = cubit.peekDropTiers();
@@ -610,7 +582,8 @@ void main() {
     expect(a, b); // idempotent (no consumption)
   });
 
-  test('refill guarantee: board always has a merge after each chain play', () async {
+  test('refill guarantee: board always has a merge after each chain play',
+      () async {
     // Helper: find any 2-cell chain (east or south neighbour) on the board.
     List<int>? findChain(BoardState board) {
       final gs = board.gridSize;
@@ -636,7 +609,8 @@ void main() {
     // After each playChain, if the board is still "playing",
     // hasMergeAvailable MUST be true.
     final storage = InMemoryStorageService();
-    final cubit = GameCubit(storage: storage, todayProvider: () => '2026-06-20');
+    final cubit =
+        GameCubit(storage: storage, todayProvider: () => '2026-06-20');
     await cubit.init(difficulty: Difficulty.easy);
     for (var move = 0; move < 8; move++) {
       final s = cubit.state;
@@ -713,11 +687,9 @@ Future<void> _completeTier(
   void Function(String name, [Map<String, Object?>? params])? onAnalyticsEvent,
   Future<void> Function({int score, int highestTier})? onTierCompleted,
 }) async {
-  // Seed a fresh board, then play it to completion by forcing out-of-moves
-  // through the cubit's merge path is heavy; instead simulate completion the way
-  // _recordCompletion does, by running a single merge that ends the day.
+  // Seed a fresh board, then run a single chain from a near-complete snapshot.
   final start = DailySeeder(date, tier).generate().board;
-  // Drive to out-of-moves by saving a near-complete snapshot then merging once.
+  // Drive to out-of-moves by saving a near-complete snapshot then playing once.
   // Also force adContinuesUsed to the daily cap so the resulting board is
   // deterministically terminal (via GameCubit._finishRun's `terminal` gate)
   // regardless of whether a merge happens to remain on this seed's board —
@@ -738,28 +710,30 @@ Future<void> _completeTier(
   );
   await c.init(difficulty: tier);
   final board = (c.state as GamePlaying).board;
-  final pair = _findMergePair(board);
-  await c.merge(fromIndex: pair.$1, toIndex: pair.$2);
+  await c.playChain(_findChain(board));
   // After spending the last move, status becomes outOfMoves and completion is
   // recorded.
   expect(c.state, isA<GameOverShowScore>());
 }
 
-(int, int) _findMergePair(BoardState b) {
-  // Find two ADJACENT tiles of the same tier (new spatial deadlock semantics).
+List<int> _findChain(BoardState b) {
   for (var i = 0; i < b.cells.length; i++) {
-    final t = b.cells[i];
-    if (t == null || t.tier >= kMaxTier) continue;
-    final row = i ~/ kGridSize, col = i % kGridSize;
-    // Check east and south neighbours.
-    if (col + 1 < kGridSize) {
-      final e = b.cells[i + 1];
-      if (e != null && e.tier == t.tier) return (i, i + 1);
-    }
-    if (row + 1 < kGridSize) {
-      final so = b.cells[i + kGridSize];
-      if (so != null && so.tier == t.tier) return (i, i + kGridSize);
+    final col = i % b.gridSize;
+    final row = i ~/ b.gridSize;
+    for (final neighbor in [
+      if (col + 1 < b.gridSize) i + 1,
+      if (row + 1 < b.gridSize) i + b.gridSize,
+    ]) {
+      for (final path in [
+        [i, neighbor],
+        [neighbor, i],
+      ]) {
+        if (GameEngine.isValidChain(b, path)) {
+          expect(GameEngine.isValidChain(b, path), isTrue);
+          return path;
+        }
+      }
     }
   }
-  throw StateError('seeded board unexpectedly has no adjacent merge pair');
+  throw StateError('seeded board unexpectedly has no valid adjacent chain');
 }

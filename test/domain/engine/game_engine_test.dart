@@ -41,7 +41,9 @@ void main() {
     expect(GameEngine.canFollow(3, 5), isFalse);
   });
 
-  test('canMerge: same tier or ascend-by-1 into a higher-tier destination, below max tier', () {
+  test(
+      'canMerge: same tier or ascend-by-1 into a higher-tier destination, below max tier',
+      () {
     final b = boardWith({
       0: const Tile(id: 1, tier: 3),
       1: const Tile(id: 2, tier: 3),
@@ -58,21 +60,9 @@ void main() {
     expect(GameEngine.canMerge(b, 3, 4), isFalse); // at max tier
   });
 
-  test('merge: destination becomes tier+1, source empties, scores 2^newTier, spends a move', () {
-    final b = boardWith({
-      0: const Tile(id: 1, tier: 3),
-      1: const Tile(id: 2, tier: 3),
-    });
-    final r = GameEngine.merge(b, fromIndex: 0, toIndex: 1);
-    expect(r.cells[0], isNull);
-    expect(r.cells[1]!.tier, 4);
-    expect(r.cells[1]!.id, 2); // destination id preserved for animation
-    expect(r.score, 1 << 4); // 16
-    expect(r.movesRemaining, kMovesPerDay - 1);
-    expect(r.movesMade, 1);
-  });
-
-  test('applyDrop: places dropped tier at a deterministic empty cell, advances dropIndex', () {
+  test(
+      'applyDrop: places dropped tier at a deterministic empty cell, advances dropIndex',
+      () {
     final b = boardWith({0: const Tile(id: 1, tier: 1)});
     final landing = Prng(42);
     final r = GameEngine.applyDrop(b, 2, landing);
@@ -174,10 +164,10 @@ void main() {
         landing: Prng(1),
         goldenDrops: const {8},
       );
-      expect(result.cells.singleWhere((tile) => tile?.id == 100)!.golden,
-          isFalse);
-      expect(result.cells.singleWhere((tile) => tile?.id == 101)!.golden,
-          isTrue);
+      expect(
+          result.cells.singleWhere((tile) => tile?.id == 100)!.golden, isFalse);
+      expect(
+          result.cells.singleWhere((tile) => tile?.id == 101)!.golden, isTrue);
     });
   });
 
@@ -200,7 +190,9 @@ void main() {
     expect(GameEngine.evaluateStatus(together).status, GameStatus.playing);
   });
 
-  test('hasMergeAvailable: also finds an ascend-adjacent pair (differs by exactly 1 tier)', () {
+  test(
+      'hasMergeAvailable: also finds an ascend-adjacent pair (differs by exactly 1 tier)',
+      () {
     final b = boardWith({
       0: const Tile(id: 1, tier: 2),
       1: const Tile(id: 2, tier: 3), // east neighbour, one tier higher
@@ -218,7 +210,8 @@ void main() {
     expect(GameEngine.evaluateStatus(b).status, GameStatus.deadlocked);
   });
 
-  test('hasMergeAvailable: an ascend pair sitting at the cap is NOT available', () {
+  test('hasMergeAvailable: an ascend pair sitting at the cap is NOT available',
+      () {
     final b = boardWith({
       0: const Tile(id: 1, tier: kMaxTier - 1),
       1: const Tile(id: 2, tier: kMaxTier),
@@ -247,27 +240,8 @@ void main() {
       expect(gold.cells[goldCell]!.golden, isTrue);
     });
 
-    test('goldenBonusFor pays per golden tile consumed', () {
-      final none = boardWith({
-        0: const Tile(id: 1, tier: 2),
-        1: const Tile(id: 2, tier: 2),
-      });
-      expect(GameEngine.goldenBonusFor(none, 0, 1), 0);
-
-      final one = boardWith({
-        0: const Tile(id: 1, tier: 2, golden: true),
-        1: const Tile(id: 2, tier: 2),
-      });
-      expect(GameEngine.goldenBonusFor(one, 0, 1), kGoldenMergeBonus);
-
-      final both = boardWith({
-        0: const Tile(id: 1, tier: 2, golden: true),
-        1: const Tile(id: 2, tier: 2, golden: true),
-      });
-      expect(GameEngine.goldenBonusFor(both, 0, 1), 2 * kGoldenMergeBonus);
-    });
-
-    test('merging golden tiles yields the SAME score as a non-golden control',
+    test(
+        'collapsing golden tiles yields the SAME score as a non-golden control',
         () {
       final golden = boardWith({
         0: const Tile(id: 1, tier: 4, golden: true),
@@ -277,21 +251,23 @@ void main() {
         0: const Tile(id: 1, tier: 4),
         1: const Tile(id: 2, tier: 4),
       });
-      final gMerged = GameEngine.merge(golden, fromIndex: 0, toIndex: 1);
-      final cMerged = GameEngine.merge(control, fromIndex: 0, toIndex: 1);
-      expect(gMerged.score, cMerged.score);
-      expect(gMerged.moveLog, cMerged.moveLog);
-      // The merged tile is no longer golden (the flag is consumed, not carried).
-      expect(gMerged.cells[1]!.golden, isFalse);
+      final goldenCollapsed = GameEngine.collapseChain(golden, [0, 1]);
+      final controlCollapsed = GameEngine.collapseChain(control, [0, 1]);
+      expect(goldenCollapsed.score, controlCollapsed.score);
+      expect(goldenCollapsed.moveLog, controlCollapsed.moveLog);
+      // The collapsed tile is no longer golden (the flag is consumed, not carried).
+      expect(goldenCollapsed.cells[1]!.golden, isFalse);
     });
   });
 
   group('Connect-Merge path validation', () {
-    test('areOrthogonallyAdjacent: true for N/S/E/W, false for diagonal/wrap', () {
-      expect(GameEngine.areOrthogonallyAdjacent(0, 1, 5), isTrue);          // E
-      expect(GameEngine.areOrthogonallyAdjacent(0, kGridSize, 5), isTrue);  // S
-      expect(GameEngine.areOrthogonallyAdjacent(0, kGridSize + 1, 5), isFalse); // diag
-      expect(GameEngine.areOrthogonallyAdjacent(4, 5, 5), isFalse);        // row wrap
+    test('areOrthogonallyAdjacent: true for N/S/E/W, false for diagonal/wrap',
+        () {
+      expect(GameEngine.areOrthogonallyAdjacent(0, 1, 5), isTrue); // E
+      expect(GameEngine.areOrthogonallyAdjacent(0, kGridSize, 5), isTrue); // S
+      expect(GameEngine.areOrthogonallyAdjacent(0, kGridSize + 1, 5),
+          isFalse); // diag
+      expect(GameEngine.areOrthogonallyAdjacent(4, 5, 5), isFalse); // row wrap
     });
 
     test('isValidChain: accepts a connected same-tier run', () {
@@ -303,7 +279,8 @@ void main() {
       expect(GameEngine.isValidChain(b, [0, 1, 6]), isTrue);
     });
 
-    test('isValidChain: rejects length<2, non-adjacent, repeats, empty cells', () {
+    test('isValidChain: rejects length<2, non-adjacent, repeats, empty cells',
+        () {
       final b = boardWith({
         0: const Tile(id: 1, tier: 2),
         1: const Tile(id: 2, tier: 2),
@@ -316,7 +293,8 @@ void main() {
       expect(GameEngine.isValidChain(empty, [0, 1]), isFalse); // cell 1 empty
     });
 
-    test('isValidChain: accepts an ascend-by-1 step, rejects descend and skip', () {
+    test('isValidChain: accepts an ascend-by-1 step, rejects descend and skip',
+        () {
       final b = boardWith({
         0: const Tile(id: 1, tier: 2),
         1: const Tile(id: 2, tier: 3), // east of 0, one tier higher
@@ -366,7 +344,8 @@ void main() {
       expect(GameEngine.isValidChain(b, [0, 1]), isFalse);
     });
 
-    test('isValidChain: rejects an ascend chain whose peak sits at max tier', () {
+    test('isValidChain: rejects an ascend chain whose peak sits at max tier',
+        () {
       final b = boardWith({
         0: const Tile(id: 1, tier: kMaxTier - 1),
         1: const Tile(id: 2, tier: kMaxTier),
@@ -392,7 +371,9 @@ void main() {
   });
 
   group('Connect-Merge collapse', () {
-    test('collapse: endpoint climbs +1 keeping its id; others empty; scores combo', () {
+    test(
+        'collapse: endpoint climbs +1 keeping its id; others empty; scores combo',
+        () {
       final b = boardWith({
         0: const Tile(id: 10, tier: 2),
         1: const Tile(id: 11, tier: 2),
@@ -409,20 +390,9 @@ void main() {
       expect(r.filledCount, 1); // only the endpoint remains
     });
 
-    test('collapse: a 2-path matches the legacy merge result', () {
-      final b = boardWith({
-        0: const Tile(id: 1, tier: 3),
-        1: const Tile(id: 2, tier: 3),
-      });
-      final chain = GameEngine.collapseChain(b, [0, 1]);
-      final legacy = GameEngine.merge(b, fromIndex: 0, toIndex: 1);
-      expect(chain.cells[1]!.tier, legacy.cells[1]!.tier);
-      expect(chain.cells[1]!.id, legacy.cells[1]!.id);
-      expect(chain.score, legacy.score);
-      expect(chain.movesRemaining, legacy.movesRemaining);
-    });
-
-    test('collapse: ascending chain scores base combo PLUS an ascend bonus per transition', () {
+    test(
+        'collapse: ascending chain scores base combo PLUS an ascend bonus per transition',
+        () {
       final b = boardWith({
         0: const Tile(id: 10, tier: 1),
         1: const Tile(id: 11, tier: 1),

@@ -16,10 +16,10 @@ import '../domain/models/streak.dart' show nextStreak;
 import '../infrastructure/storage_service.dart';
 import 'game_state.dart';
 
-/// One entry in the bounded undo history (Phase 4). Captures the FULL pre-merge
+/// One entry in the bounded undo history (Phase 4). Captures the FULL pre-move
 /// [board] (cells, score, moves, dropIndex, AND moveLog) so [GameCubit.undo]
 /// can restore the run atomically. [landingDraws] is the number of landing-PRNG
-/// draws taken before that merge (== the pre-merge `board.dropIndex`), used to
+/// draws taken before that move (== the pre-move `board.dropIndex`), used to
 /// deterministically rewind the landing stream by rebuild-and-advance.
 class _UndoFrame {
   final BoardState board;
@@ -54,7 +54,7 @@ String formatDate(DateTime d) => date_utils.formatDate(d);
 String utcToday() => date_utils.utcToday();
 
 /// Orchestrates the daily game for one difficulty tier. **Call [init] before any
-/// other method** — `merge`/`grantAdReward` rely on fields set up there (they
+/// other method** — `playChain`/`grantAdReward` rely on fields set up there (they
 /// are also guarded by the state machine, which starts in [GameInitial]).
 /// Hands a finalized day off to the online submit flow (Phase 2). Called once
 /// when a tier's day is locked. Decoupled from supabase_flutter so the cubit
@@ -84,8 +84,8 @@ class GameCubit extends Cubit<GameState> {
 
   /// Optional coins hook (Phase 1). Fired with a SIGNED [delta] (positive to
   /// credit, negative to refund) so the client-side wallet can be both credited
-  /// on a golden merge / completion AND refunded when that merge is undone
-  /// (preventing merge→undo→re-merge coin farming). Awaited so the wallet write
+  /// on a golden chain / completion AND refunded when that move is undone
+  /// (preventing play→undo→re-play coin farming). Awaited so the wallet write
   /// is durable. Decoupled (like [onTierCompleted]) — coins NEVER touch `score`.
   final Future<void> Function(int delta)? onCoinsEarned;
 
@@ -119,7 +119,7 @@ class GameCubit extends Cubit<GameState> {
   /// Drop indices that are golden for this date+tier (seed-derived).
   late Set<int> _goldenDrops;
 
-  /// Bounded undo history (Phase 4): pre-merge frames, most-recent last. Capped
+  /// Bounded undo history (Phase 4): pre-move frames, most-recent last. Capped
   /// at [kUndoStackDepth] so memory stays trivial and a player can never rewind
   /// to the start of the run.
   final List<_UndoFrame> _undoStack = [];
@@ -140,7 +140,7 @@ class GameCubit extends Cubit<GameState> {
   /// per-day cap on the reveal-next-drop hint.
   int _hintsUsed = 0;
 
-  /// Coins earned this run (golden merges + completion bonus). Tracked so the
+  /// Coins earned this run (golden chains + completion bonus). Tracked so the
   /// result screen can offer a rewarded "double coins" that credits the same
   /// amount again. Purely client-side bookkeeping — never affects score.
   int _coinsEarnedThisRun = 0;
@@ -175,8 +175,7 @@ class GameCubit extends Cubit<GameState> {
   /// the same name is not a compatible override and fails to compile. The
   /// public constructor parameter is still named `onError` so callers are
   /// unaffected.
-  final void Function(Object error, StackTrace? stack, {bool fatal})?
-      _onError;
+  final void Function(Object error, StackTrace? stack, {bool fatal})? _onError;
 
   /// Optional analytics hook (observability). Signature matches
   /// `AnalyticsService.logEvent` exactly, so callers can pass the method
@@ -223,8 +222,7 @@ class GameCubit extends Cubit<GameState> {
       };
       final wallCount =
           rule == ChallengeRule.wallMaze ? kChallengeWallMazeCount : null;
-      final moves =
-          rule == ChallengeRule.budgetCut ? kChallengeMoves : null;
+      final moves = rule == ChallengeRule.budgetCut ? kChallengeMoves : null;
       _targetFill = fill;
       start = _seeder.generate(
         startingFillOverride: fill,
@@ -238,7 +236,9 @@ class GameCubit extends Cubit<GameState> {
     }
 
     final snap = storage.loadSnapshot(_date, difficulty);
-    if (snap != null && snap.date == _date && snap.version == kSnapshotVersion) {
+    if (snap != null &&
+        snap.date == _date &&
+        snap.version == kSnapshotVersion) {
       // Resume today: rebuild both streams to the saved position.
       _dropTier = _rebuildDropTierTo(snap.board.dropIndex);
       _landing = _rebuildLandingTo(snap.board.dropIndex);
@@ -266,68 +266,9 @@ class GameCubit extends Cubit<GameState> {
     emit(GamePlaying(board: start.board, difficulty: difficulty));
   }
 
-  Future<void> merge({required int fromIndex, required int toIndex}) async {
-    final s = state;
-    if (s is! GamePlaying) return;
-    if (!GameEngine.canMerge(s.board, fromIndex, toIndex)) return;
-
-    // Golden bonus is computed against the PRE-merge board, then credited to the
-    // wallet via the decoupled callback. It NEVER touches score or the move log.
-    // Computed BEFORE pushing the undo frame so the frame can carry the credited
-    // amount for an exact refund on undo.
-    final goldenBonus =
-        GameEngine.goldenBonusFor(s.board, fromIndex, toIndex);
-
-    // Push a pre-merge frame so this merge can be undone. The landing PRNG has
-    // taken exactly `dropIndex` draws at this point (one per applied drop), so
-    // that count is the deterministic rewind target. Bounded depth. The frame
-    // records the golden coins this merge credited so undo refunds them.
-    _undoStack.add(_UndoFrame(
-      board: s.board,
-      landingDraws: s.board.dropIndex,
-      coinsCredited: goldenBonus,
-    ));
-    if (_undoStack.length > kUndoStackDepth) {
-      _undoStack.removeAt(0);
-    }
-
-    // Record the accepted move (same guard as the state change).
-    final log = List<MoveEvent>.of(s.board.moveLog)
-      ..add(MergeEvent(from: fromIndex, to: toIndex));
-
-    var board = GameEngine.merge(s.board, fromIndex: fromIndex, toIndex: toIndex)
-        .copyWith(moveLog: log);
-    // Use the on-demand drop-tier stream (unbounded, no guard needed).
-    board = GameEngine.applyDrop(
-      board,
-      _seeder.dropTierAt(_dropTier, board.dropIndex),
-      _landing,
-      golden: _goldenDrops.contains(board.dropIndex),
-    );
-    board = GameEngine.evaluateStatus(board);
-
-    if (goldenBonus > 0) {
-      _coinsEarnedThisRun += goldenBonus;
-      await onCoinsEarned?.call(goldenBonus);
-    }
-
-    final done = board.status != GameStatus.playing;
-    await storage.saveSnapshot(GameSnapshot(
-        date: _date,
-        difficulty: _difficulty,
-        board: board,
-        completed: done));
-
-    if (done) {
-      await _finishRun(board);
-    } else {
-      emit(GamePlaying(board: board, difficulty: _difficulty));
-    }
-  }
-
   /// Play a Connect-Merge: validate [path], collapse it, refill the board to the
   /// difficulty's starting fill, track the daily objective, then persist/emit.
-  /// Mirrors [merge]'s lifecycle (undo frame, golden bonus, completion hooks).
+  /// Owns the full move lifecycle (undo frame, golden bonus, completion hooks).
   Future<void> playChain(List<int> path) async {
     final s = state;
     if (s is! GamePlaying) return;
@@ -348,14 +289,14 @@ class GameCubit extends Cubit<GameState> {
     final preBoard = s.board;
     final preLandingDraws = s.board.dropIndex;
 
-    final log = List<MoveEvent>.of(s.board.moveLog)..add(ChainEvent(path: path));
+    final log = List<MoveEvent>.of(s.board.moveLog)
+      ..add(ChainEvent(path: path));
 
     var board = GameEngine.collapseChain(
       s.board,
       path,
-      comboMultiplierFn: _activeRule == ChallengeRule.comboRush
-          ? comboRushMultiplier
-          : null,
+      comboMultiplierFn:
+          _activeRule == ChallengeRule.comboRush ? comboRushMultiplier : null,
     ).copyWith(moveLog: log);
 
     // GameEngine owns the mirrored refill policy; the cubit supplies only the
@@ -405,10 +346,7 @@ class GameCubit extends Cubit<GameState> {
 
     final done = board.status != GameStatus.playing;
     await storage.saveSnapshot(GameSnapshot(
-        date: _date,
-        difficulty: _difficulty,
-        board: board,
-        completed: done));
+        date: _date, difficulty: _difficulty, board: board, completed: done));
 
     if (done) {
       await _finishRun(board);
@@ -424,11 +362,13 @@ class GameCubit extends Cubit<GameState> {
     final s = state;
     final dropIndex = s is GamePlaying ? s.board.dropIndex : 0;
     final p = _rebuildDropTierTo(dropIndex);
-    return [for (var k = 0; k < count; k++) _seeder.dropTierAt(p, dropIndex + k)];
+    return [
+      for (var k = 0; k < count; k++) _seeder.dropTierAt(p, dropIndex + k)
+    ];
   }
 
   /// Shared completion tail: record stats, emit result screen, fire hooks.
-  /// Called by both [merge] and [playChain] when the run terminates.
+  /// Called by [playChain] when the run terminates.
   Future<void> _finishRun(BoardState board) async {
     final firstCompletionToday =
         storage.loadStats(_difficulty).lastCompletedDate != _date;
@@ -497,16 +437,16 @@ class GameCubit extends Cubit<GameState> {
     return p;
   }
 
-  /// Undo the last merge (Phase 4), keeping the run replay-consistent. Restores
-  /// the pre-merge [BoardState] (cells, score, moves, dropIndex, AND moveLog —
-  /// so the trailing [MergeEvent] and the drop it caused are popped together),
+  /// Undo the last chain (Phase 4), keeping the run replay-consistent. Restores
+  /// the pre-chain [BoardState] (cells, score, moves, dropIndex, AND moveLog —
+  /// so the trailing [ChainEvent] and its refill are popped together),
   /// then rewinds the landing PRNG to the saved draw count by deterministic
   /// rebuild. Only valid during [GamePlaying]; no-op on an empty stack. Gated by
   /// [kFreeUndosPerDay]; further undos require [undoAfterReward].
   ///
-  /// INVARIANT: because the popped frame's board carries the pre-merge moveLog,
+  /// INVARIANT: because the popped frame's board carries the pre-chain moveLog,
   /// the persisted moveLog always equals the real board history after any
-  /// merge/undo sequence ⇒ Phase 2 server replay still reproduces the board.
+  /// chain/undo sequence ⇒ Phase 2 server replay still reproduces the board.
   Future<void> undo() async {
     if (!canUndoFree) return;
     _undosUsed++;
