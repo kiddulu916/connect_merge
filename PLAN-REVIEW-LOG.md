@@ -79,3 +79,14 @@ All four round-2 findings are addressed: full replay lifecycle, additive two-pha
 One minor omission: add [game_engine.dart](/C:/Users/dat1k/Projects/connect_merge/lib/domain/engine/game_engine.dart:215) to the doc sweep; its `Mirrors [merge]` link becomes stale after removal. The existing sweep/analyze requirement should catch it, so this is non-blocking.
 
 VERDICT: APPROVED
+## Act 3 — Build
+
+### Round 1 — Codex build
+
+Thread 019f7590-ca36-7413-bdd2-aa671b61e438 (gpt-5.6-sol). Implemented all of PLAN.md in one pass: docs/superpowers spec + plan with named per-test dispositions, two-phase undo-helper migration (ChainEvent replay branch mirroring verifyRun — guard/isValidChain/collapseChain/refill/evaluateStatus — landed alongside the merge branch, merge branch deleted with its last consumer), all three finders replaced with an oriented adjacent isValidChain-validated finder, full BoardState equality migrated into the chain undo test before duplicates died, cubit's 9 tests migrated with chain-derived values, golden/control invariant rewritten via collapseChain([0,1]), production removals + full doc sweep, MergeEvent relabeled legacy/server-rejected. Deviations: none. No git mutations.
+
+### Claude's verdict
+
+Full diff read: production removals exact; canMerge doc now names the sentinel generator as sole consumer; the migrated replay helper is a faithful client-side mirror of verifyRun with drift-detection guards. MergeEvent/canMerge/fixture/TS untouched as required. Proof re-run by Claude: flutter analyze clean; flutter test 540/540 (545 -> 540: net -5 from deleted API-only duplicates, every unique invariant retained per the named disposition); Flutter golden vectors green; deno test --frozen 45/45; zero references to the three removed methods. PASSED review, round 1 of 2 — no fix rounds needed.
+
+Shipped: committed to main and pushed after user sign-off; CI validates.
