@@ -6,7 +6,8 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/duel_cubit.dart';
 import '../../application/engagement_cubit.dart';
-import '../../application/game_cubit.dart';
+import '../../application/game_cubit.dart' show utcToday;
+import '../../application/game_session_factory.dart';
 import '../../application/loot_cubit.dart';
 import '../../application/loot_state.dart';
 import '../../application/rivalry_cubit.dart';
@@ -14,7 +15,6 @@ import '../../domain/engine/daily_seeder.dart';
 import '../../domain/models/challenge_rule.dart';
 import '../../domain/models/difficulty.dart';
 import '../../domain/models/duel_challenge.dart';
-import '../../domain/models/move.dart';
 import '../../infrastructure/ad_service.dart';
 import '../../infrastructure/analytics_service.dart';
 import '../../infrastructure/auth_service.dart';
@@ -50,6 +50,10 @@ class TierSelectScreen extends StatefulWidget {
   /// the leaderboard entry points are then hidden.
   final LeaderboardService? leaderboard;
 
+  /// Production game-session composition. Nullable only so tests that use
+  /// [onTierSelected] can keep lightweight screen construction.
+  final GameSessionFactory? sessions;
+
   /// Friends service. Null when offline — the Friends entry point and the
   /// Global/Friends toggle are then hidden.
   final FriendsService? friends;
@@ -67,9 +71,9 @@ class TierSelectScreen extends StatefulWidget {
   final EngagementCubit? engagement;
 
   /// Observability services (both optional — null when Firebase isn't
-  /// configured, or in tests). Threaded down to the locally-created
-  /// `EngagementCubit` fallback and to the `GameCubit` this screen creates
-  /// per tier.
+  /// configured, or in tests). Threaded to the locally-created
+  /// `EngagementCubit` fallback; production game sessions receive them from
+  /// [sessions].
   final CrashReportingService? crashReporting;
   final AnalyticsService? analytics;
 
@@ -101,6 +105,7 @@ class TierSelectScreen extends StatefulWidget {
     required this.storage,
     required this.adService,
     this.leaderboard,
+    this.sessions,
     this.friends,
     this.auth,
     this.onAccountDeleted,
@@ -157,11 +162,11 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
           ..load());
     _ownsEngagement = widget.engagement == null;
     _loot = widget.loot ??
-        (LootCubit(
-            storage: widget.storage, todayProvider: widget.todayProvider)
+        (LootCubit(storage: widget.storage, todayProvider: widget.todayProvider)
           ..load());
     _ownsLoot = widget.loot == null;
-    _rivalry = widget.rivalry ?? (RivalryCubit(storage: widget.storage)..load());
+    _rivalry =
+        widget.rivalry ?? (RivalryCubit(storage: widget.storage)..load());
     _ownsRivalry = widget.rivalry == null;
     _untilReset = _computeUntilReset();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -195,8 +200,9 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   }
 
   /// True when every tier's day is already completed.
-  bool _allTiersDoneToday() =>
-      Difficulty.values.where((d) => d != Difficulty.challenge).every(_isCompleted);
+  bool _allTiersDoneToday() => Difficulty.values
+      .where((d) => d != Difficulty.challenge)
+      .every(_isCompleted);
 
   /// Reschedule the daily reminder + streak-expiry warning. No-op without a
   /// notification service or when permission isn't granted yet (the plan is
@@ -225,8 +231,8 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
 
   Duration _computeUntilReset() {
     final now = DateTime.now().toUtc();
-    final nextMidnight = DateTime.utc(now.year, now.month, now.day)
-        .add(const Duration(days: 1));
+    final nextMidnight =
+        DateTime.utc(now.year, now.month, now.day).add(const Duration(days: 1));
     return nextMidnight.difference(now);
   }
 
@@ -270,7 +276,8 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   void _openLeaderboardOrExplain(BuildContext context) {
     if (widget.leaderboard == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Leaderboards need an internet connection.')),
+        const SnackBar(
+            content: Text('Leaderboards need an internet connection.')),
       );
       return;
     }
@@ -316,34 +323,27 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context)
         .push(
-          MaterialPageRoute<void>(
-            builder: (_) => BlocProvider(
-              create: (_) => GameCubit(
-                storage: widget.storage,
-                todayProvider: widget.todayProvider,
-                onTierCompleted: _onTierCompleted,
-                onCoinsEarned: _creditCoins,
-                // Wired only when a leaderboard service is present; null offline
-                // so the cubit's submit no-ops.
-                onSubmitRun: widget.leaderboard == null ? null : _submitRun,
-                onError: widget.crashReporting?.recordError,
-                onAnalyticsEvent: widget.analytics?.logEvent,
-              )..init(difficulty: difficulty),
-              child: GameScreen(
-                adService: widget.adService,
-                storage: widget.storage,
-                engagement: _engagement,
-                notifications: widget.notifications,
-                friendCode: _friendCode,
-              ),
-            ),
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider(
+          create: (_) => widget.sessions!.create(
+            difficulty: difficulty,
+            afterCompleted: _maybeRequestPermissionThenReschedule,
           ),
-        )
+          child: GameScreen(
+            adService: widget.adService,
+            storage: widget.storage,
+            engagement: _engagement,
+            notifications: widget.notifications,
+            friendCode: _friendCode,
+          ),
+        ),
+      ),
+    )
         .then((_) {
-          if (mounted) setState(() {}); // refresh "done today" badges
-          _settleDuelIfMatched(messenger, difficulty);
-          _rescheduleNotifications();
-        });
+      if (mounted) setState(() {}); // refresh "done today" badges
+      _settleDuelIfMatched(messenger, difficulty);
+      _rescheduleNotifications();
+    });
   }
 
   /// After a game returns, settle an active duel whose `(date, difficulty)`
@@ -370,18 +370,6 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
       DuelOutcome.tie => 'The duel was a tie!',
     };
     messenger.showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  /// Completion hook fired by [GameCubit] when a tier's day is locked: advance
-  /// the headline streak / achievements / cosmetics, then reschedule the
-  /// reminder (suppressed once all tiers are done).
-  Future<void> _onTierCompleted({int score = 0, int highestTier = 0}) async {
-    await _engagement.onTierCompleted(
-      date: widget.today(),
-      score: score,
-      highestTier: highestTier,
-    );
-    await _maybeRequestPermissionThenReschedule();
   }
 
   /// Request notification permission CONTEXTUALLY (after the first completion),
@@ -411,7 +399,8 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   void _openAchievements(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => AchievementsScreen(unlocked: _engagement.state.unlocked),
+        builder: (_) =>
+            AchievementsScreen(unlocked: _engagement.state.unlocked),
       ),
     );
   }
@@ -463,46 +452,17 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   void _openLootChest(BuildContext context) {
     Navigator.of(context)
         .push(
-          MaterialPageRoute<void>(
-            builder: (_) => LootChestScreen(
-              loot: _loot,
-              adService: widget.adService,
-            ),
-          ),
-        )
+      MaterialPageRoute<void>(
+        builder: (_) => LootChestScreen(
+          loot: _loot,
+          adService: widget.adService,
+        ),
+      ),
+    )
         .then((_) {
-          if (mounted) setState(() {}); // refresh coin pill / chest badge
-          _rescheduleNotifications();
-        });
-  }
-
-  /// Apply a signed coin [delta] to the wallet (Phase 1). Decoupled hook passed
-  /// to [GameCubit]; coins never touch score. Goes through the single awaited
-  /// [StorageService.addCoins] path (credit on golden merge / completion, refund
-  /// on undo) so the write is durable and races/app-kill can't drop it. Refreshes
-  /// the loot cubit so the coin pill reflects the new balance.
-  Future<void> _creditCoins(int delta) async {
-    if (delta == 0) return;
-    await widget.storage.addCoins(delta);
-    _loot.load();
-  }
-
-  /// Online submit hook (Phase 2) bridging [GameCubit] to the
-  /// [LeaderboardService]. The client sends ONLY the move log; the server
-  /// replays it to compute the authoritative score and is the sole score writer.
-  /// [adContinues] is derived server-side from the log's ContinueEvents, so it
-  /// is unused here. Best-effort: the cubit calls this off the result-screen
-  /// critical path and swallows transport errors.
-  Future<void> _submitRun({
-    required String date,
-    required Difficulty difficulty,
-    required List<MoveEvent> moveLog,
-    required int adContinues,
-  }) async {
-    final service = widget.leaderboard;
-    if (service == null) return;
-    await service.submitRun(
-        date: date, difficulty: difficulty, moveLog: moveLog);
+      if (mounted) setState(() {}); // refresh coin pill / chest badge
+      _rescheduleNotifications();
+    });
   }
 
   void _openPractice(BuildContext context, Difficulty difficulty) {
@@ -683,7 +643,9 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  fontFeatures: [FontFeature.tabularFigures()])),
+                                  fontFeatures: [
+                                    FontFeature.tabularFigures()
+                                  ])),
                         ],
                       ),
                     ),
@@ -702,8 +664,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                           key: const Key('open-loot-chest'),
                           onPressed: () => _openLootChest(context),
                           icon: const Icon(Icons.card_giftcard, size: 18),
-                          label: Text(
-                              ready ? 'Daily chest' : 'Chest claimed',
+                          label: Text(ready ? 'Daily chest' : 'Chest claimed',
                               overflow: TextOverflow.ellipsis),
                           style: FilledButton.styleFrom(
                             backgroundColor:
@@ -748,8 +709,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                       child: DuelBanner(
                         challenge: challenge,
                         expired: duel.expired,
-                        onPlay: () =>
-                            _startTier(context, challenge.difficulty),
+                        onPlay: () => _startTier(context, challenge.difficulty),
                         onPlayToday: () =>
                             _startTier(context, challenge.difficulty),
                         onDismiss: () => widget.duels!.dismiss(),
@@ -763,8 +723,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                     for (final d in Difficulty.values
                         .where((d) => d != Difficulty.challenge))
                       Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: AppSpacing.lg),
+                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
                         child: _TierCard(
                           difficulty: d,
                           completed: _isCompleted(d),
@@ -989,7 +948,6 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
       ),
     );
   }
-
 }
 
 /// A single difficulty tier as a tappable "hero" card.
@@ -1173,9 +1131,7 @@ class _TierCardState extends State<_TierCard> {
                   ),
                 Icon(
                   completed ? Icons.check_circle : Icons.chevron_right,
-                  color: completed
-                      ? AppColors.success
-                      : AppColors.textMuted,
+                  color: completed ? AppColors.success : AppColors.textMuted,
                 ),
               ],
             ),

@@ -10,6 +10,8 @@ import 'package:timezone/timezone.dart' as tz;
 import 'application/duel_cubit.dart';
 import 'application/engagement_cubit.dart';
 import 'application/game_cubit.dart' show utcToday;
+import 'application/game_session_factory.dart';
+import 'application/loot_cubit.dart';
 import 'application/rivalry_cubit.dart';
 import 'domain/models/duel_challenge.dart';
 import 'domain/models/friend.dart';
@@ -86,6 +88,7 @@ Future<void> main() async {
       onError: crashReporting?.recordError,
       onAnalyticsEvent: analytics?.logEvent,
     )..load();
+    final loot = LootCubit(storage: storage)..load();
 
     // Both are profile-backed + offline-safe: the rival relationship persists
     // locally and duels carry their payload in the link, so neither needs a backend ($0).
@@ -117,6 +120,15 @@ Future<void> main() async {
       }
     }
 
+    final sessions = GameSessionFactory(
+      storage: storage,
+      engagement: engagement,
+      loot: loot,
+      leaderboard: leaderboard,
+      onError: crashReporting?.recordError,
+      onAnalyticsEvent: analytics?.logEvent,
+    );
+
     // Daily / weekly / monthly prizes + challenge payouts: checked on every app
     // open and idempotent via their respective date guards.
     if (leaderboard != null) {
@@ -142,6 +154,8 @@ Future<void> main() async {
       friends: friends,
       deepLinks: deepLinks,
       engagement: engagement,
+      loot: loot,
+      sessions: sessions,
       rivalry: rivalry,
       duels: duels,
       notifications: notifications,
@@ -162,6 +176,8 @@ class ConnectMergeApp extends StatefulWidget {
   final FriendsService? friends;
   final DeepLinkService? deepLinks;
   final EngagementCubit engagement;
+  final LootCubit loot;
+  final GameSessionFactory sessions;
   final RivalryCubit? rivalry;
   final DuelCubit? duels;
   final NotificationService notifications;
@@ -174,6 +190,8 @@ class ConnectMergeApp extends StatefulWidget {
     required this.storage,
     required this.adService,
     required this.engagement,
+    required this.loot,
+    required this.sessions,
     required this.notifications,
     this.auth,
     this.leaderboard,
@@ -200,6 +218,12 @@ class _ConnectMergeAppState extends State<ConnectMergeApp> {
     super.initState();
     _needsDisplayName = widget.needsDisplayName;
     _wireDeepLinks();
+  }
+
+  @override
+  void dispose() {
+    widget.loot.close();
+    super.dispose();
   }
 
   /// Route invite codes + duels (cold-start queued or warm) to their handlers
@@ -284,6 +308,9 @@ class _ConnectMergeAppState extends State<ConnectMergeApp> {
   /// anonymous session and re-run display-name onboarding.
   void _onAccountDeleted() {
     setState(() => _needsDisplayName = true);
+    widget.engagement.load();
+    widget.rivalry?.load();
+    widget.loot.load();
     // Best-effort: if offline right after deleting, ensureSignedIn simply
     // retries on next launch (same degradation as cold start).
     unawaited(widget.auth?.ensureSignedIn().catchError((_) {}));
@@ -321,6 +348,8 @@ class _ConnectMergeAppState extends State<ConnectMergeApp> {
         auth: widget.auth,
         onAccountDeleted: _onAccountDeleted,
         engagement: widget.engagement,
+        loot: widget.loot,
+        sessions: widget.sessions,
         rivalry: widget.rivalry,
         duels: widget.duels,
         notifications: widget.notifications,
