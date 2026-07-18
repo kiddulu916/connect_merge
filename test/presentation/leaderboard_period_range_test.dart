@@ -71,6 +71,18 @@ void main() {
       expect(to, sunday); // June 14
     });
 
+    test('weekly crosses a year boundary', () {
+      final (from, to) = LeaderboardPeriod.weekly.range('2026-01-01');
+      expect(from, '2025-12-29');
+      expect(to, '2026-01-01');
+    });
+
+    test('weekly finds Monday after Cairo spring-forward', () {
+      final (from, to) = LeaderboardPeriod.weekly.range('2025-04-26');
+      expect(from, '2025-04-21');
+      expect(to, '2025-04-26');
+    });
+
     test('weekly: from is always <= to', () {
       for (final day in [monday, wednesday, sunday, midMonth, firstOfMonth]) {
         final (from, to) = LeaderboardPeriod.weekly.range(day);

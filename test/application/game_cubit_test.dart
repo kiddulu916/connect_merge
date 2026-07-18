@@ -198,6 +198,29 @@ void main() {
     expect(broken, hasLength(1));
     expect(broken.single.value,
         {'streakType': 'perTier', 'difficulty': 'easy', 'length': 1});
+    expect(storage.loadStats(Difficulty.easy).streak, 1);
+  });
+
+  test('per-tier gap ignores banked freeze tokens', () async {
+    await _completeTier(storage, '2026-06-01', Difficulty.easy);
+    final beforeGap = storage.loadStats(Difficulty.easy);
+    await storage.saveStats(
+      Difficulty.easy,
+      beforeGap.copyWith(streakFreezeTokens: 1),
+    );
+
+    await _completeTier(storage, '2026-06-07', Difficulty.easy);
+
+    final afterGap = storage.loadStats(Difficulty.easy);
+    expect(afterGap.streak, 1);
+    expect(afterGap.streakFreezeTokens, 1);
+  });
+
+  test('per-tier streak increments across Cairo spring-forward', () async {
+    await _completeTier(storage, '2025-04-25', Difficulty.easy);
+    await _completeTier(storage, '2025-04-26', Difficulty.easy);
+
+    expect(storage.loadStats(Difficulty.easy).streak, 2);
   });
 
   test('per-tier streak_broken does NOT fire on a first-ever completion',

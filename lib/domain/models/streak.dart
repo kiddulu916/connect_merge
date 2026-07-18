@@ -1,4 +1,4 @@
-import '../date_utils.dart' show formatDate;
+import '../date_utils.dart' show previousUtcDay;
 
 /// Result of a pure streak transition: the new streak value and whether a freeze
 /// token was consumed to bridge a one-day gap.
@@ -20,13 +20,6 @@ class StreakResult {
   @override
   String toString() =>
       'StreakResult(streak: $streak, freezeConsumed: $freezeConsumed)';
-}
-
-/// The UTC day before [date] (YYYY-MM-DD), via the same canonical helper used
-/// everywhere else (avoids local/UTC off-by-one).
-String previousUtcDay(String date) {
-  final parts = date.split('-').map(int.parse).toList();
-  return formatDate(DateTime.utc(parts[0], parts[1], parts[2] - 1));
 }
 
 /// Pure streak transition.

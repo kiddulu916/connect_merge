@@ -77,14 +77,6 @@ Future<List<LeaderboardEntry>> _rankOnePeriod({
 
 void main() {
   group('nextStreak (pure)', () {
-    test('previousUtcDay crosses a year boundary', () {
-      expect(previousUtcDay('2026-01-01'), '2025-12-31');
-    });
-
-    test('previousUtcDay returns leap day', () {
-      expect(previousUtcDay('2024-03-01'), '2024-02-29');
-    });
-
     test('last == yesterday -> +1, no freeze consumed', () {
       final r = nextStreak(
           prev: 3, last: '2026-06-06', today: '2026-06-07', hasFreeze: false);
