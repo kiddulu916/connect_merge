@@ -194,3 +194,7 @@ Running the DB verification (Docker Desktop restarted after a hung backend, `sup
 ### Final verdict
 
 Build accepted: Flutter proof green (analyze clean, 534 tests), migration applies via supabase CLI, all 28 smoke assertions pass against live Postgres. Committing.
+
+### Deployment — hosted Supabase (2026-07-18)
+
+The database is the hosted project (nnoqqchqprfikhabrrjt), not local Docker (which served only as the smoke-test bench). `supabase migration list` revealed history drift: 0007–0009 had been applied remotely under MCP-generated timestamped names. Verified the local files match the applied SQL byte-for-byte (modulo comments), repaired history (`migration repair --status reverted` on the three timestamps, `--status applied 0007 0008 0009`), then `supabase db push` applied 0010 cleanly. Verified live: all four board RPCs SECURITY DEFINER with correct ACLs (globals anon+authenticated, friends/my_* authenticated-only), my_* INVOKER, scores SELECT grant present (hosted prod already had classic full default grants — the missing-grant failure was local-provisioning-specific), and a live `leaderboard()` call returns real rows. No season-2 scores exist yet, as expected pre-relaunch.
