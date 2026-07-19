@@ -1,104 +1,95 @@
 import 'package:connect_merge/application/engagement_cubit.dart';
+import 'package:connect_merge/domain/date_utils.dart';
 import 'package:connect_merge/domain/models/difficulty.dart';
-import 'package:connect_merge/domain/models/leaderboard_entry.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-LeaderboardEntry _entry(int rank, bool isMe) =>
-    LeaderboardEntry(rank: rank, displayName: 'P', score: 100, isMe: isMe);
+Future<Map<String, Map<Difficulty, int>>> _ranks(
+  int rank, {
+  required String from,
+  required String to,
+}) async {
+  final result = <String, Map<Difficulty, int>>{};
+  var day = parseUtcDate(from);
+  final end = parseUtcDate(to);
+  while (!day.isAfter(end)) {
+    result[formatDate(day)] = {Difficulty.challenge: rank};
+    day = DateTime.utc(day.year, day.month, day.day + 1);
+  }
+  return result;
+}
 
 void main() {
-  late InMemoryStorageService storage;
-  late EngagementCubit cubit;
-  // 'today' = 2026-06-23; 'yesterday' = 2026-06-22
-  const today = '2026-06-23';
+  Future<int> payoutFor(int rank) async {
+    final storage = InMemoryStorageService();
+    final cubit = EngagementCubit(
+      storage: storage,
+      todayProvider: () => '2026-06-23',
+    )..load();
+    addTearDown(cubit.close);
+    await cubit.checkChallengePayouts(({
+      required String from,
+      required String to,
+    }) =>
+        _ranks(rank, from: from, to: to));
+    return cubit.state.coins;
+  }
 
-  setUp(() {
-    storage = InMemoryStorageService();
-    cubit = EngagementCubit(storage: storage, todayProvider: () => today);
-    cubit.load();
+  test('broad-and-shallow payout boundaries', () async {
+    expect(await payoutFor(1), 20);
+    expect(await payoutFor(2), 15);
+    expect(await payoutFor(3), 15);
+    expect(await payoutFor(4), 10);
+    expect(await payoutFor(6), 10);
+    expect(await payoutFor(7), 5);
+    expect(await payoutFor(10), 5);
+    expect(await payoutFor(11), 0);
+    expect(await payoutFor(0), 0);
   });
 
-  tearDown(() => cubit.close());
-
-  Future<List<LeaderboardEntry>> fakeFetch(int rank) async => [
-        _entry(1, false),
-        _entry(rank, true),
-      ];
-
-  test('rank 1 grants 150 coins', () async {
-    await cubit.checkChallengePayouts((
-            {required Difficulty difficulty, required String date}) =>
-        fakeFetch(1));
-    expect(cubit.state.coins, equals(150));
-  });
-
-  test('rank 0 grants nothing', () async {
-    await cubit.checkChallengePayouts((
-            {required Difficulty difficulty, required String date}) =>
-        fakeFetch(0));
-    expect(cubit.state.coins, equals(0));
-  });
-
-  test('rank 2 grants 100 coins', () async {
-    await cubit.checkChallengePayouts((
-            {required Difficulty difficulty, required String date}) =>
-        fakeFetch(2));
-    expect(cubit.state.coins, equals(100));
-  });
-
-  test('rank 10 grants 50 coins', () async {
-    await cubit.checkChallengePayouts((
-            {required Difficulty difficulty, required String date}) =>
-        fakeFetch(10));
-    expect(cubit.state.coins, equals(50));
-  });
-
-  test('rank 11 grants nothing', () async {
-    await cubit.checkChallengePayouts((
-            {required Difficulty difficulty, required String date}) =>
-        fakeFetch(11));
-    expect(cubit.state.coins, equals(0));
-  });
-
-  test('rank 11 stamps guard without emitting', () async {
-    final emitted = <EngagementState>[];
-    final subscription = cubit.stream.listen(emitted.add);
-
-    await cubit.checkChallengePayouts((
-            {required Difficulty difficulty, required String date}) =>
-        fakeFetch(11));
-    await Future<void>.delayed(Duration.zero);
-
-    expect(storage.loadProfile().prizes.lastChallengeCheckDate, '2026-06-22');
-    expect(emitted, isEmpty);
-    await subscription.cancel();
-  });
-
-  test('fetches the challenge tier for yesterday', () async {
-    Difficulty? capturedDifficulty;
-    String? capturedDate;
+  test('null guard checks only yesterday and stamps a zero payout', () async {
+    final storage = InMemoryStorageService();
+    final cubit = EngagementCubit(
+      storage: storage,
+      todayProvider: () => '2026-06-23',
+    )..load();
+    addTearDown(cubit.close);
+    (String, String)? call;
 
     await cubit.checkChallengePayouts(({
-      required Difficulty difficulty,
-      required String date,
+      required String from,
+      required String to,
     }) async {
-      capturedDifficulty = difficulty;
-      capturedDate = date;
-      return fakeFetch(11);
+      call = (from, to);
+      return _ranks(11, from: from, to: to);
     });
 
-    expect(capturedDifficulty, Difficulty.challenge);
-    expect(capturedDate, '2026-06-22');
+    expect(call, ('2026-06-22', '2026-06-22'));
+    expect(storage.loadProfile().prizes.lastChallengeCheckDate, '2026-06-22');
   });
 
-  test('second call same day is a no-op', () async {
-    await cubit.checkChallengePayouts((
-            {required Difficulty difficulty, required String date}) =>
-        fakeFetch(1));
-    await cubit.checkChallengePayouts((
-            {required Difficulty difficulty, required String date}) =>
-        fakeFetch(1));
-    expect(cubit.state.coins, equals(150)); // not 300
+  test('catch-up is bounded to seven closed days', () async {
+    final storage = InMemoryStorageService();
+    await storage.saveProfile(const PlayerProfile(
+      prizes: PrizeLedger(lastChallengeCheckDate: '2026-05-01'),
+    ));
+    final cubit = EngagementCubit(
+      storage: storage,
+      todayProvider: () => '2026-06-23',
+    )..load();
+    addTearDown(cubit.close);
+    (String, String)? call;
+
+    await cubit.checkChallengePayouts(({
+      required String from,
+      required String to,
+    }) async {
+      call = (from, to);
+      return _ranks(10, from: from, to: to);
+    });
+
+    expect(call, ('2026-06-16', '2026-06-22'));
+    expect(cubit.state.coins, 35);
+    expect(storage.loadProfile().prizes.lastChallengeCheckDate, '2026-06-22');
   });
 }

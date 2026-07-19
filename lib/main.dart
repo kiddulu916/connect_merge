@@ -132,10 +132,10 @@ Future<void> main() async {
     // Daily / weekly / monthly prizes + challenge payouts: checked on every app
     // open and idempotent via their respective date guards.
     if (leaderboard != null) {
-      unawaited(engagement.checkDailyPrizes(leaderboard.fetch));
-      unawaited(engagement.checkWeeklyPrizes(leaderboard.fetchPeriod));
-      unawaited(engagement.checkMonthlyPrizes(leaderboard.fetchPeriod));
-      unawaited(engagement.checkChallengePayouts(leaderboard.fetch));
+      unawaited(engagement.checkDailyPrizes(leaderboard.myDailyRanks));
+      unawaited(engagement.checkWeeklyPrizes(leaderboard.myPeriodRanks));
+      unawaited(engagement.checkMonthlyPrizes(leaderboard.myPeriodRanks));
+      unawaited(engagement.checkChallengePayouts(leaderboard.myDailyRanks));
     }
 
     // Deep links: invites (connectmerge://invite/<code>) AND duels

@@ -176,3 +176,21 @@ VERDICT: APPROVED
 All four non-blocking corrections applied to PLAN.md: 7→8 calls in the tradeoff section; `take(100)` reframed as defense-in-depth; "all-time: zero work" → "no new gameplay behavior (inherits the RPC plumbing fixes)"; smoke-script EXPLAIN downgraded to diagnostic (tiny fixtures favor seq scans).
 
 **Converged: APPROVED in round 4 of 5.** Standing disagreement on record: the storage-level serialized profile-update refactor (Codex rounds 1–3) is acknowledged as a real pre-existing lost-update path but deliberately excluded — it requires migrating every profile writer and is unchanged in kind by this feature.
+
+## Act 3 — Build
+
+### Round 1 — Codex build
+
+Codex (gpt-5.6-sol, thread 019f776c-553f-7422-8d99-68654cf7b656) implemented PLAN.md end-to-end in one background run (~35 min): migration `0010_leaderboard_read_rpcs.sql` (DEFINER board projections with clamped limits, INVOKER `my_daily_ranks`/`my_period_ranks` with auth + range guards and rank-then-filter, `idx_friendships_b`, 0004-style ACLs, bigint totals), `supabase/tests/leaderboard_smoke.sql` (28 assertion blocks, rollback-wrapped), superpowers spec + plan docs, `myDailyRanks`/`myPeriodRanks`/`friendsLeaderboardPeriod` service methods, new payout tables + bounded oldest-first halt-on-failure catch-up in `EngagementCubit` (prize checkers rewired in `main.dart` to the caller-rank seams), screen changes (friends period tabs, challenge forced-daily in `_load`, `take(100)`, rank-4/5 🏅 fallback), and updated/new tests across 8 test files. Reported deviations: none. Reported blocker: local `supabase db reset` unavailable (Docker down, no psql) — smoke script authored but not executed.
+
+### Claude's verdict
+
+Full diff read (14 modified + 4 new files, ~1082 insertions). Migration verified line-by-line against the plan's SQL contract — projections, clamps, guards, ACL revoke-then-grant, INVOKER/DEFINER split all correct; catch-up loop verified for oldest-first order, guard-advance-only-through-contiguous-success, bounded windows, challenge/tier filtering; services and screen faithful. Proof re-run independently: `flutter analyze` — no issues; `flutter test` — all 534 tests pass. No forbidden path touched (engine, `_shared/`, season, golden vectors — confirmed via git status). Outstanding: the SQL smoke script has not run against a live database (Docker unavailable on this machine) — it must be run before/with `supabase db push`. Accepted in round 1; no fix rounds needed.
+
+### Fix round 1 — Claude (direct, sub-delegation-threshold)
+
+Running the DB verification (Docker Desktop restarted after a hung backend, `supabase start` + `supabase db reset`) surfaced a real bug the Dart suite could not see: this Supabase stack provisions `anon`/`authenticated` with NO table-level SELECT on `scores`, so both SECURITY INVOKER `my_*` RPCs failed with "permission denied for table scores" — 0001's world-readable RLS policy was never backed by a grant. One-line fix added to 0010: `grant select on table public.scores to authenticated;` (RLS remains the row-visibility authority). Re-ran `supabase db reset` + the full smoke script in the db container: **leaderboard smoke checks passed**, fixtures rolled back. Codex's round-2 insistence on database-level verification (finding #3) is what caught this.
+
+### Final verdict
+
+Build accepted: Flutter proof green (analyze clean, 534 tests), migration applies via supabase CLI, all 28 smoke assertions pass against live Postgres. Committing.

@@ -49,8 +49,7 @@ class FriendsService {
         _selectMine = ((table) async {
           final uid = client.auth.currentUser?.id;
           if (uid == null) return const [];
-          final res =
-              await client.from(table).select().eq('player_id', uid);
+          final res = await client.from(table).select().eq('player_id', uid);
           return (res as List?) ?? const [];
         });
 
@@ -112,6 +111,30 @@ class FriendsService {
         .toList();
   }
 
+  /// Fetch a friends period board and map its total onto the shared score row.
+  Future<List<LeaderboardEntry>> friendsLeaderboardPeriod({
+    required Difficulty difficulty,
+    required String from,
+    required String to,
+  }) async {
+    final res = await _rpc('friends_leaderboard_period', {
+      'p_diff': difficulty.name,
+      'p_from': from,
+      'p_to': to,
+      'p_season': kLeaderboardSeason,
+    });
+    final rows = (res as List?) ?? const [];
+    return rows.map((row) {
+      final map = Map<String, dynamic>.from(row as Map);
+      return LeaderboardEntry(
+        rank: (map['rank'] as num).toInt(),
+        displayName: map['display_name'] as String,
+        score: (map['total'] as num).toInt(),
+        isMe: (map['is_me'] as bool?) ?? false,
+      );
+    }).toList();
+  }
+
   /// Opt in to contacts matching: store SHA256 hashes of the player's OWN
   /// normalized phone/email so other players can match them. Raw values are
   /// hashed by the caller via [ContactsHasher] before reaching this method —
@@ -124,7 +147,9 @@ class FriendsService {
     if (hashes.isEmpty) return;
     await _insert(
       'contact_hashes',
-      [for (final h in hashes) {'hash': h}],
+      [
+        for (final h in hashes) {'hash': h}
+      ],
     );
   }
 

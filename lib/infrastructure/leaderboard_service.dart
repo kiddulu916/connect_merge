@@ -128,4 +128,42 @@ class LeaderboardService {
       );
     }).toList();
   }
+
+  /// Fetch the caller's exact daily ranks over a bounded UTC date range.
+  Future<Map<String, Map<Difficulty, int>>> myDailyRanks({
+    required String from,
+    required String to,
+  }) async {
+    final rows = await _rpc('my_daily_ranks', {
+      'p_from': from,
+      'p_to': to,
+      'p_season': kLeaderboardSeason,
+    });
+    final ranks = <String, Map<Difficulty, int>>{};
+    for (final row in rows) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final date = map['utc_date'] as String;
+      final difficulty = Difficulty.values.byName(map['difficulty'] as String);
+      (ranks[date] ??= <Difficulty, int>{})[difficulty] =
+          (map['rank'] as num).toInt();
+    }
+    return ranks;
+  }
+
+  /// Fetch the caller's exact per-tier ranks for one summed period.
+  Future<Map<Difficulty, int>> myPeriodRanks({
+    required String from,
+    required String to,
+  }) async {
+    final rows = await _rpc('my_period_ranks', {
+      'p_from': from,
+      'p_to': to,
+      'p_season': kLeaderboardSeason,
+    });
+    return {
+      for (final row in rows)
+        Difficulty.values.byName((row as Map)['difficulty'] as String):
+            (row['rank'] as num).toInt(),
+    };
+  }
 }

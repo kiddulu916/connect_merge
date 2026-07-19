@@ -4,7 +4,6 @@ import 'package:connect_merge/application/engagement_cubit.dart';
 import 'package:connect_merge/domain/models/achievement.dart';
 import 'package:connect_merge/domain/models/cosmetic.dart';
 import 'package:connect_merge/domain/models/difficulty.dart';
-import 'package:connect_merge/domain/models/leaderboard_entry.dart';
 import 'package:connect_merge/domain/models/streak.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,32 +47,22 @@ class _WriteThenThrowStorage extends InMemoryStorageService {
   }
 }
 
-Future<List<LeaderboardEntry>> _rankOneDaily({
-  required Difficulty difficulty,
-  required String date,
-}) async =>
-    const [
-      LeaderboardEntry(
-        rank: 1,
-        displayName: 'Me',
-        score: 1000,
-        isMe: true,
-      ),
-    ];
-
-Future<List<LeaderboardEntry>> _rankOnePeriod({
-  required Difficulty difficulty,
+Future<Map<String, Map<Difficulty, int>>> _rankOneDaily({
   required String from,
   required String to,
 }) async =>
-    const [
-      LeaderboardEntry(
-        rank: 1,
-        displayName: 'Me',
-        score: 1000,
-        isMe: true,
-      ),
-    ];
+    {
+      from: {Difficulty.easy: 1, Difficulty.challenge: 1},
+    };
+
+Future<Map<Difficulty, int>> _rankOnePeriod({
+  required String from,
+  required String to,
+}) async =>
+    {
+      for (final difficulty in Difficulty.values)
+        if (difficulty != Difficulty.challenge) difficulty: 1,
+    };
 
 void main() {
   group('nextStreak (pure)', () {
@@ -268,7 +257,7 @@ void main() {
       )..load();
 
       await c.checkDailyPrizes(
-        ({required difficulty, required date}) async =>
+        ({required from, required to}) async =>
             throw StateError('network down'),
       );
 
@@ -384,9 +373,9 @@ void main() {
       expect(profile.prizes.lastWeeklyPrizeDate, '2026-06-15');
       expect(profile.prizes.lastMonthlyPrizeMonth, '2026-05');
       expect(profile.prizes.lastChallengeCheckDate, '2026-06-23');
-      expect(profile.wallet.coins, 2700);
+      expect(profile.wallet.coins, 245);
       expect(profile.prizes.weeklyPrizes, hasLength(4));
-      expect(cubit.state.coins, 2700);
+      expect(cubit.state.coins, 245);
       expect(cubit.state.weeklyPrizes, hasLength(4));
     });
 
@@ -418,8 +407,8 @@ void main() {
 
       expect(storage.loadProfile().prizes.lastWeeklyPrizeDate, '2026-06-15');
       expect(storage.loadProfile().prizes.lastDailyPrizeDate, '2026-06-23');
-      expect(storage.loadProfile().wallet.coins, 550);
-      expect(cubit.state.coins, 550);
+      expect(storage.loadProfile().wallet.coins, 125);
+      expect(cubit.state.coins, 125);
     });
 
     test('write-then-throw reconciles crowns and retry cannot pay twice',
@@ -436,13 +425,12 @@ void main() {
       final subscription = cubit.stream.listen(emitted.add);
       addTearDown(subscription.cancel);
       var fetches = 0;
-      Future<List<LeaderboardEntry>> fetch({
-        required Difficulty difficulty,
+      Future<Map<Difficulty, int>> fetch({
         required String from,
         required String to,
       }) {
         fetches++;
-        return _rankOnePeriod(difficulty: difficulty, from: from, to: to);
+        return _rankOnePeriod(from: from, to: to);
       }
 
       await cubit.checkWeeklyPrizes(fetch);
@@ -450,16 +438,16 @@ void main() {
 
       expect(errors, hasLength(1));
       expect(storage.loadProfile().prizes.lastWeeklyPrizeDate, '2026-06-15');
-      expect(storage.loadProfile().wallet.coins, 500);
+      expect(storage.loadProfile().wallet.coins, 75);
       expect(storage.loadProfile().prizes.weeklyPrizes, hasLength(4));
-      expect(cubit.state.coins, 500);
+      expect(cubit.state.coins, 75);
       expect(cubit.state.weeklyPrizes, hasLength(4));
       expect(emitted, hasLength(1));
 
       await cubit.checkWeeklyPrizes(fetch);
 
-      expect(fetches, 4);
-      expect(storage.loadProfile().wallet.coins, 500);
+      expect(fetches, 1);
+      expect(storage.loadProfile().wallet.coins, 75);
       expect(storage.loadProfile().prizes.weeklyPrizes, hasLength(4));
       expect(emitted, hasLength(1));
     });

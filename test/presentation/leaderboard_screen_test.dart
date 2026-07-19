@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
 import 'package:connect_merge/domain/models/leaderboard_entry.dart';
+import 'package:connect_merge/domain/models/weekly_prize.dart';
+import 'package:connect_merge/infrastructure/friends_service.dart';
 import 'package:connect_merge/infrastructure/leaderboard_service.dart';
 import 'package:connect_merge/presentation/screens/leaderboard_screen.dart';
 
@@ -16,6 +19,28 @@ LeaderboardService _serviceReturning(List<LeaderboardEntry> entries) {
             })
         .toList(),
   );
+}
+
+class _RpcCapture {
+  final calls = <(String, Map<String, dynamic>)>[];
+
+  Future<dynamic> rpc(String fn, Map<String, dynamic> params) async {
+    calls.add((fn, params));
+    return const [];
+  }
+
+  LeaderboardService leaderboard() => LeaderboardService.withSeams(
+        invoke: (_, __) async => const {},
+        rpc: (fn, params) async => (await rpc(fn, params)) as List<dynamic>,
+      );
+
+  FriendsService friends() => FriendsService.withSeams(
+        rpc: rpc,
+        invoke: (_, __) async => const {},
+        insert: (_, __) async {},
+        deleteMine: (_) async {},
+        selectMine: (_) async => const [],
+      );
 }
 
 void main() {
@@ -80,4 +105,160 @@ void main() {
     expect(find.text('Solo'), findsOneWidget);
     expect(find.text('You'), findsOneWidget);
   });
+
+  testWidgets('Friends scope keeps every non-challenge period tab visible',
+      (tester) async {
+    final capture = _RpcCapture();
+    await tester.pumpWidget(MaterialApp(
+      home: LeaderboardScreen(
+        service: capture.leaderboard(),
+        friendsService: capture.friends(),
+        todayProvider: () => '2026-06-10',
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Friends'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('lb-period-tabs')), findsOneWidget);
+    expect(find.text('Weekly'), findsOneWidget);
+    expect(find.text('Monthly'), findsOneWidget);
+    expect(find.text('All-time'), findsOneWidget);
+  });
+
+  testWidgets('Friends weekly routes through friends_leaderboard_period',
+      (tester) async {
+    final capture = _RpcCapture();
+    await tester.pumpWidget(MaterialApp(
+      home: LeaderboardScreen(
+        service: capture.leaderboard(),
+        friendsService: capture.friends(),
+        todayProvider: () => '2026-06-10',
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Friends'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Weekly'));
+    await tester.pumpAndSettle();
+
+    final call = capture.calls.lastWhere(
+      (call) => call.$1 == 'friends_leaderboard_period',
+    );
+    expect(call.$2['p_from'], '2026-06-08');
+    expect(call.$2['p_to'], '2026-06-10');
+  });
+
+  testWidgets('Global period selection is forced daily on Challenge',
+      (tester) async {
+    final capture = _RpcCapture();
+    await tester.pumpWidget(MaterialApp(
+      home: LeaderboardScreen(
+        service: capture.leaderboard(),
+        todayProvider: () => '2026-06-10',
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Weekly'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Challenge'));
+    await tester.pumpAndSettle();
+
+    final call = capture.calls.lastWhere(
+      (call) => call.$2['p_diff'] == 'challenge',
+    );
+    expect(call.$1, 'leaderboard');
+    expect(call.$2['p_date'], '2026-06-10');
+  });
+
+  testWidgets('Friends period selection is forced daily on Challenge',
+      (tester) async {
+    final capture = _RpcCapture();
+    await tester.pumpWidget(MaterialApp(
+      home: LeaderboardScreen(
+        service: capture.leaderboard(),
+        friendsService: capture.friends(),
+        todayProvider: () => '2026-06-10',
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Friends'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Monthly'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Challenge'));
+    await tester.pumpAndSettle();
+
+    final call = capture.calls.lastWhere(
+      (call) => call.$2['p_diff'] == 'challenge',
+    );
+    expect(call.$1, 'friends_leaderboard');
+    expect(call.$2['p_date'], '2026-06-10');
+  });
+
+  testWidgets('Challenge renders through rank 100 but not rank 101',
+      (tester) async {
+    final entries = [
+      for (var rank = 1; rank <= 105; rank++)
+        LeaderboardEntry(
+          rank: rank,
+          displayName: 'Challenge$rank',
+          score: 1000 - rank,
+          isMe: false,
+        ),
+    ];
+    await tester.pumpWidget(MaterialApp(
+      home: LeaderboardScreen(
+        service: _serviceReturning(entries),
+        initialDifficulty: Difficulty.challenge,
+        todayProvider: () => '2026-06-10',
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('lb-row-100')),
+      1000,
+      scrollable: find.descendant(
+        of: find.byKey(const Key('lb-list')),
+        matching: find.byType(Scrollable),
+      ),
+    );
+
+    expect(find.byKey(const Key('lb-row-100')), findsOneWidget);
+    expect(find.byKey(const Key('lb-row-101')), findsNothing);
+  });
+
+  for (final rank in [4, 5]) {
+    testWidgets('weekly rank $rank renders the medal crown fallback',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: LeaderboardScreen(
+          service: _serviceReturning(const [
+            LeaderboardEntry(
+              rank: 9,
+              displayName: 'Me',
+              score: 500,
+              isMe: true,
+            ),
+          ]),
+          weeklyPrizes: [
+            WeeklyPrize(
+              weekStart: '2026-06-01',
+              tier: Difficulty.easy,
+              rank: rank,
+            ),
+          ],
+          todayProvider: () => '2026-06-10',
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('\u{1F3C5}'), findsWidgets);
+    });
+  }
 }

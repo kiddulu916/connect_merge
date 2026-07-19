@@ -7,7 +7,6 @@ import '../domain/models/achievement.dart';
 import '../domain/models/almanac.dart';
 import '../domain/models/cosmetic.dart';
 import '../domain/models/difficulty.dart';
-import '../domain/models/leaderboard_entry.dart';
 import '../domain/models/player_level.dart';
 import '../domain/models/streak.dart' show nextStreak;
 import '../domain/models/weekly_prize.dart';
@@ -48,7 +47,7 @@ class EngagementState {
   /// The Merge Almanac (Phase 2) — per-tier collection + mastery badges.
   final Almanac almanac;
 
-  /// Permanent history of weekly top-3 finishes for the "Your Crowns" UI.
+  /// Permanent history of weekly rank 1–5 finishes for the "Your Crowns" UI.
   final List<WeeklyPrize> weeklyPrizes;
 
   const EngagementState({
@@ -84,8 +83,9 @@ class EngagementState {
   }) =>
       EngagementState(
         dailyActiveStreak: dailyActiveStreak ?? this.dailyActiveStreak,
-        lastActiveDate:
-            clearLastActiveDate ? null : (lastActiveDate ?? this.lastActiveDate),
+        lastActiveDate: clearLastActiveDate
+            ? null
+            : (lastActiveDate ?? this.lastActiveDate),
         unlocked: unlocked ?? this.unlocked,
         newlyUnlocked: newlyUnlocked ?? this.newlyUnlocked,
         selectedCosmetic: selectedCosmetic ?? this.selectedCosmetic,
@@ -124,8 +124,7 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// was discovered and fixed the same way in `GameCubit`, Task 5). The
   /// public constructor parameter is still named `onError` so callers are
   /// unaffected.
-  final void Function(Object error, StackTrace? stack, {bool fatal})?
-      _onError;
+  final void Function(Object error, StackTrace? stack, {bool fatal})? _onError;
 
   /// Optional analytics hook (observability). Signature matches
   /// `AnalyticsService.logEvent` exactly.
@@ -332,13 +331,11 @@ class EngagementCubit extends Cubit<EngagementState> {
   // Daily / weekly / monthly prize constants
   // ---------------------------------------------------------------------------
 
-  /// Minimal daily top-3 coin rewards.
-  static const _dailyCoins = {1: 50, 2: 30, 3: 15};
+  static const _dailyCoins = {1: 50, 2: 30, 3: 15, 4: 10, 5: 5};
 
-  static const _weeklyCoins = {1: 500, 2: 250, 3: 100};
+  static const _weeklyCoins = {1: 75, 2: 45, 3: 25, 4: 15, 5: 10};
 
-  /// Big monthly top-3 coin rewards.
-  static const _monthlyCoins = {1: 2000, 2: 1000, 3: 500};
+  static const _monthlyCoins = {1: 100, 2: 60, 3: 35, 4: 20, 5: 15};
 
   static int _dailyCoinsFor(int rank) => _dailyCoins[rank] ?? 0;
 
@@ -348,30 +345,14 @@ class EngagementCubit extends Cubit<EngagementState> {
 
   static int _challengeCoinsFor(int rank) {
     if (rank < 1) return 0;
-    if (rank == 1) return 150;
-    if (rank <= 3) return 100;
-    if (rank <= 10) return 50;
+    if (rank == 1) return 20;
+    if (rank <= 3) return 15;
+    if (rank <= 6) return 10;
+    if (rank <= 10) return 5;
     return 0;
   }
 
-  Future<Map<Difficulty, int>?> _myRankByTier(
-    List<Difficulty> tiers,
-    Future<List<LeaderboardEntry>> Function(Difficulty) fetch,
-  ) async {
-    final ranks = <Difficulty, int>{};
-    for (final tier in tiers) {
-      try {
-        final entries = await fetch(tier);
-        final myEntry = entries.where((entry) => entry.isMe).firstOrNull;
-        if (myEntry != null) ranks[tier] = myEntry.rank;
-      } catch (error, stack) {
-        _onError?.call(error, stack);
-        return null;
-      }
-    }
-    return ranks;
-  }
-
+  /// One payout per period: the best qualifying rank across eligible tiers.
   static int? _bestQualifyingRank(
     Map<Difficulty, int> ranks,
     int Function(int) coinsForRank,
@@ -383,6 +364,66 @@ class EngagementCubit extends Cubit<EngagementState> {
       }
     }
     return best;
+  }
+
+  static List<String> _boundedDateKeys(
+    String? guard,
+    String latest, {
+    required int stepDays,
+    required int limit,
+  }) {
+    if (guard == null) return [latest];
+    if (guard.compareTo(latest) >= 0) return const [];
+    final latestDate = parseUtcDate(latest);
+    final oldest = formatDate(DateTime.utc(
+      latestDate.year,
+      latestDate.month,
+      latestDate.day - stepDays * (limit - 1),
+    ));
+    final guardDate = parseUtcDate(guard);
+    final afterGuard = formatDate(DateTime.utc(
+      guardDate.year,
+      guardDate.month,
+      guardDate.day + stepDays,
+    ));
+    var current = parseUtcDate(
+      afterGuard.compareTo(oldest) > 0 ? afterGuard : oldest,
+    );
+    final result = <String>[];
+    while (formatDate(current).compareTo(latest) <= 0) {
+      result.add(formatDate(current));
+      current = DateTime.utc(
+        current.year,
+        current.month,
+        current.day + stepDays,
+      );
+    }
+    return result;
+  }
+
+  static String _shiftMonth(String monthKey, int offset) {
+    final parts = monthKey.split('-');
+    final shifted = DateTime.utc(
+      int.parse(parts[0]),
+      int.parse(parts[1]) + offset,
+      1,
+    );
+    return '${shifted.year.toString().padLeft(4, '0')}-'
+        '${shifted.month.toString().padLeft(2, '0')}';
+  }
+
+  static List<String> _boundedMonthKeys(String? guard, String latest) {
+    if (guard == null) return [latest];
+    if (guard.compareTo(latest) >= 0) return const [];
+    final oldest = _shiftMonth(latest, -1);
+    var current = _shiftMonth(guard, 1);
+    if (current.compareTo(oldest) < 0) current = oldest;
+    final result = <String>[];
+    while (current.compareTo(latest) <= 0) {
+      result.add(current);
+      current = _shiftMonth(current, 1);
+    }
+    return result;
   }
 
   static bool _sameWeeklyPrizes(
@@ -425,39 +466,51 @@ class EngagementCubit extends Cubit<EngagementState> {
   // Daily prize helpers
   // ---------------------------------------------------------------------------
 
-  /// Check if the player placed top-3 in yesterday's daily leaderboard for any
-  /// non-challenge tier. Idempotent: the `lastDailyPrizeDate` guard prevents
-  /// double-granting. [fetchFn] matches [LeaderboardService.fetch]'s signature.
+  /// Pay each unclaimed closed daily board, up to seven days oldest-first.
   Future<void> checkDailyPrizes(
-    Future<List<LeaderboardEntry>> Function({
-      required Difficulty difficulty,
-      required String date,
-    }) fetchFn,
+    Future<Map<String, Map<Difficulty, int>>> Function({
+      required String from,
+      required String to,
+    }) fetchRanks,
   ) async {
     final yesterday = previousUtcDay(todayProvider());
     final guard = storage.loadProfile().prizes.lastDailyPrizeDate;
-    if (guard != null && guard.compareTo(yesterday) >= 0) return;
-
-    final ranks = await _myRankByTier(
-      Difficulty.values
-          .where((difficulty) => difficulty != Difficulty.challenge)
-          .toList(),
-      (difficulty) => fetchFn(difficulty: difficulty, date: yesterday),
+    final dates = _boundedDateKeys(
+      guard,
+      yesterday,
+      stepDays: 1,
+      limit: 7,
     );
-    if (ranks == null) return;
+    if (dates.isEmpty) return;
+    late final Map<String, Map<Difficulty, int>> ranksByDate;
+    try {
+      ranksByDate = await fetchRanks(from: dates.first, to: dates.last);
+    } catch (error, stack) {
+      _onError?.call(error, stack);
+      return;
+    }
 
-    await _serializedPrizeCommit(() async {
-      final profile = storage.loadProfile();
-      final storedGuard = profile.prizes.lastDailyPrizeDate;
-      if (storedGuard != null && storedGuard.compareTo(yesterday) >= 0) return;
-      final bestRank = _bestQualifyingRank(ranks, _dailyCoinsFor);
-      final coins = bestRank == null ? 0 : _dailyCoinsFor(bestRank);
-      final updated = profile.awardDailyPrize(yesterday, awardCoins: coins);
-      await storage.saveProfile(updated);
-      if (updated.wallet.coins != state.coins) {
-        emit(state.copyWith(coins: updated.wallet.coins));
-      }
-    });
+    for (final date in dates) {
+      final ranks = Map<Difficulty, int>.fromEntries(
+        (ranksByDate[date] ?? const {}).entries.where(
+              (entry) => entry.key != Difficulty.challenge,
+            ),
+      );
+      await _serializedPrizeCommit(() async {
+        final profile = storage.loadProfile();
+        final storedGuard = profile.prizes.lastDailyPrizeDate;
+        if (storedGuard != null && storedGuard.compareTo(date) >= 0) return;
+        final bestRank = _bestQualifyingRank(ranks, _dailyCoinsFor);
+        final coins = bestRank == null ? 0 : _dailyCoinsFor(bestRank);
+        final updated = profile.awardDailyPrize(date, awardCoins: coins);
+        await storage.saveProfile(updated);
+        if (updated.wallet.coins != state.coins) {
+          emit(state.copyWith(coins: updated.wallet.coins));
+        }
+      });
+      final committed = storage.loadProfile().prizes.lastDailyPrizeDate;
+      if (committed == null || committed.compareTo(date) < 0) break;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -483,63 +536,70 @@ class EngagementCubit extends Cubit<EngagementState> {
     return formatDate(DateTime.utc(d.year, d.month, d.day - 7));
   }
 
-  /// Check if the player placed top-3 in last week's leaderboard for any tier.
-  /// "Last week" = the Mon–Sun period that COMPLETED before today; prizes are
-  /// awarded once per completed week (not per week-start) so the full 7-day
-  /// data set is always available when the check runs.
-  /// Idempotent: the `lastWeeklyPrizeDate` guard prevents double-granting.
+  /// Check rank 1–5 finishes across up to four unclaimed completed weeks.
+  /// Each board is a fully closed Monday–Sunday range; the guard prevents
+  /// double-granting and advances only through contiguous successful checks.
   Future<void> checkWeeklyPrizes(
-    Future<List<LeaderboardEntry>> Function({
-      required Difficulty difficulty,
+    Future<Map<Difficulty, int>> Function({
       required String from,
       required String to,
-    }) fetchPeriod,
+    }) fetchRanks,
   ) async {
-    final weekFrom = _prevWeekMonday(todayProvider());
-    final weekTo = _weekSunday(weekFrom);
+    final latestWeek = _prevWeekMonday(todayProvider());
     final guard = storage.loadProfile().prizes.lastWeeklyPrizeDate;
-    if (guard != null && guard.compareTo(weekFrom) >= 0) return;
-
-    final ranks = await _myRankByTier(
-      Difficulty.values
-          .where((difficulty) => difficulty != Difficulty.challenge)
-          .toList(),
-      (difficulty) => fetchPeriod(
-        difficulty: difficulty,
-        from: weekFrom,
-        to: weekTo,
-      ),
+    final weeks = _boundedDateKeys(
+      guard,
+      latestWeek,
+      stepDays: 7,
+      limit: 4,
     );
-    if (ranks == null) return;
-
-    await _serializedPrizeCommit(() async {
-      final profile = storage.loadProfile();
-      final storedGuard = profile.prizes.lastWeeklyPrizeDate;
-      if (storedGuard != null && storedGuard.compareTo(weekFrom) >= 0) return;
-      final bestRank = _bestQualifyingRank(ranks, _weeklyCoinsFor);
-      final coins = bestRank == null ? 0 : _weeklyCoinsFor(bestRank);
-      final crowns = ranks.entries
-          .where((entry) => _weeklyCoinsFor(entry.value) > 0)
-          .map((entry) => WeeklyPrize(
-                weekStart: weekFrom,
-                tier: entry.key,
-                rank: entry.value,
-              ))
-          .toList();
-      final updated = profile.awardWeeklyPrize(
-        weekFrom,
-        awardCoins: coins,
-        crowns: crowns,
-      );
-      await storage.saveProfile(updated);
-      if (updated.wallet.coins != state.coins ||
-          !_sameWeeklyPrizes(updated.prizes.weeklyPrizes, state.weeklyPrizes)) {
-        emit(state.copyWith(
-          coins: updated.wallet.coins,
-          weeklyPrizes: updated.prizes.weeklyPrizes,
-        ));
+    for (final weekFrom in weeks) {
+      final weekTo = _weekSunday(weekFrom);
+      late final Map<Difficulty, int> fetchedRanks;
+      try {
+        fetchedRanks = await fetchRanks(from: weekFrom, to: weekTo);
+      } catch (error, stack) {
+        _onError?.call(error, stack);
+        break;
       }
-    });
+      final ranks = Map<Difficulty, int>.fromEntries(
+        fetchedRanks.entries.where(
+          (entry) => entry.key != Difficulty.challenge,
+        ),
+      );
+
+      await _serializedPrizeCommit(() async {
+        final profile = storage.loadProfile();
+        final storedGuard = profile.prizes.lastWeeklyPrizeDate;
+        if (storedGuard != null && storedGuard.compareTo(weekFrom) >= 0) return;
+        final bestRank = _bestQualifyingRank(ranks, _weeklyCoinsFor);
+        final coins = bestRank == null ? 0 : _weeklyCoinsFor(bestRank);
+        final crowns = ranks.entries
+            .where((entry) => _weeklyCoinsFor(entry.value) > 0)
+            .map((entry) => WeeklyPrize(
+                  weekStart: weekFrom,
+                  tier: entry.key,
+                  rank: entry.value,
+                ))
+            .toList();
+        final updated = profile.awardWeeklyPrize(
+          weekFrom,
+          awardCoins: coins,
+          crowns: crowns,
+        );
+        await storage.saveProfile(updated);
+        if (updated.wallet.coins != state.coins ||
+            !_sameWeeklyPrizes(
+                updated.prizes.weeklyPrizes, state.weeklyPrizes)) {
+          emit(state.copyWith(
+            coins: updated.wallet.coins,
+            weeklyPrizes: updated.prizes.weeklyPrizes,
+          ));
+        }
+      });
+      final committed = storage.loadProfile().prizes.lastWeeklyPrizeDate;
+      if (committed == null || committed.compareTo(weekFrom) < 0) break;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -564,77 +624,97 @@ class EngagementCubit extends Cubit<EngagementState> {
     return formatDate(last);
   }
 
-  /// Check if the player placed top-3 in last calendar month's leaderboard for
-  /// any non-challenge tier. Idempotent: `lastMonthlyPrizeMonth` guards it.
+  /// Check rank 1–5 finishes across unclaimed completed calendar months.
   Future<void> checkMonthlyPrizes(
-    Future<List<LeaderboardEntry>> Function({
-      required Difficulty difficulty,
+    Future<Map<Difficulty, int>> Function({
       required String from,
       required String to,
-    }) fetchPeriod,
+    }) fetchRanks,
   ) async {
-    final monthKey = _lastMonthKey(todayProvider());
-    final from = _firstOfMonth(monthKey);
-    final to = _lastOfMonth(monthKey);
+    final latestMonth = _lastMonthKey(todayProvider());
     final guard = storage.loadProfile().prizes.lastMonthlyPrizeMonth;
-    if (guard != null && guard.compareTo(monthKey) >= 0) return;
-
-    final ranks = await _myRankByTier(
-      Difficulty.values
-          .where((difficulty) => difficulty != Difficulty.challenge)
-          .toList(),
-      (difficulty) => fetchPeriod(difficulty: difficulty, from: from, to: to),
-    );
-    if (ranks == null) return;
-
-    await _serializedPrizeCommit(() async {
-      final profile = storage.loadProfile();
-      final storedGuard = profile.prizes.lastMonthlyPrizeMonth;
-      if (storedGuard != null && storedGuard.compareTo(monthKey) >= 0) return;
-      final bestRank = _bestQualifyingRank(ranks, _monthlyCoinsFor);
-      final coins = bestRank == null ? 0 : _monthlyCoinsFor(bestRank);
-      final updated = profile.awardMonthlyPrize(monthKey, awardCoins: coins);
-      await storage.saveProfile(updated);
-      if (updated.wallet.coins != state.coins) {
-        emit(state.copyWith(coins: updated.wallet.coins));
+    final months = _boundedMonthKeys(guard, latestMonth);
+    for (final monthKey in months) {
+      final from = _firstOfMonth(monthKey);
+      final to = _lastOfMonth(monthKey);
+      late final Map<Difficulty, int> fetchedRanks;
+      try {
+        fetchedRanks = await fetchRanks(from: from, to: to);
+      } catch (error, stack) {
+        _onError?.call(error, stack);
+        break;
       }
-    });
+      final ranks = Map<Difficulty, int>.fromEntries(
+        fetchedRanks.entries.where(
+          (entry) => entry.key != Difficulty.challenge,
+        ),
+      );
+
+      await _serializedPrizeCommit(() async {
+        final profile = storage.loadProfile();
+        final storedGuard = profile.prizes.lastMonthlyPrizeMonth;
+        if (storedGuard != null && storedGuard.compareTo(monthKey) >= 0) return;
+        final bestRank = _bestQualifyingRank(ranks, _monthlyCoinsFor);
+        final coins = bestRank == null ? 0 : _monthlyCoinsFor(bestRank);
+        final updated = profile.awardMonthlyPrize(monthKey, awardCoins: coins);
+        await storage.saveProfile(updated);
+        if (updated.wallet.coins != state.coins) {
+          emit(state.copyWith(coins: updated.wallet.coins));
+        }
+      });
+      final committed = storage.loadProfile().prizes.lastMonthlyPrizeMonth;
+      if (committed == null || committed.compareTo(monthKey) < 0) break;
+    }
   }
 
   // ---------------------------------------------------------------------------
   // Challenge payout helpers
   // ---------------------------------------------------------------------------
 
-  /// Check if the player placed top-10 in yesterday's challenge leaderboard.
-  /// [fetchFn] matches [LeaderboardService.fetch]'s signature.
+  /// Check top-10 finishes across up to seven unclaimed Challenge days.
   Future<void> checkChallengePayouts(
-    Future<List<LeaderboardEntry>> Function({
-      required Difficulty difficulty,
-      required String date,
-    }) fetchFn,
+    Future<Map<String, Map<Difficulty, int>>> Function({
+      required String from,
+      required String to,
+    }) fetchRanks,
   ) async {
     final yesterday = previousUtcDay(todayProvider());
     final guard = storage.loadProfile().prizes.lastChallengeCheckDate;
-    if (guard != null && guard.compareTo(yesterday) >= 0) return;
-
-    final ranks = await _myRankByTier(
-      const [Difficulty.challenge],
-      (difficulty) => fetchFn(difficulty: difficulty, date: yesterday),
+    final dates = _boundedDateKeys(
+      guard,
+      yesterday,
+      stepDays: 1,
+      limit: 7,
     );
-    if (ranks == null) return;
+    if (dates.isEmpty) return;
+    late final Map<String, Map<Difficulty, int>> ranksByDate;
+    try {
+      ranksByDate = await fetchRanks(from: dates.first, to: dates.last);
+    } catch (error, stack) {
+      _onError?.call(error, stack);
+      return;
+    }
 
-    await _serializedPrizeCommit(() async {
-      final profile = storage.loadProfile();
-      final storedGuard = profile.prizes.lastChallengeCheckDate;
-      if (storedGuard != null && storedGuard.compareTo(yesterday) >= 0) return;
-      final bestRank = _bestQualifyingRank(ranks, _challengeCoinsFor);
-      final coins = bestRank == null ? 0 : _challengeCoinsFor(bestRank);
-      final updated = profile.awardChallengeCheck(yesterday, awardCoins: coins);
-      await storage.saveProfile(updated);
-      if (updated.wallet.coins != state.coins) {
-        emit(state.copyWith(coins: updated.wallet.coins));
-      }
-    });
+    for (final date in dates) {
+      final challengeRank = ranksByDate[date]?[Difficulty.challenge];
+      final ranks = challengeRank == null
+          ? const <Difficulty, int>{}
+          : {Difficulty.challenge: challengeRank};
+      await _serializedPrizeCommit(() async {
+        final profile = storage.loadProfile();
+        final storedGuard = profile.prizes.lastChallengeCheckDate;
+        if (storedGuard != null && storedGuard.compareTo(date) >= 0) return;
+        final bestRank = _bestQualifyingRank(ranks, _challengeCoinsFor);
+        final coins = bestRank == null ? 0 : _challengeCoinsFor(bestRank);
+        final updated = profile.awardChallengeCheck(date, awardCoins: coins);
+        await storage.saveProfile(updated);
+        if (updated.wallet.coins != state.coins) {
+          emit(state.copyWith(coins: updated.wallet.coins));
+        }
+      });
+      final committed = storage.loadProfile().prizes.lastChallengeCheckDate;
+      if (committed == null || committed.compareTo(date) < 0) break;
+    }
   }
 
   /// Grant a streak-freeze token (e.g. from a rewarded ad). Banked on every tier
@@ -645,10 +725,8 @@ class EngagementCubit extends Cubit<EngagementState> {
     for (final d in Difficulty.values) {
       final stats = storage.loadStats(d);
       if (stats.streakFreezeTokens < kMaxFreezeTokens) {
-        await storage.saveStats(
-            d,
-            stats.copyWith(
-                streakFreezeTokens: stats.streakFreezeTokens + 1));
+        await storage.saveStats(d,
+            stats.copyWith(streakFreezeTokens: stats.streakFreezeTokens + 1));
         grantedAny = true;
       }
     }

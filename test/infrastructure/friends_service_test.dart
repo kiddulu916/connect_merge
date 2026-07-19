@@ -110,21 +110,57 @@ void main() {
       final rows = await s.friendsLeaderboard(
           difficulty: Difficulty.hard, date: '2026-06-07');
       expect(fn, 'friends_leaderboard');
-      expect(params,
-          {'p_date': '2026-06-07', 'p_diff': 'hard', 'p_season': kLeaderboardSeason});
+      expect(params, {
+        'p_date': '2026-06-07',
+        'p_diff': 'hard',
+        'p_season': kLeaderboardSeason
+      });
       expect(rows.length, 2);
       expect(rows[0].isMe, isTrue);
       expect(rows[1].displayName, 'Pat');
     });
 
     test('zero friends who played -> just you (single row)', () async {
-      final s = _service(rpc: (_, __) async => [
-            {'rank': 1, 'display_name': 'Me', 'score': 100, 'is_me': true}
-          ]);
+      final s = _service(
+          rpc: (_, __) async => [
+                {'rank': 1, 'display_name': 'Me', 'score': 100, 'is_me': true}
+              ]);
       final rows = await s.friendsLeaderboard(
           difficulty: Difficulty.easy, date: '2026-06-07');
       expect(rows.length, 1);
       expect(rows.single.isMe, isTrue);
+    });
+  });
+
+  group('friendsLeaderboardPeriod', () {
+    test('shapes the period RPC and maps total onto score', () async {
+      String? fn;
+      Map<String, dynamic>? params;
+      final s = _service(rpc: (f, p) async {
+        fn = f;
+        params = p;
+        return [
+          {'rank': 1, 'display_name': 'Me', 'total': 9200, 'is_me': true},
+          {'rank': 2, 'display_name': 'Pat', 'total': 8100, 'is_me': false},
+        ];
+      });
+
+      final rows = await s.friendsLeaderboardPeriod(
+        difficulty: Difficulty.legendary,
+        from: '2026-06-01',
+        to: '2026-06-30',
+      );
+
+      expect(fn, 'friends_leaderboard_period');
+      expect(params, {
+        'p_diff': 'legendary',
+        'p_from': '2026-06-01',
+        'p_to': '2026-06-30',
+        'p_season': kLeaderboardSeason,
+      });
+      expect(rows.first.score, 9200);
+      expect(rows.first.isMe, isTrue);
+      expect(rows.last.displayName, 'Pat');
     });
   });
 
@@ -156,12 +192,15 @@ void main() {
     });
 
     test('isOptedInToContacts reflects stored rows', () async {
-      expect(await _service(selectMine: (_) async => const []).isOptedInToContacts(),
+      expect(
+          await _service(selectMine: (_) async => const [])
+              .isOptedInToContacts(),
           isFalse);
       expect(
-          await _service(selectMine: (_) async => [
-                {'hash': 'x'}
-              ]).isOptedInToContacts(),
+          await _service(
+              selectMine: (_) async => [
+                    {'hash': 'x'}
+                  ]).isOptedInToContacts(),
           isTrue);
     });
   });
@@ -186,8 +225,7 @@ void main() {
       expect(sentHashes, [_sha('+14155550100')]);
       // No raw contact in the payload.
       expect(body.toString().contains('415'), isFalse);
-      expect(matches.single,
-          const Friend(playerId: 'p1', displayName: 'Ada'));
+      expect(matches.single, const Friend(playerId: 'p1', displayName: 'Ada'));
     });
 
     test('empty/unhashable contacts -> no call, empty result', () async {

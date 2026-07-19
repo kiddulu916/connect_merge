@@ -1,6 +1,6 @@
 import 'difficulty.dart';
 
-/// A permanent record of a top-3 weekly leaderboard finish.
+/// A permanent record of a rank 1–5 weekly leaderboard finish.
 class WeeklyPrize {
   /// ISO week-start date (Monday), e.g. `"2026-06-22"`.
   final String weekStart;
@@ -8,7 +8,7 @@ class WeeklyPrize {
   /// Which difficulty tier this prize was earned on.
   final Difficulty tier;
 
-  /// Leaderboard rank (1, 2, or 3).
+  /// Leaderboard rank (1–5).
   final int rank;
 
   const WeeklyPrize({

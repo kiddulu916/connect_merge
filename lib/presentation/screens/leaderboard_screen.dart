@@ -12,8 +12,8 @@ import '../widgets/leaderboard_row.dart';
 /// Which board the user is viewing within a tier.
 enum LeaderboardScope { global, friends }
 
-/// Time period for the global board. Daily uses the per-day RPC; the rest use
-/// the read-only `leaderboard_period` aggregation (sum of daily bests).
+/// Time period for a board. Daily uses the per-day RPC; the rest use a
+/// read-only period aggregation (sum of daily bests).
 enum LeaderboardPeriod { daily, weekly, monthly, allTime }
 
 extension LeaderboardPeriodX on LeaderboardPeriod {
@@ -147,11 +147,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 onSelectionChanged: (s) => setState(() => _scope = s.first),
               ),
             ),
-          // Period tabs apply only to the global board (the friends RPC is
-          // daily-only). Hidden in Friends scope and on the challenge tab
-          // (challenge is always daily-only).
-          if (_scope == LeaderboardScope.global &&
-              Difficulty.values[_tabs.index] != Difficulty.challenge)
+          // Challenge is daily-only in both scopes.
+          if (Difficulty.values[_tabs.index] != Difficulty.challenge)
             Padding(
               padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
               child: SingleChildScrollView(
@@ -164,8 +161,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   ],
                   selected: {_period},
                   showSelectedIcon: false,
-                  onSelectionChanged: (s) =>
-                      setState(() => _period = s.first),
+                  onSelectionChanged: (s) => setState(() => _period = s.first),
                 ),
               ),
             ),
@@ -201,13 +197,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       (p) => ListTile(
                         leading: Text(_crownEmoji(p.rank),
                             style: const TextStyle(fontSize: 20)),
-                        title: Text(
-                            '${p.tier.label} — Week of ${p.weekStart}',
+                        title: Text('${p.tier.label} — Week of ${p.weekStart}',
                             style: const TextStyle(
                                 color: Colors.white70, fontSize: 13)),
                         trailing: Text('#${p.rank}',
-                            style:
-                                const TextStyle(color: Colors.white54)),
+                            style: const TextStyle(color: Colors.white54)),
                         dense: true,
                       ),
                     )
@@ -265,18 +259,31 @@ class _TierBoardState extends State<_TierBoard>
   }
 
   Future<List<LeaderboardEntry>> _load() {
+    final period = widget.difficulty == Difficulty.challenge
+        ? LeaderboardPeriod.daily
+        : widget.period;
     if (widget.scope == LeaderboardScope.friends &&
         widget.friendsService != null) {
-      return widget.friendsService!
-          .friendsLeaderboard(difficulty: widget.difficulty, date: widget.date);
+      if (period == LeaderboardPeriod.daily) {
+        return widget.friendsService!.friendsLeaderboard(
+          difficulty: widget.difficulty,
+          date: widget.date,
+        );
+      }
+      final (from, to) = period.range(widget.date);
+      return widget.friendsService!.friendsLeaderboardPeriod(
+        difficulty: widget.difficulty,
+        from: from,
+        to: to,
+      );
     }
     // Global scope: daily uses the per-day RPC; weekly/monthly/all-time use the
     // read-only period aggregation (sum of daily bests).
-    if (widget.period == LeaderboardPeriod.daily) {
+    if (period == LeaderboardPeriod.daily) {
       return widget.service
           .fetch(difficulty: widget.difficulty, date: widget.date);
     }
-    final (from, to) = widget.period.range(widget.date);
+    final (from, to) = period.range(widget.date);
     return widget.service
         .fetchPeriod(difficulty: widget.difficulty, from: from, to: to);
   }
@@ -304,6 +311,7 @@ class _TierBoardState extends State<_TierBoard>
           1 => '\u{1F947}',
           2 => '\u{1F948}',
           3 => '\u{1F949}',
+          4 || 5 => '\u{1F3C5}',
           _ => null,
         };
       }
@@ -330,9 +338,9 @@ class _TierBoardState extends State<_TierBoard>
           );
         }
         final allEntries = snap.data ?? const <LeaderboardEntry>[];
-        // Challenge board is capped at top-10.
+        // All board RPCs are capped at 100; retain a client-side backstop.
         final entries = widget.difficulty == Difficulty.challenge
-            ? allEntries.take(10).toList()
+            ? allEntries.take(100).toList()
             : allEntries;
         if (entries.isEmpty) {
           return _Message(

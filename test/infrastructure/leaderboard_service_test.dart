@@ -162,6 +162,72 @@ void main() {
     });
   });
 
+  group('LeaderboardService caller-rank RPCs', () {
+    test('myDailyRanks shapes the range payload and groups ranks by date',
+        () async {
+      String? capturedFn;
+      Map<String, dynamic>? capturedParams;
+      final service = LeaderboardService.withSeams(
+        invoke: (_, __) async => const {},
+        rpc: (fn, params) async {
+          capturedFn = fn;
+          capturedParams = params;
+          return [
+            {'utc_date': '2026-06-20', 'difficulty': 'easy', 'rank': 5},
+            {'utc_date': '2026-06-20', 'difficulty': 'hard', 'rank': 2},
+            {'utc_date': '2026-06-21', 'difficulty': 'challenge', 'rank': 10},
+          ];
+        },
+      );
+
+      final ranks = await service.myDailyRanks(
+        from: '2026-06-20',
+        to: '2026-06-21',
+      );
+
+      expect(capturedFn, 'my_daily_ranks');
+      expect(capturedParams, {
+        'p_from': '2026-06-20',
+        'p_to': '2026-06-21',
+        'p_season': kLeaderboardSeason,
+      });
+      expect(ranks, {
+        '2026-06-20': {Difficulty.easy: 5, Difficulty.hard: 2},
+        '2026-06-21': {Difficulty.challenge: 10},
+      });
+    });
+
+    test('myPeriodRanks shapes the range payload and maps tier ranks',
+        () async {
+      String? capturedFn;
+      Map<String, dynamic>? capturedParams;
+      final service = LeaderboardService.withSeams(
+        invoke: (_, __) async => const {},
+        rpc: (fn, params) async {
+          capturedFn = fn;
+          capturedParams = params;
+          return [
+            {'difficulty': 'medium', 'rank': 5},
+            {'difficulty': 'legendary', 'rank': 1},
+          ];
+        },
+      );
+
+      final ranks = await service.myPeriodRanks(
+        from: '2026-06-01',
+        to: '2026-06-30',
+      );
+
+      expect(capturedFn, 'my_period_ranks');
+      expect(capturedParams, {
+        'p_from': '2026-06-01',
+        'p_to': '2026-06-30',
+        'p_season': kLeaderboardSeason,
+      });
+      expect(ranks, {Difficulty.medium: 5, Difficulty.legendary: 1});
+    });
+  });
+
   group('LeaderboardService season tagging (Task 17)', () {
     test('submitRun payload includes the current season', () async {
       Map<String, dynamic>? capturedBody;
