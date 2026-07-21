@@ -43,6 +43,11 @@ import 'tutorial_tour_screen.dart';
 
 enum _TourPhase { inactive, mechanics, tiers, leaderboard }
 
+/// Step 6 of the tour is two beats, not one pass per tier: spotlight every
+/// difficulty at once with a single blanket description, then spotlight one
+/// representative practice icon with a single blanket explanation.
+enum _TierTourStep { allTiers, practice }
+
 /// Entry screen: pick a difficulty tier. Each card shows the starting tile
 /// count, whether the tier is already done today, and a live countdown to the
 /// 00:00 UTC reset.
@@ -131,27 +136,11 @@ class TierSelectScreen extends StatefulWidget {
 }
 
 class _TierSelectScreenState extends State<TierSelectScreen> {
-  static const _tierTourTargets = <({
-    Difficulty difficulty,
-    bool practice,
-  })>[
-    (difficulty: Difficulty.easy, practice: false),
-    (difficulty: Difficulty.easy, practice: true),
-    (difficulty: Difficulty.medium, practice: false),
-    (difficulty: Difficulty.medium, practice: true),
-    (difficulty: Difficulty.hard, practice: false),
-    (difficulty: Difficulty.hard, practice: true),
-    (difficulty: Difficulty.legendary, practice: false),
-    (difficulty: Difficulty.legendary, practice: true),
-    (difficulty: Difficulty.challenge, practice: false),
-  ];
+  static const _tierTourSteps = [_TierTourStep.allTiers, _TierTourStep.practice];
   Timer? _ticker;
   Duration _untilReset = Duration.zero;
   final _tourScrollController = ScrollController();
-  final _tierTourKeys = <Difficulty, GlobalKey>{
-    for (final difficulty in Difficulty.values)
-      difficulty: GlobalKey(debugLabel: 'tutorial-tier-${difficulty.name}'),
-  };
+  final _tierListKey = GlobalKey(debugLabel: 'tutorial-tier-list');
   final _practiceTourKeys = <Difficulty, GlobalKey>{
     for (final difficulty in Difficulty.values
         .where((difficulty) => difficulty != Difficulty.challenge))
@@ -270,34 +259,14 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     _measureTierTourTarget();
   }
 
-  GlobalKey get _currentTierTourKey {
-    final target = _tierTourTargets[_tierTourIndex];
-    return target.practice
-        ? _practiceTourKeys[target.difficulty]!
-        : _tierTourKeys[target.difficulty]!;
-  }
+  GlobalKey get _currentTierTourKey => switch (_tierTourSteps[_tierTourIndex]) {
+        _TierTourStep.allTiers => _tierListKey,
+        _TierTourStep.practice => _practiceTourKeys[Difficulty.easy]!,
+      };
 
   Future<void> _measureTierTourTarget([int attempt = 0]) async {
     final targetIndex = _tierTourIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted ||
-          _tourPhase != _TourPhase.tiers ||
-          _tierTourIndex != targetIndex) {
-        return;
-      }
-      final cardIndex =
-          Difficulty.values.indexOf(_tierTourTargets[targetIndex].difficulty);
-      if (_tourScrollController.hasClients) {
-        final approximate = (cardIndex * 164.0).clamp(
-          0.0,
-          _tourScrollController.position.maxScrollExtent,
-        );
-        await _tourScrollController.animateTo(
-          approximate,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-        );
-      }
       if (!mounted ||
           _tourPhase != _TourPhase.tiers ||
           _tierTourIndex != targetIndex) {
@@ -337,7 +306,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   void _nextTierTourTarget() {
     if (_tierTourAdvancing || _tourTargetRect == null) return;
     _tierTourAdvancing = true;
-    if (_tierTourIndex < _tierTourTargets.length - 1) {
+    if (_tierTourIndex < _tierTourSteps.length - 1) {
       setState(() {
         _tierTourIndex++;
         _tourTargetRect = null;
@@ -416,30 +385,23 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     );
   }
 
-  (String, String) get _tierTourCopy {
-    final target = _tierTourTargets[_tierTourIndex];
-    if (target.difficulty == Difficulty.challenge) {
-      return (
-        'Daily Challenge',
-        'Challenge uses the tightest board and a daily rule. It unlocks at '
-            'noon UTC and stays on its own leaderboard.',
-      );
-    }
-    final difficulty = target.difficulty;
-    if (target.practice) {
-      return (
-        '${difficulty.label} practice',
-        'Practice is off-leaderboard, replayable anytime, and has no daily '
-            'move budget.',
-      );
-    }
-    return (
-      '${difficulty.label} difficulty',
-      '${difficulty.gridSize}×${difficulty.gridSize} with '
-          '${difficulty.startingFill} starting tiles. Smaller boards and fewer '
-          'starting tiles leave less room to plan, so the lower numbers are harder.',
-    );
-  }
+  (String, String) get _tierTourCopy => switch (_tierTourSteps[_tierTourIndex]) {
+        _TierTourStep.allTiers => (
+            'Choose your difficulty',
+            'Easy (8×8) is the most forgiving board. Medium, Hard, and '
+                'Legendary shrink the grid and starting tiles for a tighter '
+                'puzzle each step up. Challenge uses the tightest board plus '
+                'a daily rule and unlocks at noon UTC on its own leaderboard. '
+                'You get one run a day per difficulty, so make it count for '
+                'your best score.',
+          ),
+        _TierTourStep.practice => (
+            'Practice mode',
+            'Tap the practice icon on any tier to play that board '
+                'off-leaderboard, anytime, with no daily move budget — a good '
+                'way to warm up before your one daily run.',
+          ),
+      };
 
   Widget _buildTourOverlay() {
     final isTier = _tourPhase == _TourPhase.tiers;
@@ -997,15 +959,15 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                 },
               ),
             Expanded(
-              child: ListView(
-                controller: _tourScrollController,
-                children: [
-                  for (final d in Difficulty.values
-                      .where((d) => d != Difficulty.challenge))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                      child: KeyedSubtree(
-                        key: _tierTourKeys[d],
+              child: KeyedSubtree(
+                key: _tierListKey,
+                child: ListView(
+                  controller: _tourScrollController,
+                  children: [
+                    for (final d in Difficulty.values
+                        .where((d) => d != Difficulty.challenge))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
                         child: _TierCard(
                           difficulty: d,
                           completed: _isCompleted(d),
@@ -1021,12 +983,9 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                               : () => _openLeaderboard(context, d),
                         ),
                       ),
-                    ),
-                  KeyedSubtree(
-                    key: _tierTourKeys[Difficulty.challenge],
-                    child: _buildChallengeCard(context),
-                  ),
-                ],
+                    _buildChallengeCard(context),
+                  ],
+                ),
               ),
             ),
           ],

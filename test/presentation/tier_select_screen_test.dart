@@ -242,27 +242,35 @@ void main() {
     expect(storage.loadProfile().settings.tutorialSeen, isTrue);
   });
 
-  testWidgets('step 6 scrolls an initially unmounted difficulty into view',
+  testWidgets(
+      'step 6 spotlights the whole tier list first, then the practice icon',
       (tester) async {
     final storage = InMemoryStorageService();
     await tester.pumpWidget(_tierSelect(storage));
     await tester.pumpAndSettle();
     await _finishMechanics(tester);
 
-    for (var i = 0; i < 6; i++) {
-      await tester.tap(find.byKey(const Key('tutorial-next')));
-      await tester.pumpAndSettle();
-    }
-
-    expect(find.text('Legendary difficulty'), findsOneWidget);
+    // First beat: one blanket spotlight over every difficulty at once.
+    expect(find.text('Choose your difficulty'), findsOneWidget);
+    expect(find.byKey(const Key('tier-easy')), findsOneWidget);
     expect(find.byKey(const Key('tier-legendary')), findsOneWidget);
-    expect(tester.getTopLeft(find.byKey(const Key('tier-legendary'))).dy,
-        inInclusiveRange(0, 600));
-    final spotlight =
+    var spotlight =
         tester.widget<TutorialSpotlight>(find.byType(TutorialSpotlight));
     expect(
       spotlight.targetRect!
-          .overlaps(tester.getRect(find.byKey(const Key('tier-legendary')))),
+          .overlaps(tester.getRect(find.byKey(const Key('tier-easy')))),
+      isTrue,
+    );
+
+    // Second beat: one blanket practice-icon spotlight, not one per tier.
+    await tester.tap(find.byKey(const Key('tutorial-next')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Practice mode'), findsOneWidget);
+    spotlight = tester.widget<TutorialSpotlight>(find.byType(TutorialSpotlight));
+    expect(
+      spotlight.targetRect!
+          .overlaps(tester.getRect(find.byKey(const Key('practice-easy')))),
       isTrue,
     );
   });
@@ -304,8 +312,10 @@ void main() {
     await tester.tap(next);
     await tester.pumpAndSettle();
 
-    expect(find.text('Easy practice'), findsOneWidget);
-    expect(find.text('Medium difficulty'), findsNothing);
+    // A rapid second tap while the practice-icon target is still being
+    // measured must not skip straight past it into the leaderboard phase.
+    expect(find.text('Practice mode'), findsOneWidget);
+    expect(find.text('Leaderboards'), findsNothing);
   });
 
   testWidgets('Skip from step 6 persists and returns to plain tier select',
@@ -380,7 +390,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     await _finishMechanics(tester);
-    for (var i = 0; i < 9; i++) {
+    for (var i = 0; i < 2; i++) {
       await tester.tap(find.byKey(const Key('tutorial-next')));
       await tester.pumpAndSettle();
     }

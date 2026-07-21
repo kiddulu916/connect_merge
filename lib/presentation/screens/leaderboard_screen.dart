@@ -200,7 +200,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           ),
         _TutorialTarget.period => (
             'Choose a time period',
-            'Daily, weekly, monthly, and all-time boards reward different kinds of consistency.',
+            'Daily ranks your best score for today. Weekly, Monthly, and '
+                'All-time each sum your best score from every day in that '
+                'span, so playing well on more days climbs you higher — not '
+                'just one great run.',
           ),
         _TutorialTarget.row => (
             'How rankings work',
