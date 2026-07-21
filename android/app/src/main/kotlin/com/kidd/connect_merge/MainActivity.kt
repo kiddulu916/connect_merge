@@ -1,4 +1,4 @@
-package com.kiddulu.connect_merge
+package com.kidd.connect_merge
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
