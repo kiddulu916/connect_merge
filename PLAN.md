@@ -1,67 +1,340 @@
-# Plan: Top-5 leaderboard prizes, challenge top-10 payout, friends period boards
-
-_Locked via grill — by Claude + kiddulu916. Revised after Codex rounds 1–2._
+# Plan: First-launch onboarding tour (interactive tutorial + tip spotlights + skip)
+_Locked via grill — by Claude + kiddulu916_
 
 ## Goal
 
-The leaderboard system already does most of what was asked: the daily board is date-keyed (fresh each UTC day), weekly/monthly/all-time boards sum daily bests via `leaderboard_period` (week = Mon→today, month = 1st→today, all-time = 2020 floor→today, no rewards on all-time — the G.O.A.T. board already exists), and prizes for completed periods are granted client-side, idempotently, on next app launch. What changes: (1) daily/weekly/monthly payouts extend from top-3 to top-5 with the user's flat-scaling tables; (2) the challenge board keeps a top-10 payout but with new broad-and-shallow values and an uncapped-to-100 list; (3) friends boards become a view-only mirror of every period (today they are daily-only) via a new `friends_leaderboard_period` RPC; (4) prize checks move off the display RPCs onto two tiny caller-rank RPCs, making payouts reliable under mass ties and cheap under catch-up. Codex review also surfaced a **pre-existing RLS bug this work must fix first**: `players` is self-only readable and all read RPCs are `security invoker`, so the shipped boards can only return the caller's own row — the read RPCs must become tightly-scoped `SECURITY DEFINER` projections. The lazy client-grant payout model is retained: a prize is *earned* when the period closes at 00:00 UTC and *credited* when the player next opens the app — no server-side wallet or midnight cron. Coins stay client-side soft currency; no engine, TS-mirror, or season change.
+Replace the existing static 3-step `TutorialOverlay` with a single continuous
+7-step first-launch tour that teaches the real mechanics (chain-merge drag,
+move budget, drop-tier progression, the ascend-or-equal chain rule, deadlock)
+on a dedicated scripted board, then walks the player through the tier-select
+screen's difficulty cards and the leaderboard screen, before handing control
+back for real play. The tour is skippable at any point and, once completed or
+skipped, never shows again (single `tutorialSeen` flag, same as today).
 
 ## Approach
 
-0. **Repo planning workflow first**: dated design doc under `docs/superpowers/specs/` and task-by-task red-green plan under `docs/superpowers/plans/`, per CLAUDE.md.
-1. **Migration `0010_leaderboard_read_rpcs.sql` — fix the RLS read bug, bound every board, add friends-period + caller-rank RPCs.** All board RPCs become `SECURITY DEFINER` (pinned `set search_path = public`, selecting only rank / display_name / score-or-total / is_me — never `friend_code` or other `players` columns, which is exactly why a world-read policy on `players` is NOT the fix). Every `p_limit` is clamped server-side with `least(greatest(coalesce(p_limit, 100), 1), 100)` — a DEFINER function must not honor an attacker-chosen or NULL limit:
-   - `leaderboard(p_date, p_diff, p_season, p_limit)` — recreated DEFINER with the clamp. Display-only now; prize checks no longer depend on the caller appearing in the top rows.
-   - `leaderboard_period(p_diff, p_from, p_to, p_season, p_limit int default 100)` — recreated DEFINER, gains the clamped `p_limit` **with a SQL default** so the existing 4-argument `fetchPeriod()` caller keeps working unmodified, returns `total bigint` (drop the `::int` cast; `sum(int)` is bigint and all-time totals have no ceiling). Dart already maps via `num.toInt()`.
-   - `friends_leaderboard(p_date, p_diff, p_season, p_limit int default 100)` — recreated DEFINER with the same clamped, defaulted limit (large friend graphs must not produce unbounded results); friends-CTE body otherwise unchanged (`auth.uid()` resolves identically under DEFINER).
-   - `friends_leaderboard_period(p_diff, p_from, p_to, p_season, p_limit int default 100)` — **new**: friends-CTE composed with the period SUM aggregation, `total bigint`, same clamp.
-   - `my_daily_ranks(p_from, p_to, p_season)` — **new, prize-check seam**: the *caller's own* `(utc_date, difficulty, rank)` rows over the date range. **`SECURITY INVOKER`** — it reads only `scores`, which is already world-readable; DEFINER is reserved for functions that must join protected `players` data. The window function **must rank all players first and filter to `auth.uid()` in an outer query** — filtering before `rank() over (partition by utc_date, difficulty order by score desc)` would remove all competitors and rank everyone #1. Range guards: reject reversed or future ranges, cap the span at 7 days.
-   - `my_period_ranks(p_from, p_to, p_season)` — **new, prize-check seam**: the caller's `(difficulty, rank)` over one summed period range, same INVOKER + rank-then-filter structure, span capped at 31 days.
-   - `create index if not exists idx_friendships_b on friendships (b)` — the friends-CTE's `auth.uid() in (a, b)` can only BitmapOr into index scans if *both* columns are indexed; the PK covers `a` only, so today the reverse edge forces a scan of the global friendships table.
-   - ACLs the 0004 way: explicit `revoke execute ... from public, anon` on every function, then grant — `anon, authenticated` for the two global board RPCs, `authenticated` only for the friends and `my_*` RPCs. (Signature/return-type changes require `drop function` first, as 0006 did.)
-   - All board RPCs are DEFINER because they join `players` for display names; the `my_*` RPCs are INVOKER because they don't.
-2. **Service layer**: `FriendsService.friendsLeaderboardPeriod({difficulty, from, to})` mirroring `LeaderboardService.fetchPeriod` (maps `total` → `LeaderboardEntry.score` so `LeaderboardRow` is reused); `LeaderboardService.myDailyRanks({from, to})` and `myPeriodRanks({from, to})` returning plain rank maps for the prize checkers.
-3. **Payout tables in `EngagementCubit`** (guards and serialized prize commit untouched):
-   - `_dailyCoins`: {1: 50, 2: 30, 3: 15, 4: 10, 5: 5}
-   - `_weeklyCoins`: {1: 75, 2: 45, 3: 25, 4: 15, 5: 10}
-   - `_monthlyCoins`: {1: 100, 2: 60, 3: 35, 4: 20, 5: 15}
-   - `_challengeCoinsFor`: 1st → 20, 2nd–3rd → 15, 4th–6th → 10, 7th–10th → 5, else 0.
-   - Cross-tier semantics stay as shipped and are now documented: per period the player is paid **once, for their best qualifying rank across tiers**.
-   - Comment sweep: update every remaining `top-3` / `top-three` prize comment the repo grep finds (`EngagementState.weeklyPrizes` doc, prize-check doc comments, `WeeklyPrize.rank` doc → 1–5), not just the ones named so far.
-4. **Bounded, ordered catch-up for missed periods**: each checker iterates unclaimed closed periods from its stored guard forward — **oldest-first, stopping at the first period whose fetch fails, advancing the guard only through the last contiguous success** (so a transient failure never permanently skips a period). Bounds: daily 7 days and challenge 7 days (the daily and challenge checkers remain separate — separate guards — so each makes its own `my_daily_ranks` call: 2 total), weekly 4 weeks and monthly 2 months (one `my_period_ranks` call per window). Worst-case RPC fan-out at startup: 2 + 4 + 2 = **8 calls**, fire-and-forget, vs 59 if the display RPCs were reused per tier per period. (Merging the daily/challenge checkers to share one call would tangle two independent guards to save one RPC — not worth it.) First run (null guard) checks only the most recent closed period. Rollout semantics: unclaimed periods inside the lookback are paid at the **new** tables even if they closed pre-update — one table, no effective-date machinery; acceptable because prizes were nerfed deliberately and active users' guards are already current at update time.
-5. **`LeaderboardScreen`**:
-   - Show the period tabs in Friends scope; route friends + non-daily periods to `friendsLeaderboardPeriod`.
-   - Challenge is **forced to an effective daily period in `_load()`** in both scopes (today a stale weekly/monthly `_period` selected on another tab silently loads a period board for challenge — latent bug, fixed and tested).
-   - Challenge list: replace `take(10)` with `take(100)` (defense-in-depth beside the RPCs' own server-side clamp); keep the top-10 prize markers (🏆 1–3, ✶ 4–10).
-   - `_weekCrown` gains the 🏅 fallback for ranks 4–5 (currently returns null above rank 3, which would hide the new crowns from board rows).
-6. **Tests**: prize-table boundary cases (rank 5 pays / rank 6 doesn't; challenge rank 10 pays 5 / rank 11 doesn't); catch-up (gap of N days → each unclaimed closed period evaluated once oldest-first; a mid-window failure halts guard advancement at the last success and retries next launch; bounds respected; null-guard first run); `my_daily_ranks`/`my_period_ranks` payload shaping in `leaderboard_service_test`; friends period payload + `total`→`score` mapping in `friends_service_test`; screen tests for friends period tabs, period→challenge transition forcing daily, uncapped challenge list, and rank-4/5 crown rendering.
-7. **DB verification (no test harness exists in-repo)**: SQL smoke script at `supabase/tests/leaderboard_smoke.sql` — **outside** `supabase/migrations` so fixtures/assertions can never deploy — run locally as `supabase db reset` then `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -f supabase/tests/leaderboard_smoke.sql`. Covers: both friendship edge directions + self + non-friend exclusion, season and date filtering, a tie straddling a payout boundary in `my_daily_ranks` **and** a `my_period_ranks` fixture where the caller is rank > 1 and tied at a payout boundary (guarding the rank-then-filter structure — a non-winning caller must not come back rank 1), `p_limit` clamp on NULL / 0 / negative / huge inputs, range-guard rejection (reversed, future, over-span) on the `my_*` RPCs, anon rejected on friends + `my_*` RPCs, and `EXPLAIN` over `idx_scores_board_season` + `idx_friendships_b` as a *diagnostic* (tiny fixtures legitimately favor sequential scans, so plan shape is informative, not asserted).
-8. **Prove**: `flutter analyze` clean; full `flutter test` green. No golden-vector or Deno runs — nothing in `lib/domain/engine`, `supabase/functions/_shared`, or scoring changes; `kLeaderboardSeason` stays put. Migration ships via `supabase db push`; no Edge Function redeploy (the drift incident applies only to `_shared/` bundle changes).
+0. **Repo planning workflow**: per `CLAUDE.md`, nontrivial features here go
+   through a dated design doc under `docs/superpowers/specs/` and a
+   task-by-task red/green plan under `docs/superpowers/plans/`. This
+   grill-locked `PLAN.md` is the design brief that feeds those, produced
+   before Act 3 (build) starts, matching how the prior leaderboard-prizes
+   feature was sequenced.
+
+1. **Delete `lib/presentation/screens/tutorial_overlay.dart`** and its wiring
+   in `game_screen.dart` (`_showTutorial`, `_dismissTutorial`, the import).
+   `GameScreen` no longer gates anything on `tutorialSeen`.
+
+2. **Build a dedicated tutorial-tour screen** (new file, sibling to
+   `practice_screen.dart`, e.g. `lib/presentation/screens/tutorial_tour_screen.dart`)
+   hosting steps 1-5 on a small hand-scripted board (4x4 or 5x5, NOT any real
+   `Difficulty`). It reuses `BoardWidget`/`GameEngine` directly (`isValidChain`,
+   `collapseChain`, `applyDrop`, `evaluateStatus`) against a hand-authored
+   `BoardState` — no `DailySeeder`, no submit path, no move-budget or
+   leaderboard interaction, so it never touches the dual-engine invariant or
+   `kMovesPerDay`. Each step uses its own explicit, immutable board fixture
+   with a defined transition into the next (step 1's collapse must not
+   destroy step 4's ascending-chain example — they get independent fixtures,
+   not a single mutating board threaded through all five steps). Steps:
+   - **Step 1 — Merge anywhere (interactive):** board starts with an obvious
+     adjacent equal-tier pair. A dimmed backdrop with a cutout spotlights
+     those exact cells; advancing requires the player to actually perform
+     that drag (real `onChain` callback), not tap "Next". The dim/scrim
+     layer is `IgnorePointer` over the exposed board region — only the
+     Skip/Next chrome outside that region is hit-testable — so it never
+     swallows the drag before `BoardWidget`'s own `GestureDetector` sees it.
+   - **Step 2 — Moves budget:** spotlight cutout anchored to the real
+     `MovesCounter` widget (via a dedicated `GlobalKey` attached alongside
+     its existing key — see task 3 — → `RenderBox` rect), text explains the
+     fixed per-day budget.
+   - **Step 3 — Drop mechanics:** explains new tiles fill empty cells after
+     each merge, and that the drop-tier band widens as the game progresses
+     (mirrors `dropCap(n) = min(6, 2 + n/6)` in `lib/domain/constants.dart` —
+     described qualitatively, not as a formula).
+   - **Step 4 — Chain rule (corrected):** teaches the actual rule — a chain
+     step may stay level or go up exactly one tier, never down, never
+     skipping (`GameEngine.canFollow`). Spotlights a 3-tile ascending example
+     on its own fixture board.
+   - **Step 5 — Deadlock (interactive, post-collapse refill):** corrected
+     twice now. Round 1's "one empty cell per drop" broke `applyDrop`'s own
+     precondition after the first call. Round 2's fix ("drop tiles onto a
+     board with several empties, deterministic via a fixed seed") was
+     *engine-logic-wrong*, not just underspecified: `applyDrop` only adds
+     tiles into empty cells — it never removes a tile or touches an existing
+     adjacency. So a board that starts with a legal merge available keeps
+     that same legal pair sitting there no matter what drops happen around
+     it; drops alone can never *cause* a deadlock. A board with zero legal
+     pairs among its placed tiles is already deadlocked by definition
+     (`GameEngine.hasMergeAvailable` only inspects filled-cell adjacencies —
+     empty cells don't matter to it), so "watch drops lock it" was never a
+     real transition, just an already-locked board with padding filling in.
+     The only way a board actually *enters* deadlock is losing its last
+     legal pair to a **merge**, whose refill then fails to rescue it — which
+     is exactly how real runs end. Step 5 is therefore: its own fixture
+     board has **exactly one legal merge remaining**; the player performs it
+     (same real `onChain` interaction as step 1, spotlighted); the resulting
+     refill (via `GameEngine.applyDrop`, tiers/seed hand-authored and
+     discovered/pinned the same way as before) is chosen so none of the
+     newly dropped tiles create a new adjacency; `GameEngine.evaluateStatus`
+     then reports `GameStatus.deadlocked`, asserted by a dedicated test.
+     Narratively stronger too — the player's own last move is what locks the
+     board, not passive weather. The refill plays back tile-by-tile with
+     brief delays for legibility — driven by **one** cancellable
+     `Timer`/`AnimationController` owned by the tour screen's state, canceled
+     on `dispose` and on any phase change (Skip, navigation away), so a
+     delayed callback can never fire `setState` after the widget is gone or
+     after the player has already left the step.
+
+3. **Spotlight/coachmark primitive**: one small reusable widget (dimmed
+   backdrop + rectangular cutout around a target rect, with title/body text
+   and Next/Skip) used by steps 2, 4, 6, and 7. Target rects come from
+   **dedicated `GlobalKey`s attached to wrapper widgets around each spotlight
+   target** — the existing `Key('tier-${d.name}')` / `Key('practice-${d.name}')`
+   / `MovesCounter` keys are plain `Key`s used by existing widget tests and
+   are left untouched; the tour adds its own `GlobalKey`s alongside them,
+   read via `RenderBox` once a frame after layout. Not a new package — built
+   on `Stack`/`CustomPainter` or `ColorFiltered` + `ClipPath`, consistent with
+   the existing overlay's `Material`/dark-scrim style.
+
+4. **Step 6 — Tier-select spotlight**: after step 5, pop back to
+   `TierSelectScreen` (already the app's `home`). `TierSelectScreen` owns the
+   tour's continuation as an explicit phase in its state (see task 6):
+   spotlight each `Difficulty` card in turn, explaining what grid size /
+   starting-tile count mean for difficulty (smaller grid + fewer starting
+   tiles = less room to plan = harder, despite the numbers going down), and
+   explicitly call out the practice button ("off-leaderboard, replay anytime,
+   no move budget"). Cards live in a scrollable `ListView`, which is lazy —
+   a card far enough off-screen has no mounted element, so its `GlobalKey`'s
+   `currentContext` can be null. Two-phase measurement: first scroll
+   approximately to the target's index via a `ScrollController`
+   (`animateTo`/`jumpTo` from an estimated per-card extent), then, once its
+   context is non-null, call `Scrollable.ensureVisible` for the precise
+   final position before reading its `RenderBox`.
+
+5. **Step 7 — Leaderboard walkthrough**: `LeaderboardScreen` gains an
+   optional tutorial-mode entry (e.g. a constructor flag) rather than
+   `TierSelectScreen` reaching into a pushed route's internals — the phase
+   machine lives in `TierSelectScreen`, but step 7's spotlight targets
+   (Global/Friends toggle, period tabs, a row) live inside `LeaderboardScreen`
+   itself, so that screen owns rendering its own coachmark step and reports
+   completion back the same way `_startTier`'s pushed `GameScreen` already
+   does — via the `Navigator.push(...).then((result) => ...)` pattern already
+   used elsewhere in `tier_select_screen.dart` — so `TierSelectScreen` learns
+   when to finish/persist the tour without owning cross-route widget state.
+   Spotlights only the controls that actually exist for this session:
+   - `widget.leaderboard == null` (offline / not configured): skip the real
+     screen entirely, show a static explainer slide instead.
+   - `friendsService == null` (online, friends disabled): open the real
+     screen but skip the Global/Friends toggle spotlight (it isn't rendered).
+   - Board still loading / empty / errored when its step is reached: skip
+     the row spotlight and fall back to explaining rows in text, rather than
+     pointing at a spinner or an empty-state message.
+
+6. **Trigger + persistence**: the tour is one explicit phase machine owned by
+   `TierSelectScreen`'s state (not implicit navigation), covering: fixed
+   board (steps 1-5) → tier-select spotlight (step 6) → leaderboard spotlight
+   (step 7) → done. `TierSelectScreen` checks `profile.settings.tutorialSeen`
+   once in `initState` (same field, same semantics as today — no new storage
+   fields, no per-step progress); if false, the phase machine starts before
+   the player can interact with real tier cards, and normal tier-card/menu
+   interaction is blocked for the duration. A `PopScope` on the tour's pushed
+   routes prevents an Android back-gesture from silently exiting the tour
+   without triggering the same completion path Skip uses. `tutorialSeen` is
+   persisted `true` the moment the tour ends, whether by finishing step 7 or
+   by tapping Skip at any point — **the tour stays visible (e.g. a brief
+   spinner state on its final frame) until that write is confirmed durable**,
+   only then unwinding back to plain `TierSelectScreen` and re-enabling
+   normal navigation (see the persistence design below). An interrupted
+   (app-killed) tour before that point simply restarts from step 1 next
+   launch.
+   **Real fix for the startup profile-write race** (corrected three times
+   now — see the review log). Round 1's "wait for cubit `.load()`" was
+   unrelated to the actual race. Round 3's "`await Future.wait([...four
+   prize checks])` before saving" put four network-backed calls on the Skip
+   button's critical path. Round 4's over-correction — fire-and-forget the
+   write entirely, never await it — broke a real invariant instead: the tour
+   would report itself complete (and re-enable navigation, including the
+   path to Profile → delete-my-data) before `tutorialSeen` was actually
+   durable, so an app kill or an immediate account deletion right after Skip
+   could either re-show the tour needlessly or — worse — let the queued
+   write land *after* an account deletion wipes Hive, silently reviving a
+   `tutorialSeen: true` field into what should be a fresh, deleted profile.
+   The actual fix: `EngagementCubit` gains one new public method,
+   `Future<bool> markTutorialSeen()` (its private `_serializedPrizeCommit`
+   queue, `lib/application/engagement_cubit.dart:444`, stays private — a
+   method-visibility annotation can't make a `_`-prefixed method callable
+   from another library; the fix is a dedicated public entry point, not
+   relaxed visibility on the private one). It enqueues the `tutorialSeen`
+   write onto the *same* queue the four prize-check writers already
+   serialize through — so it's correctly ordered against them regardless of
+   arrival order — and resolves once that queued commit actually finishes
+   (verified against the persisted profile, since the queue's internal error
+   handling already swallows writer exceptions rather than rethrowing them).
+   **The tour's UI awaits this call** before dismissing and re-enabling
+   navigation. This is always fast: verified directly against
+   `checkDailyPrizes`/`checkWeeklyPrizes`/etc. that each prize checker
+   `await`s its network `fetchRanks` call *before* entering
+   `_serializedPrizeCommit` — only the resulting local `storage.saveProfile`
+   write happens inside the queue, so nothing queued there ever blocks on
+   network. `markTutorialSeen()`'s wait is bounded by local Hive I/O only.
+   **Completion is idempotent, guarded, and handles failure**: a single
+   `bool _completing` (same guard idiom the old `TutorialOverlay._dismissed`
+   used) ensures a double Skip-tap or a race between Skip and the natural
+   step-7-finish path only calls `markTutorialSeen()` once at a time, and the
+   tour's UI shows a brief waiting state on its final frame while that call
+   is in flight. **On `markTutorialSeen()` returning `false`** (the queued
+   write didn't verify as landed): clear `_completing`, keep the tour open
+   rather than getting stuck showing a spinner forever, and surface a brief
+   retry affordance — completion (and the analytics `tutorial_completed`
+   event) is only logged after a `true` result.
+
+7. **Skip**: a visible "Skip" affordance present on every step across all 7
+   (fixed board, tier-select spotlight, leaderboard spotlight), wired through
+   the same phase machine and persistence path as task 6.
+
+8. **Analytics**: log `tutorial_started`, `tutorial_skipped(step)`, and
+   `tutorial_completed` through the existing optional `AnalyticsService` seam
+   (already threaded into `TierSelectScreen` and `EngagementCubit` via
+   `onAnalyticsEvent`) — cheap, and otherwise there's no way to tell if the
+   tour is helping or people bail on step 2.
+
+9. **Tests**:
+   - Tutorial-tour screen: step 1's real drag advances the tour; step 5's
+     exact scripted fixture reaches `GameStatus.deadlocked`
+     (`hasMergeAvailable == false`) asserted directly, not just "some slide
+     shown."
+   - `TierSelectScreen`: tour auto-launches when `tutorialSeen` is false;
+     Skip at an arbitrary step persists completion and returns to plain
+     tier-select; a spotlight target scrolled off-screen is still correctly
+     measured/highlighted; back-gesture during the tour does not exit it
+     without persisting.
+   - `LeaderboardScreen` step: friendsService-null hides the toggle
+     spotlight; empty/error board state falls back to the text explainer
+     instead of pointing at nothing.
+   - **Existing fixtures**: every current `TierSelectScreen` test that
+     constructs fresh storage must set `tutorialSeen: true` in its fixture
+     profile, or the auto-launching tour will intercept those tests' taps on
+     real tier cards.
+   - `EngagementCubit`: a test driving a prize-check commit and
+     `markTutorialSeen()` through the shared queue concurrently, asserting
+     both writes land (neither is lost) regardless of which is enqueued
+     first, and that an injected prize-check error doesn't prevent
+     `markTutorialSeen()` from landing.
+   - **Durability boundary**: a widget test asserting the tour stays visible
+     (blocks Skip/finish from actually dismissing) until `markTutorialSeen()`
+     resolves, and that no queued write remains outstanding once the tour
+     has visually dismissed — i.e. an account-deletion flow immediately
+     after the tour closes can never race a still-pending tutorial write.
+   - **Failure/retry**: a test where `markTutorialSeen()` first resolves
+     `false` then `true` on a second attempt — the tour must stay open and
+     retryable after the first failure, not stuck spinning forever.
+   - **Accessibility**: a test invoking the tutorial-only semantic merge
+     action directly on steps 1 and 5 (bypassing the raw drag) and asserting
+     it advances the tour exactly like the real gesture would.
 
 ## Key decisions & tradeoffs
 
-- **Lazy client grant over a midnight server payout** (user-confirmed): earned at 00:00 UTC when the period closes, credited on next launch, with bounded oldest-first catch-up. No winners-snapshot table, no pg_cron, no server wallet. Residual wrinkle, accepted: a submission landing near midnight may arrive after another player already ran their prize check, so two players can observe slightly different final boards. (There is no offline submit queue — failed submissions are dropped by `game_cubit.dart`; a durable queue is explicitly future work there.)
-- **Dedicated `my_*` caller-rank RPCs over caller-row unions in the display RPCs**: prize checks need the caller's exact rank under arbitrarily large ties (a deterministic daily puzzle makes mass optimum-score ties plausible, not exotic); display boards need a hard row cap for anon safety. Splitting the two concerns keeps both simple — display RPCs are clamped and dumb, rank RPCs are tiny and exact, and catch-up costs 8 calls instead of 59.
-- **`SECURITY DEFINER` projections over a world-read `players` policy**: a read policy on `players` would expose `friend_code` (and future columns) through PostgREST to everyone. DEFINER functions expose exactly the board columns, and 0004 already established the revoke-then-grant ACL pattern.
-- **Literal "slightly increased" payout tables** (user-picked): weekly 1st drops 500 → 75, monthly 1st drops 2000 → 100 — a deliberate, large economy nerf. Guards make already-claimed periods final; unclaimed periods in the catch-up window get the new tables (single-table simplicity over effective-date bookkeeping).
-- **Challenge pays broad-and-shallow** (user-specified): top-10 with 1st = 20 coins — less than daily 1st (50). Flagged during the grill; confirmed by the user's own numbers.
-- **Friends boards are view-only** (user-confirmed): coins only ever come from global boards — friends-scope payouts would be farmable (any 5-friend group = guaranteed daily top-5).
-- **Challenge stays daily-only** (user-confirmed) in both scopes; each day's challenge is a different rule, so period sums would mix different games.
-- **One payout per period across tiers** (kept as shipped, now documented) — summing per-tier payouts would multiply the economy ~4× for multi-tier players; not shipped behavior, not requested.
-- **All-time board: no new gameplay behavior** — already implemented, already reward-free, per-tier; it inherits only the plumbing fixes its RPC gets anyway (RLS repair, bigint totals, the limit).
+- **Fixed scripted board, not the real daily board or `PracticeSeeder`.**
+  Chosen so exact tile positions are known in advance (required to spotlight
+  specific cells) and so the tour never spends a real move, never risks
+  desyncing `movesRemaining`/`moveLog`, and never touches the
+  Dart/TS-engine-parity surface (`CLAUDE.md`'s dual-engine invariant) — it
+  reads `GameEngine` but produces no submitted run.
+- **Corrected step 4**: the original ask said chains "can decrease tiers,"
+  which contradicts `GameEngine.canFollow` (equal-or-+1 only, never
+  descending/skipping). The plan teaches the real rule instead of the
+  as-requested wrong one.
+- **Step 5 is an interactive merge-then-refill**, not passive drops (chosen
+  over jumping straight to a pre-built deadlocked `BoardState`, and corrected
+  in round 3 from an earlier drops-only design that turned out to be
+  engine-logic-impossible — see task 2). More scripting work, but the player
+  causes the lock with their own last legal move rather than being told
+  about it.
+- **Single continuous first-launch flow**, not gated behind tapping a real
+  tier. Chosen because steps 6-7 need `TierSelectScreen`/`LeaderboardScreen`
+  themselves as the teaching surface, so splitting the trigger across two
+  different first-time moments would be more state to track for no benefit.
+- **One shared spotlight/coachmark widget** reused for steps 2, 4, 6, 7 —
+  justified reuse (4+ call sites), not a speculative abstraction.
+- **No per-step resume**: single `tutorialSeen` bool, matching the existing
+  field exactly. An interrupted tour restarts from step 1 rather than
+  resuming mid-tour — least state, and restarting a first-launch tour once in
+  a rare app-kill is a non-issue.
+- **Old `TutorialOverlay` deleted outright**, not kept as a fallback — its
+  entire teaching content (merge/moves/deadlock) is a strict subset of the
+  new tour.
+- **Every difficulty card gets its own spotlight** (kept as explicitly
+  requested), even though Codex's review suggested spotlighting one
+  representative card plus a text summary to cut scroll/`GlobalKey`
+  complexity. Rejected: the user specifically asked for each difficulty to
+  be spotlighted individually with its own description — this is a product
+  choice already settled in the grill, not a technical defect to fix.
+- **No broad accessibility contract** (screen-reader focus announcements,
+  reduced motion, text-scale testing) beyond what the rest of
+  `lib/presentation` already does — a repo-wide grep found zero existing
+  `Semantics`/`semanticLabel` usage anywhere in `lib/presentation`, so
+  holding only this feature to a standard nothing else in the codebase meets
+  would be scope creep, not consistency. Visible Skip/Next labels and
+  reasonable tap targets (matching existing button patterns) are the bar.
+  **One narrow exception, accepted in round 2**: `IgnorePointer` on the scrim
+  only blocks touch hit-testing, not the semantics tree — a screen reader
+  could still reach and activate a dimmed-but-technically-present background
+  control (e.g. a real tier card) while the tour's modal is visually over it.
+  This is a correctness gap, not a polish one.
+  **Corrected in round 4**: `ExcludeSemantics` excludes a whole widget
+  subtree, not an arbitrary painted region — "everything outside the
+  spotlight cutout" isn't a semantics boundary Flutter can express, so
+  round 2/3's "wrap the dimmed background" framing wasn't actually
+  implementable as stated. The real approach: wrap the **entire underlying
+  screen** in `ExcludeSemantics` while any tour step is active (not just the
+  part outside a cutout), and let the coachmark widget itself be the sole
+  semantic surface — it describes the target and, for steps 1 and 5, exposes
+  a **tutorial-only semantic action** ("Merge highlighted tiles") that
+  invokes the exact same `onChain(path)` handler the real drag would call,
+  using the path the fixture already knows in advance. This is narrower than
+  retrofitting `BoardWidget`'s real gameplay interaction (still out of
+  scope, see Risks) — it only works because the tutorial's fixture already
+  knows the one correct path ahead of time, which real gameplay never does.
 
 ## Risks / open questions
 
-- **Ties**: every player tied at a paying rank is paid — same semantics as the shipped top-3 system, now made *reliable* by `my_daily_ranks`/`my_period_ranks` (previously a tied winner past the display limit was silently unpaid).
-- **The daily "reset" is presentational**: nothing is deleted at midnight; the board is a filter on `utc_date`. This already satisfies "resets at the beginning of each day" — noted so nobody adds a destructive reset job.
-- **Concurrent profile writes**: prize commits serialize among themselves (`_prizeCommit`), but a purchase or completion writing the whole profile concurrently can still race them — a pre-existing trait of *every* profile writer, unchanged in kind by this feature (catch-up adds at most a handful of extra serialized commits at startup). A storage-level serialized `updateProfile` adopted by all writers is the real fix and is deliberately separately scoped; partial adoption by prize code alone would not close the race.
-- **`leaderboard_period` gains a limit the UI previously didn't have**: period boards now show at most 100 rows. Acceptable — the daily board already capped at 100 and the UI renders a flat list.
+- Exact copy/wording for each step's title/body is not scripted here — write
+  it during implementation, keeping the tone of the existing overlay's copy.
+- The step-5 fixture (one legal merge remaining, refill that doesn't rescue
+  it) needs hand-tuning against the chosen 4x4 or 5x5 board and a fixed
+  `Prng` seed to reliably land on a true deadlock; fully deterministic once
+  authored, so it's verified once and pinned by test.
+- Spotlight rect computation via `GlobalKey`→`RenderBox` needs the target
+  widget already laid out; on `TierSelectScreen`/`LeaderboardScreen` this
+  means waiting a frame (`addPostFrameCallback`) before showing each
+  spotlight step, consistent with existing patterns in this codebase (e.g.
+  `WidgetsBinding.instance.addPostFrameCallback` already used in
+  `tier_select_screen.dart`).
+- **The tutorial itself is screen-reader-completable** (steps 1 and 5 expose
+  a tutorial-only semantic merge action, see Key decisions), but **real
+  gameplay is not** — `BoardWidget`'s chain-drag gesture still has no
+  semantic alternative anywhere outside the tutorial. This feature closes
+  the gap for itself only; closing it for the shipped game is a separate,
+  larger `BoardWidget` change and stays out of scope here.
+- **Startup profile-write race — fixed for this feature's write, not
+  project-wide** (four rounds of back-and-forth on this, see the review
+  log — including catching a real account-deletion-vs-queued-write race
+  introduced by an earlier over-correction): `tutorialSeen` shares the same
+  startup window as four unawaited prize-catch-up writers in `main.dart`.
+  The final design (task 6) routes the tour's write through a new
+  `EngagementCubit.markTutorialSeen()`, which enqueues onto the *same*
+  internal queue the four prize writers already serialize through, and the
+  tour's UI awaits it — blocking dismissal/navigation until it's durable —
+  rather than either racing it or fire-and-forgetting it. This genuinely
+  fixes the specific collision this feature is exposed to, without the
+  general serialized-`updateProfile` refactor for *every* profile writer in
+  the app, which remains out of scope exactly as it was in the prior
+  leaderboard-prizes plan (git `0161973`).
 
 ## Out of scope
 
-- Server-side wallet, winners-snapshot table, pg_cron / scheduled Edge Function payouts.
-- Prizes of any kind on friends boards.
-- A cross-tier combined "overall" board (all-time stays per-tier).
-- Any change to `lib/domain/engine`, `supabase/functions/_shared`, scoring, replay verification, or `kLeaderboardSeason`.
-- Retroactive re-evaluation of already-claimed prize periods; dual payout tables / effective-date logic.
-- A storage-level serialized profile-update refactor (pre-existing race, separately scoped).
-- A durable offline submit queue (explicitly future work in `game_cubit.dart`).
+- No changes to `GameEngine`, `canFollow`, scoring, or any dual-engine
+  surface — this is presentation-only.
+- No new persisted fields beyond reusing existing `tutorialSeen`.
+- No changes to `PracticeScreen` or the real daily-board flow.
+- No localization of the new copy (matches existing hardcoded English strings
+  throughout the app).

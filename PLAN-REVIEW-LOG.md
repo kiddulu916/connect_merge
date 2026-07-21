@@ -1,200 +1,197 @@
-# Plan Review Log: top-5 leaderboard prizes, challenge top-10 payout, friends period boards
-
+# Plan Review Log: first-launch onboarding tour (interactive tutorial + tip spotlights + skip)
 Act 1 (grill) complete — plan locked with the user. MAX_ROUNDS=5.
 
-(The prior task's log — remove the legacy single-pair merge path — lives in git history at c765da8.)
-
-Grill decisions (user-confirmed): lazy client-grant payout model retained (earned at period close, credited on next launch — no midnight server job); literal "slightly increased" payout tables (daily 50/30/15/10/5, weekly 75/45/25/15/10, monthly 100/60/35/20/15 — a deliberate weekly/monthly nerf); challenge = top-10 broad-and-shallow (20 / 15 / 15 / 10×3 / 5×4), uncapped list with top-10 markers kept; friends boards = view-only mirror of all periods (new `friends_leaderboard_period` RPC); challenge stays daily-only in both scopes. Established from code: daily reset + weekly/monthly/all-time boards + completed-period prize timing + reward-free all-time board all already exist; only payout tables, the challenge cap, and the friends period path change. No engine/TS/season change.
+(The prior task's log — top-5 leaderboard prizes — lives in git history at 0161973.)
 
 ## Round 1 — Codex
 
-Material problems:
+## Material findings
 
-1. **RLS breaks the proposed RPC.** `players` is self-only under RLS, so a `security invoker` join cannot read friends’ display names; the existing RPC pattern being copied is itself suspect. See [0001_players_scores.sql](C:/Users/dat1k/Projects/connect_merge/supabase/migrations/0001_players_scores.sql:34) and [0006_connect_merge_season.sql](C:/Users/dat1k/Projects/connect_merge/supabase/migrations/0006_connect_merge_season.sql:49).  
-   Fix: Use a tightly scoped `SECURITY DEFINER` RPC with an auth guard, pinned search path, explicit columns, and locked-down execute grants—or introduce a safe leaderboard-profile projection.
+1. The plan never defines a navigation state machine; route back gestures, failed saves, or double-taps can bypass Skip and leave the unfinished tour over an interactive tier screen.
+   Fix: Centralize phases in `TierSelectScreen`, block interaction while launching, use `PopScope`, serialize completion, and unwind routes only after persistence succeeds.
 
-2. **“Authenticated only” is not achieved by `GRANT` alone.** PostgreSQL grants new functions to `PUBLIC` by default, exactly the vulnerability migration 0004 previously fixed.  
-   Fix: Explicitly `REVOKE EXECUTE ... FROM PUBLIC, anon` before granting `authenticated`.
+2. Persisting `tutorialSeen` with whole-profile `loadProfile`/`saveProfile` races the four unawaited startup prize writers in main.dart, allowing either tutorial completion or prizes to be overwritten.
+   Fix: Introduce one serialized `updateProfile` path and route tutorial plus all concurrent startup profile mutations through it.
 
-3. **No database test exercises the migration.** Fake Dart RPC tests cannot detect RLS, ACL, ranking, season-filter, or bidirectional-friendship failures.  
-   Fix: Add a local-Supabase integration test with two friendship directions, self, non-friend exclusion, season/date filtering, ties, and anon rejection.
+3. PLAN.md treats existing `Key(...)` values as `GlobalKey`s, but the current card and practice keys are ordinary keys.
+   Fix: Preserve the test keys and attach separate owned `GlobalKey`s to target wrappers.
 
-4. **Challenge can silently load a period board.** Selecting Weekly/Monthly/All-time and then switching to Challenge hides the period control but leaves `_period` unchanged, so `_load()` calls the period RPC. See [leaderboard_screen.dart](C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/leaderboard_screen.dart:267).  
-   Fix: Force an effective Daily period whenever `difficulty == Difficulty.challenge`, and test the period→Challenge transition in both scopes.
+4. Waiting one frame does not make off-screen tier cards measurable; the cards live in a scrolling list and may have no mounted `RenderBox`.
+   Fix: Add a `ScrollController`, scroll each target into view, wait for layout, then convert its rect into the overlay's coordinate space.
 
-5. **The rank-4/5 crown assumption is false.** One crown switch falls back to a medal, but `_weekCrown` returns `null`, so those crowns disappear from leaderboard rows. See [leaderboard_screen.dart](C:/Users/dat1k/Projects/connect_merge/lib/presentation/screens/leaderboard_screen.dart:299).  
-   Fix: Add the medal fallback to `_weekCrown` and widget-test rank 4 and rank 5.
+5. The interactive Step 1 spotlight can swallow the drag because a full-screen overlay sits above `BoardWidget`'s `GestureDetector`.
+   Fix: Make the painted scrim `IgnorePointer` and place only the coachmark controls in hit-testing widgets outside the exposed board region.
 
-6. **The stated tie guarantee is false for daily and challenge payouts.** The daily RPC limits output to 100 and does not guarantee inclusion of the caller, so a tied rank-5/10 player outside the arbitrary first 100 receives nothing. See [0006_connect_merge_season.sql](C:/Users/dat1k/Projects/connect_merge/supabase/migrations/0006_connect_merge_season.sql:43).  
-   Fix: Use a dedicated authenticated caller-rank RPC, or make the leaderboard RPC always union the caller’s ranked row.
+6. Step 7 assumes online means all targets exist, but the Global/Friends toggle is absent when `friendsService == null`, and rows may be loading, empty, or failed.
+   Fix: Conditionally skip missing controls and fall back to a static row explainer after empty/error/timeout states.
 
-7. **Cross-tier payout semantics are undocumented.** Current code pays only the single best qualifying rank across four difficulty boards, even when the player places top five on several boards. See [engagement_cubit.dart](C:/Users/dat1k/Projects/connect_merge/lib/application/engagement_cubit.dart:375).  
-   Fix: Explicitly confirm and document “one best payout per period,” or sum per-tier payouts and test that behavior.
+7. The drop script contradicts the API: `GameEngine.applyDrop` requires a `Prng` and chooses among empties; callers cannot specify a landing cell directly.
+   Fix: Pin a concrete PRNG seed and expected landing sequence, or use explicit board snapshots and stop claiming the cells are selected through `applyDrop`.
 
-8. **“Credited on next launch” fails after a gap.** Each checker evaluates only yesterday/the immediately previous week/month and then advances its guard, permanently skipping older unclaimed wins.  
-   Fix: Iterate unclaimed closed periods from the stored guard to the latest eligible period, with an explicit first-run floor.
+8. The exact tutorial boards remain an "open question," so Step 1's collapse may destroy Step 4's example and Step 5 has no proven deadlock sequence.
+   Fix: Specify immutable per-step board fixtures, transition/reset rules, PRNG seed, and asserted final `GameStatus.deadlocked` before implementation.
 
-9. **Prize commits race with other profile writes.** `_prizeCommit` serializes only prize methods, while startup launches them unawaited and purchases/completions can concurrently overwrite the same whole profile. See [main.dart](C:/Users/dat1k/Projects/connect_merge/lib/main.dart:132) and [engagement_cubit.dart](C:/Users/dat1k/Projects/connect_merge/lib/application/engagement_cubit.dart:403).  
-   Fix: Route every profile read-modify-write through one storage-level serialized update operation and test prize-versus-purchase concurrency.
+9. The coachmark has no accessibility contract for screen-reader focus, semantics, large text, reduced motion, or safe-area placement.
+   Fix: Require semantic announcements and focus transfer, accessible Skip/Next labels, text-scale tests, safe-area layout, and reduced-motion behavior.
 
-10. **The offline-queue tradeoff describes nonexistent behavior.** Failed submissions are logged and discarded; the code explicitly says queue/retry is future work. See [game_cubit.dart](C:/Users/dat1k/Projects/connect_merge/lib/application/game_cubit.dart:550).  
-    Fix: Remove the queued-score claim and state offline runs are ineligible, or add durable retry as a separately scoped feature.
+10. Auto-launching for the default `tutorialSeen == false` profile will break existing `TierSelectScreen` tests that construct fresh storage, while the proposed source-deletion test adds little value.
+    Fix: Mark tutorial seen in all non-onboarding fixtures and replace source scanning with behavioral tests for back, off-screen targets, empty leaderboard, and persistence failure.
 
-11. **Period totals can overflow.** PostgreSQL `sum(int)` returns `bigint`, but the copied RPC casts it back to `int`; all-time totals can exceed 2,147,483,647. See [0006_connect_merge_season.sql](C:/Users/dat1k/Projects/connect_merge/supabase/migrations/0006_connect_merge_season.sql:81).  
-    Fix: Return `total bigint` without the `::int` cast and keep mapping through Dart `num.toInt()`.
+11. There is no onboarding observability despite an existing analytics seam, so completion, abandonment, and problematic steps cannot be measured.
+    Fix: Log `tutorial_started`, `tutorial_skipped(step)`, and `tutorial_completed` through the existing optional `AnalyticsService`.
 
-12. **“Up to 100 rows” is false in Friends scope.** `friends_leaderboard` has no limit, so removing `take(10)` makes Friends Challenge unbounded.  
-    Fix: Replace the challenge cap with `take(100)` or add an explicit `p_limit` to the friends RPC.
+12. Spotlighting every difficulty card repeats one explanation and creates most of the scrolling/key complexity.
+    Fix: Spotlight one representative tier card plus its Practice action, then summarize the difficulty progression in the coachmark copy.
 
-13. **The no-index claim is unsupported.** The friendship primary key indexes `a` but not reverse-edge lookups by `b`, while the score index places `difficulty` after a date-range column.  
-    Fix: Add `friendships(b)` and verify the score path with `EXPLAIN`; only then decide whether a period-specific score index is necessary.
+13. This is still a design sketch, not the repository-required dated spec plus task-by-task red/green implementation plan, and it omits full verification.
+    Fix: Publish the required spec and executable plan with exact files, failing tests, implementation steps, `flutter analyze`, and full `flutter test`.
 
 VERDICT: REVISE
-### Claude's response (round 1)
 
-Verified against the code before revising. Accepted 10 of 13, partially accepted 2, rejected 1:
+### Claude's response
 
-- **#1 ACCEPTED (and verified — it's a live pre-existing bug, not just a plan flaw).** `players` has only the self-only `player_self` policy (0001:34); all three read RPCs are `security invoker`, so shipped boards can only return the caller's own row. Plan now converts all four read RPCs to tightly-scoped `SECURITY DEFINER` projections. A world-read policy on `players` was rejected because it would expose `friend_code` via PostgREST.
-- **#2 ACCEPTED.** Explicit revoke-from-public/anon before grant, per the repo's own 0004 pattern.
-- **#3 PARTIAL.** Full local-Supabase integration-test harness rejected — the repo has none and 0002/0003/0006 shipped RPCs without one; building that infra is out of scope. Instead: a checked-in SQL smoke script run against `supabase db reset`, covering exactly Codex's listed cases (both edge directions, non-friend exclusion, season/date filters, boundary tie, caller-row union, anon rejection, EXPLAIN).
-- **#4 ACCEPTED.** Latent stale-`_period` bug on the challenge tab confirmed at `leaderboard_screen.dart:275` — `_load()` never checks difficulty. Challenge is forced to daily in `_load()`, tested in both scopes.
-- **#5 ACCEPTED.** `_weekCrown` returns null above rank 3; 🏅 fallback added + widget tests for ranks 4/5.
-- **#6 ACCEPTED.** Stronger than Codex stated, even: in a deterministic daily puzzle mass ties at the optimum are *plausible*, not exotic. `leaderboard` RPC now unions the caller's ranked row.
-- **#7 ACCEPTED as documentation.** One-best-payout-per-period across tiers kept (summing would ~4× the economy for multi-tier players and wasn't requested); now stated explicitly in the plan.
-- **#8 ACCEPTED with bounds.** Catch-up iteration from the stored guard, bounded at 7 days / 4 weeks / 2 months / 7 challenge days; null-guard first run checks only the newest closed period.
-- **#9 REJECTED (logged, risk documented).** The profile-write race is a pre-existing trait of *every* profile writer; adopting a serialized `updateProfile` only in prize code would not close the race with non-adopting writers, and the full refactor is separately scoped. Added to Risks and Out of scope.
-- **#10 ACCEPTED.** The plan's "offline-queued" wording described nonexistent behavior (submissions are dropped on failure, `game_cubit.dart:550`); risk reworded, durable queue listed as out of scope.
-- **#11 ACCEPTED.** `total` becomes `bigint` in both period RPCs; Dart mapping already goes through `num.toInt()`.
-- **#12 ACCEPTED.** Client-side `take(100)` on the challenge board (simpler than adding `p_limit` to the friends RPC).
-- **#13 PARTIAL.** No speculative `friendships(b)` index — same access pattern as the shipped `friends_leaderboard` on tiny friend sets; the smoke script's EXPLAIN is the gate. Plan wording softened from "no new index needed" to "EXPLAIN decides".
+Accepted and folded into PLAN.md (tasks renumbered, 0-9):
+- #1 (nav state machine / PopScope) — added as an explicit phase machine owned by TierSelectScreen, PopScope on tour routes, persist-then-unwind ordering.
+- #3 (GlobalKey vs existing Key) — plan now attaches dedicated GlobalKeys alongside existing test Keys, doesn't repurpose them.
+- #4 (off-screen cards) — added Scrollable.ensureVisible before measuring.
+- #5 (scrim swallows drag) — scrim is IgnorePointer over the exposed board region during the interactive step.
+- #6 (step 7 partial availability) — expanded fallback beyond leaderboard==null to cover friendsService==null and loading/empty/error board states.
+- #7 (applyDrop can't take an explicit landing cell) — fixed the mechanism: script exactly one empty index open per drop step so the PRNG draw is deterministic by construction, while still routing through the real engine call.
+- #8 (board fixtures underspecified) — each step now gets its own immutable fixture with explicit transitions; step 5's fixture gets a dedicated test asserting GameStatus.deadlocked.
+- #10 (existing tests break / low-value new test) — added explicit task to update existing TierSelectScreen fixtures to tutorialSeen: true; dropped the source-deletion test in favor of behavioral tests (back-gesture, off-screen target, leaderboard fallback states).
+- #11 (observability) — added analytics events via the existing AnalyticsService seam.
+- #13 (repo planning workflow) — added as approach step 0, referencing CLAUDE.md's required docs/superpowers spec+plan before Act 3 build.
+
+Partially accepted:
+- #2 (profile-write race) — real, but pre-existing and already explicitly out-of-scope in the prior shipped leaderboard-prizes plan (git 0161973), which documented the same race and deliberately deferred a serialized updateProfile fix. Recorded as an inherited risk, not fixed here; the tutorial's single boolean write follows the exact pattern the codebase's own _dismissTutorial already uses today, so it doesn't introduce a new failure mode.
+- #9 (accessibility contract) — a full a11y contract (screen-reader focus, reduced motion, text-scale tests) would hold this one feature to a standard nothing else in lib/presentation meets (grep confirmed: zero Semantics/semanticLabel usage repo-wide). Scoped down to visible Skip/Next labels and reasonable tap targets, matching existing conventions; noted in Key decisions.
+
+Rejected, with reason:
+- #12 (spotlight one representative card instead of all) — contradicts an explicit, specific instruction from the user during the grill ("spotlights the difficulties one by one and gives a brief description of the differences"). This is a settled product decision, not a technical defect; logged as rejected rather than silently overridden.
 
 ## Round 2 — Codex
 
-Most prior findings are addressed: RLS/ACLs, caller-row inclusion, bigint totals, challenge routing/cap, crowns, cross-tier semantics, missed-period intent, offline-queue wording, and database coverage.
+Most prior findings are addressed: phase/back handling, wrapper GlobalKeys, hit-testing, conditional leaderboard targets, analytics, test fixtures, and planning workflow.
 
-Remaining/new problems:
+Remaining blockers:
 
-1. **Global period results become unbounded.** Fixing RLS makes `leaderboard_period` finally return every player to anonymous callers, with no limit.  
-   Fix: Add `p_limit` capped at 100 plus caller-row union, matching the daily RPC.
-
-2. **`p_limit` remains attacker-controlled inside a DEFINER RPC.** `NULL` means unlimited and oversized values permit expensive responses.  
-   Fix: Apply `least(greatest(coalesce(p_limit, 100), 1), 100)` inside the function and test null/negative/huge inputs.
-
-3. **Catch-up failure semantics are unsafe.** “Newest period actually evaluated” could advance past a failed older period and permanently skip it.  
-   Fix: Process oldest-first, stop on the first failed period, and advance only through the last contiguous success; add a failure/retry test.
-
-4. **Catch-up cost is understated.** Worst case is 59 RPCs at startup: 28 daily + 16 weekly + 8 monthly + 7 challenge, with all four checkers launched concurrently.  
-   Fix: Batch catch-up ranks server-side into a small fixed number of calls, or reduce the catch-up promise.
-
-5. **The profile-write race is acknowledged, not addressed.** Catch-up adds more prize activity while purchases and completions can still lose whole-profile updates.  
-   Fix: Add the storage-level serialized profile update before catch-up, then route all profile mutations through it.
-
-6. **“Forward-only” conflicts with catch-up.** Unclaimed pre-release periods inside the lookback receive the new payout table retroactively.  
-   Fix: Define a rollout effective date and either skip earlier periods or apply the prior tables to them.
-
-7. **The reverse-edge index is still needed.** A small result set does not help: without `friendships(b)`, reverse lookups can scan the global friendship table.  
-   Fix: Add `create index if not exists idx_friendships_b on friendships(b)`.
-
-8. **The SQL smoke-test execution path is ambiguous.** `supabase db reset` does not automatically execute an arbitrary test script, while putting it in migrations risks deploying fixtures/assertions.  
-   Fix: Store it outside `supabase/migrations` and specify the exact post-reset `psql -f` command.
-
-9. **Several shipped comments will remain wrong.** `EngagementState` and prize-check documentation still describe top-three rewards.  
-   Fix: Update every `top-3` prize comment found by repository search, not only `WeeklyPrize.rank`.
+- The profile-write race remains material: this adds a writer during the exact startup window containing four unawaited prize writers, so `tutorialSeen` or prize data can be lost. Fix: serialize profile mutations through one storage-level update path, or delay prize checks until onboarding persistence finishes.
+- New contradiction: with exactly one empty cell, the first `applyDrop` fills it and every subsequent call hits the empty-list assertion in game_engine.dart. Fix: use multiple empties with a fixed PRNG seed and pin every landing in the test.
+- `Scrollable.ensureVisible(key.currentContext!)` cannot find a card that is sufficiently off-screen because lazy `ListView` children may be unmounted. Fix: scroll approximately by index with a `ScrollController`, then call `ensureVisible` once the target mounts.
+- `TierSelectScreen` owns the phase machine, but the spotlight targets live inside a pushed `LeaderboardScreen`; the plan does not define how keys or overlay state cross that route boundary. Fix: explicitly pass the target keys/tour callbacks into `LeaderboardScreen`, or let that screen own Step 7 and return a result.
+- Persistence failure and repeated Skip taps remain undefined; "only after the write resolves" does not handle a thrown write or concurrent completion calls. Fix: memoize one completion future, disable controls while saving, and show retry UI on failure.
+- Rejecting accessibility is not sound: an `IgnorePointer` scrim can leave underlying controls exposed to screen readers while the visual UI is modal. Fix: exclude background semantics and give the coachmark a scoped semantic route, focus announcement, and accessible controls.
 
 VERDICT: REVISE
-### Claude's response (round 2)
 
-Accepted 7 of 9, rejected 2 (one re-litigated, one replaced by a simpler decision):
+### Claude's response
 
-- **#1 + #2 ACCEPTED, solved together with #4.** `leaderboard_period` gains a server-clamped `p_limit` (`least(greatest(coalesce(p_limit,100),1),100)`), and instead of unioning caller rows into display RPCs, prize checks move to two new tiny caller-rank RPCs (`my_daily_ranks`, `my_period_ranks`). Display boards become clamped-and-dumb; rank checks become exact under mass ties; catch-up drops from a worst case of 59 RPCs to 7.
-- **#3 ACCEPTED.** Catch-up is oldest-first, halts at the first failed period, and advances the guard only through the last contiguous success — with a failure/retry test.
-- **#4 ACCEPTED** via the batching above (1 daily-window call + 4 weekly + 2 monthly).
-- **#5 REJECTED again (same grounds, unchanged by catch-up).** Catch-up adds a handful of serialized prize commits at startup — the race with non-prize profile writers is the same pre-existing race, same shape. A storage-level serialized `updateProfile` only helps if *every* writer adopts it; that refactor is separately scoped and now explicitly listed as such.
-- **#6 REJECTED as machinery, ACCEPTED as a decision.** No effective-date / dual-table logic: unclaimed periods inside the lookback are paid at the new (nerfed) tables. Active users' guards are current at update time so the window is tiny; the simplicity is worth more than transitional payout fidelity. Documented in the plan.
-- **#7 ACCEPTED, position reversed.** `auth.uid() in (a, b)` needs indexes on both columns to BitmapOr; the PK covers only `a`, so the reverse edge scans the global friendships table today. One-line `idx_friendships_b` beats an EXPLAIN gate.
-- **#8 ACCEPTED.** Smoke script lives at `supabase/tests/leaderboard_smoke.sql` (outside migrations, can never deploy), exact run command specified (`supabase db reset` + `psql ... -f`).
-- **#9 ACCEPTED.** Repo-wide `top-3`/`top-three` prize-comment sweep, not just `WeeklyPrize.rank`.
+Accepted and folded into PLAN.md:
+- New contradiction (one-empty-cell mechanism self-defeating) — this was a genuine bug in my own round-1 fix. Replaced with the actually-correct mechanism: Prng (Mulberry32) is fully deterministic for a fixed seed, so the initial board + drop-tier sequence + seed are authored, run once to discover the resulting landings, then pinned by a test asserting GameStatus.deadlocked. Landings are discovered, not dictated.
+- Lazy ListView unmounted children — added two-phase measurement: approximate scroll-by-index via ScrollController first, then Scrollable.ensureVisible once the target's context is non-null.
+- Route-boundary key crossing — LeaderboardScreen now owns step 7 directly via an optional tutorial-mode entry, reporting completion back through the same Navigator.push(...).then(...) pattern tier_select_screen.dart already uses for GameScreen, instead of TierSelectScreen reaching into a pushed route's internals.
+- Repeated Skip taps — added a single _completing guard, same idiom as the deleted TutorialOverlay's _dismissed bool.
+- Accessibility (narrow reading) — accepted the specific correctness claim: IgnorePointer only blocks touch hit-testing, not the semantics tree, so a screen reader could still reach a dimmed background control. Added ExcludeSemantics around dimmed background content during each spotlight step. The broader ask (focus announcements, reduced motion, text-scale tests) remains out of scope, for the same repo-consistency reason as round 1 (zero existing Semantics usage anywhere in lib/presentation) — round 2's finding was narrower and specific, so only that narrow slice was accepted.
+
+Partially accepted (mitigated, not fully fixed, with reasoning strengthened):
+- Profile-write race — Codex is right that this feature actively lands a writer inside the contested startup window, not merely inheriting a dormant risk. Still declining the full serialized-updateProfile refactor (explicitly out of scope in the prior shipped leaderboard-prizes plan, git 0161973, for the same reason: it's a project-wide fix bigger than any one feature). Added a concrete mitigation instead: sequence the tour's completion/skip write to fire after TierSelectScreen's own cubits' initial .load() calls settle, narrowing the collision window with the unawaited prize writers without taking on the full refactor.
+
+Declined further, with reasoning: write-failure retry UI — the plan documents the fail-safe outcome (write throws → tutorialSeen stays false → tour simply reruns next launch) instead of building retry UI, because no other local-storage writer in this codebase (_rescheduleNotifications, _dismissTutorial, etc.) has retry UI either; a thrown Hive write is also not a realistic failure mode this app already treats as needing user-facing recovery anywhere.
 
 ## Round 3 — Codex
 
-Round-two findings addressed: period cap intent, limit clamping, ordered failure handling, lower catch-up fan-out, rollout semantics, reverse-edge index, smoke-test location, and stale comments.
+Round-two findings addressed: lazy-list targeting, leaderboard route ownership, duplicate completion, and background semantics now have credible solutions.
 
-Remaining/new problems:
+Remaining/new blockers:
 
-1. **The new period signature breaks existing clients unless `p_limit` has a SQL default.** `fetchPeriod()` currently sends only four parameters.  
-   Fix: Declare `p_limit int default 100` or update every caller to pass it explicitly.
-
-2. **Caller-rank SQL can accidentally return rank 1 for everyone.** Filtering `player_id = auth.uid()` before the window function removes competitors before ranking.  
-   Fix: Rank all players in a CTE, then filter to `auth.uid()` in the outer query; test a non-winning caller in both `my_*` RPCs.
-
-3. **The `my_*` date ranges are unbounded trust-boundary inputs.** An authenticated caller can request an entire season and force expensive window/aggregation scans.  
-   Fix: Reject reversed/future ranges and enforce seven-day `my_daily_ranks` and 31-day `my_period_ranks` maximums.
-
-4. **“Bound every board” remains false.** Both friends RPCs lack `p_limit`, so large friend graphs produce unbounded results.  
-   Fix: Add a clamped, defaulted `p_limit` to both friends RPCs and pass/default 100 in the service.
-
-5. **The seven-call count lacks wiring.** Daily and challenge remain separate startup checkers, so each will call `myDailyRanks` unless a shared coordinator is added.  
-   Fix: Add one combined daily/challenge check that fetches ranks once, or document the actual eight-call total.
-
-6. **The `my_*` RPCs do not need DEFINER privileges.** They read only `scores`, whose SELECT policy is already world-readable.  
-   Fix: Keep `my_*` as `SECURITY INVOKER`, restricted to `authenticated`, and reserve DEFINER for functions joining protected player data.
-
-7. **The profile lost-update race is still only documented.** This remains a real wallet/purchase data-loss path while the feature adds catch-up commits.  
-   Fix: Make storage-level serialized `updateProfile` a prerequisite and migrate every profile read-modify-write caller.
-
-8. **Database verification omits the new period-rank failure mode.** Only a daily tie scenario is specified.  
-   Fix: Add a `my_period_ranks` fixture where the caller is rank greater than one and tied at a payout boundary.
+- The profile-race mitigation is ineffective: all three cubit `.load()` methods are synchronous and finish before the unawaited prize checks even start at main.dart:135. Fix: retain a `Future.wait` for the four startup prize checks and await it before saving `tutorialSeen`, or serialize profile updates.
+- A drop-only sequence cannot transition from mergeable to deadlocked: `applyDrop` adds a tile but never removes an existing legal adjacency, so a mergeable initial board stays mergeable; otherwise it begins deadlocked. Fix: define Step 5 as a post-collapse, no-merge board whose refill exhausts all empty cells without rescuing it, then call `evaluateStatus`.
+- The Risks section still references the discarded "exactly one empty cell per drop" construction, contradicting the corrected approach. Fix: replace it with the fixed-seed, multiple-empty refill sequence.
+- `ExcludeSemantics` makes the required drag unavailable to screen readers, while Skip only abandons the tutorial. Fix: add a semantic action/button that invokes the same highlighted merge transition.
+- "Tile-by-tile" playback implies delayed callbacks that can survive Skip/navigation and mutate disposed state. Fix: use one cancellable timer/controller and cancel it on phase changes and `dispose`.
 
 VERDICT: REVISE
-### Claude's response (round 3)
 
-Accepted 7 of 8, rejected 1 (third re-litigation):
+### Claude's response
 
-- **#1 ACCEPTED.** `p_limit int default 100` on `leaderboard_period` — existing 4-arg `fetchPeriod()` callers keep working.
-- **#2 ACCEPTED — real correctness landmine.** Both `my_*` RPCs rank all players in the inner query and filter to `auth.uid()` outside; a non-winning-caller fixture is added to the smoke script (and #8's period variant).
-- **#3 ACCEPTED.** `my_*` range guards: reject reversed/future ranges; span caps of 7 days (`my_daily_ranks`) and 31 days (`my_period_ranks`).
-- **#4 ACCEPTED.** Both friends RPCs get the clamped, defaulted `p_limit`.
-- **#5 ACCEPTED as a count correction, not a coordinator.** The daily and challenge checkers stay separate (separate guards); the honest worst case is 8 calls, now documented. Merging them to save one RPC would tangle two independent guards — rejected as machinery.
-- **#6 ACCEPTED.** `my_*` RPCs are `SECURITY INVOKER` — they read only world-readable `scores`; DEFINER stays reserved for the `players`-joining board projections.
-- **#7 REJECTED (third time, same grounds).** The lost-update race predates this feature, is shared by every profile writer, and partial adoption cannot close it. Making a storage-level `updateProfile` + migration of all callers a *prerequisite* would couple an unrelated refactor to a payout-table change. It stays separately scoped, documented in Risks and Out of scope. This is a standing disagreement, not an oversight.
-- **#8 ACCEPTED.** `my_period_ranks` smoke fixture with caller rank > 1, tied at a payout boundary.
+Accepted and folded into PLAN.md:
+- Profile-race mitigation ineffective — verified directly against main.dart: the four `unawaited(engagement.check*Prizes(...))` calls fire before `runApp` even runs and are wholly unrelated to any cubit `.load()`. Replaced with a real fix: main.dart captures `Future.wait([...])` over those four calls and threads it down through ConnectMergeApp -> TierSelectScreen as a plain constructor parameter; the tour awaits it before persisting. Small and targeted, not the general serialized-updateProfile refactor (still out of scope).
+- Step 5 engine-logic contradiction — this was a real bug in round 2's design, not just underspecified. Confirmed from game_engine.dart: applyDrop only fills empty cells, never removes tiles or touches existing adjacencies, so drops alone can never cause a deadlock (a board with a legal pair keeps it regardless of drops; a board with none is already deadlocked by definition, since hasMergeAvailable ignores empty cells). Redesigned step 5: fixture has exactly one legal merge remaining, player performs it (same interactive mechanic as step 1), the resulting refill (seed discovered/pinned as before) is chosen to create no new adjacency, evaluateStatus then confirms GameStatus.deadlocked. Also narratively better — the player's own move causes the lock.
+- Stale Risks reference to the discarded "one empty cell" construction — fixed, now describes the actual post-collapse-refill mechanism.
+- Tile-by-tile playback outliving the widget — added an explicit requirement: one cancellable Timer/AnimationController owned by the tour screen, canceled on dispose and on any phase change (Skip, navigation).
+
+Partially accepted:
+- ExcludeSemantics blocking the required drag from screen readers — clarified scope: ExcludeSemantics applies only to the dimmed *background* outside the spotlight cutout, never to the actively-taught foreground board, so it was never blocking the drag itself. Declined the broader ask (a semantic merge-action button as an alternative input path) as out of scope for the tutorial specifically: BoardWidget's real gameplay interaction is the same raw drag with the same lack of a semantic alternative, so this would be retrofitting accessibility onto a core mechanic the shipped game doesn't support either. Logged honestly as an inherited, unclosed gap in Risks rather than silently dropped.
 
 ## Round 4 — Codex
 
-All material prior findings are addressed. The profile-write race remains logged as an accepted standing disagreement and is not counted against this review.
+Round-three deadlock logic and delayed-playback cancellation are now correctly addressed.
 
-New non-blocking corrections:
+Remaining/new blockers:
 
-- The tradeoff section still says catch-up costs 7 calls; the approach correctly calculates 8. Fix: change 7 to 8.
-- The challenge-list note says the friends RPC lacks a server limit, but it now has one. Fix: describe `take(100)` as defense-in-depth or remove it.
-- “All-time board: zero work” is stale because its RPC gains RLS repair, bigint totals, and a limit. Fix: change it to “no new gameplay behavior.”
-- Tiny smoke fixtures may make PostgreSQL choose sequential scans despite valid indexes. Fix: treat `EXPLAIN` as diagnostic unless the script loads representative volume.
+- Awaiting `prizeChecksReady` makes Skip/completion depend on four network-backed prize checks; a slow request can freeze onboarding, and an unexpected future error prevents the tutorial save entirely. Fix: serialize the prize and tutorial profile mutations instead of putting network futures on the onboarding critical path.
+- The inaccessible drag remains explicitly rejected, so screen-reader users cannot complete Steps 1 or 5 except by abandoning the tour. Fix: add a tutorial-only semantic "Merge highlighted tiles" action invoking the same chain handler.
+- `ExcludeSemantics` works on widget subtrees, not the pixels outside a painted cutout, so the proposed "everything outside the spotlight" exclusion is not generically implementable. Fix: exclude the entire underlying screen and expose the target description/action through the coachmark's own `Semantics`.
+- The Risks section still claims sequencing waits for cubit loads, contradicting the new `prizeChecksReady` design. Fix: update it and add a controlled-future test covering prize completion/error behavior before tutorial persistence.
+
+VERDICT: REVISE
+
+### Claude's response
+
+Accepted and folded into PLAN.md, all four:
+- Network futures on the Skip critical path — verified EngagementCubit already has exactly the right primitive (`_serializedPrizeCommit` / `_prizeCommit`, engagement_cubit.dart:444) that serializes the four prize writers against each other AND swallows their errors internally. Routed the tutorial's write through that same queue instead of an independent saveProfile call or an awaited Future.wait. Crucially also stopped awaiting it from the UI at all — Skip/finish dismiss the tour immediately (matching existing fire-and-forget writes like _rescheduleNotifications), the queue guarantees correctness in the background. This is simpler than round 3's fix (no futures threaded through main.dart/constructors) and fully resolves both the freeze risk and the unhandled-error risk.
+- Inaccessible drag rejected too broadly — re-scoped: Codex's round 4 ask was specifically a "tutorial-only" semantic action, which is exactly the right boundary (the tutorial fixture already knows the one correct path in advance, unlike real gameplay). Accepted as stated.
+- ExcludeSemantics not generically implementable over "everything outside a cutout" — correct, a semantics exclusion can't follow an arbitrary painted shape. Fixed: exclude the entire underlying screen instead, and make the coachmark itself the sole semantic surface (description + the tutorial-only merge action for steps 1/5).
+- Stale Risks reference — swept the whole file for leftover references to discarded mechanisms (found three: task 6's "await before unwinding" body text, the Key Decisions step-5 blurb still describing "watch drops lock it," and the profile-race Risks bullet still describing the round-1 "sequence after cubit loads" mitigation). All rewritten to match the final design. Added the requested test: concurrent prize-check + tutorial-completion commits through the shared queue, asserting neither write is lost and a prize-check error doesn't block the tutorial's write.
+
+## Round 5 — Codex
+
+Round-four accessibility, semantics scoping, stale risk text, and shared serialization are addressed.
+
+New blockers:
+
+- Fire-and-forget persistence contradicts the core guarantee: after Skip the UI reports completion before `tutorialSeen` is durable, so an immediate app kill shows the tour again. Fix: await the queued local commit before dismissing; prize network calls occur before queue insertion, so this only waits on short storage writes.
+- A queued tutorial write can execute after account deletion wipes Hive, recreating an otherwise-deleted profile with `tutorialSeen: true`. Fix: finish the queued write before re-enabling navigation, preventing it from outliving onboarding.
+- Adding `@visibleForTesting` to `_serializedPrizeCommit` does not make a private method callable from `TierSelectScreen`. Fix: keep the queue private and expose one intent-specific `Future<bool> markTutorialSeen()` method.
+- The tests verify queue ordering but not the new durability boundary. Fix: assert the tour remains active until `markTutorialSeen` succeeds and no write remains after dismissal.
+
+VERDICT: REVISE
+
+### Claude's response
+
+All four accepted — this was a tight, correct round with no overreach to push back on:
+- Fire-and-forget contradicted durability — round 4's over-correction went too far chasing round 3's "don't block on network" feedback. Restored awaiting the write, but specifically the *queued local commit* (normally fast, since it's local Hive I/O), not the raw network prize checks directly — the tour now stays visible until markTutorialSeen() resolves, then unwinds.
+- Account-deletion race — a genuinely sharp catch: fire-and-forget meant a queued write could land after Hive was wiped by account deletion, reviving a stale tutorialSeen: true into a fresh profile. Fixed by the same change as the durability fix above — navigation (including the path to Profile -> delete-my-data) doesn't re-enable until the write is confirmed done, so no write can outlive the tour.
+- @visibleForTesting doesn't grant cross-library access to a private method — correct Dart semantics catch on my own sloppy round-4 phrasing. Replaced with a single dedicated public method, EngagementCubit.markTutorialSeen(), which internally uses the existing private queue.
+- Missing durability test — added: tour blocks dismissal until markTutorialSeen() resolves, and no write remains outstanding once the tour has visually closed.
+
+## Round 6 — Codex (over MAX_ROUNDS=5 — process error, see Resolution)
+
+Round-five durability, account-deletion ordering, public API, and queue-ordering tests are addressed.
+
+Remaining/new issues:
+
+- `markTutorialSeen()` returns `bool`, but the `false` branch is undefined; the UI can remain permanently stuck in `_completing` with a spinner. Fix: on `false`, clear `_completing`, keep the tour open, show a retry message, and log completion only after `true`.
+- The plan says the queue may wait behind an in-flight network prize check, but network fetching happens before commits enter `_serializedPrizeCommit`; only local profile writes occupy that queue. Fix: correct the description and avoid designing timeout behavior for a nonexistent queue state.
+- The new failure and accessibility paths lack checks. Fix: test a failed-then-successful `markTutorialSeen()` retry and invoke the semantic merge action in Steps 1 and 5.
+
+VERDICT: REVISE
+
+### Claude's response
+
+Process note: this round should not have fired — MAX_ROUNDS=5 was set at the start and round 5 (the fourth resume) already consumed the budget. Firing this resume was a bookkeeping error. All three findings were nonetheless legitimate (verified finding #2 directly against checkDailyPrizes/etc. in engagement_cubit.dart: the network fetchRanks call is awaited *before* the loop that enters _serializedPrizeCommit, so only local writes ever occupy that queue — my round 5 "narrow wait behind network" framing was factually wrong), so all three are folded into PLAN.md as Claude's own final-arbiter judgment rather than firing a seventh Codex call:
+- markTutorialSeen() false branch was undefined — fixed: clear _completing, keep the tour open with a retry affordance, only log completion on true.
+- "wait behind network" claim was wrong — corrected the description to state plainly that the queue only ever contains local Hive writes, verified against the real prize-checker implementations.
+- Added the two requested tests (failed-then-successful retry; invoking the semantic merge action directly).
+
+Per the skill's deadlock-resolution rule ("do NOT fake convergence... hand it to the user"): this closes as a **process deadlock at round 6/MAX_ROUNDS=5**, not a clean APPROVED. The plan itself converged in substance (round 6's findings were narrow refinements of round 5's design, not new categories of problems), but round 6 was never independently re-reviewed by Codex after these fixes because the round budget was already spent. Flagged to the user for sign-off with that caveat.
+
+## Round 7 — Codex (extra round, outside original MAX_ROUNDS=5 budget, requested by user to clear the round-6 process error)
+
+All round-six findings are addressed. The persistence queue is correctly scoped and awaited, failure is retryable, semantics are implementable, and the new durability/accessibility tests cover the critical paths. No new material blockers found.
 
 VERDICT: APPROVED
-### Claude's response (round 4)
 
-All four non-blocking corrections applied to PLAN.md: 7→8 calls in the tradeoff section; `take(100)` reframed as defense-in-depth; "all-time: zero work" → "no new gameplay behavior (inherits the RPC plumbing fixes)"; smoke-script EXPLAIN downgraded to diagnostic (tiny fixtures favor seq scans).
+### Resolution
 
-**Converged: APPROVED in round 4 of 5.** Standing disagreement on record: the storage-level serialized profile-update refactor (Codex rounds 1–3) is acknowledged as a real pre-existing lost-update path but deliberately excluded — it requires migrating every profile writer and is unchanged in kind by this feature.
-
-## Act 3 — Build
-
-### Round 1 — Codex build
-
-Codex (gpt-5.6-sol, thread 019f776c-553f-7422-8d99-68654cf7b656) implemented PLAN.md end-to-end in one background run (~35 min): migration `0010_leaderboard_read_rpcs.sql` (DEFINER board projections with clamped limits, INVOKER `my_daily_ranks`/`my_period_ranks` with auth + range guards and rank-then-filter, `idx_friendships_b`, 0004-style ACLs, bigint totals), `supabase/tests/leaderboard_smoke.sql` (28 assertion blocks, rollback-wrapped), superpowers spec + plan docs, `myDailyRanks`/`myPeriodRanks`/`friendsLeaderboardPeriod` service methods, new payout tables + bounded oldest-first halt-on-failure catch-up in `EngagementCubit` (prize checkers rewired in `main.dart` to the caller-rank seams), screen changes (friends period tabs, challenge forced-daily in `_load`, `take(100)`, rank-4/5 🏅 fallback), and updated/new tests across 8 test files. Reported deviations: none. Reported blocker: local `supabase db reset` unavailable (Docker down, no psql) — smoke script authored but not executed.
-
-### Claude's verdict
-
-Full diff read (14 modified + 4 new files, ~1082 insertions). Migration verified line-by-line against the plan's SQL contract — projections, clamps, guards, ACL revoke-then-grant, INVOKER/DEFINER split all correct; catch-up loop verified for oldest-first order, guard-advance-only-through-contiguous-success, bounded windows, challenge/tier filtering; services and screen faithful. Proof re-run independently: `flutter analyze` — no issues; `flutter test` — all 534 tests pass. No forbidden path touched (engine, `_shared/`, season, golden vectors — confirmed via git status). Outstanding: the SQL smoke script has not run against a live database (Docker unavailable on this machine) — it must be run before/with `supabase db push`. Accepted in round 1; no fix rounds needed.
-
-### Fix round 1 — Claude (direct, sub-delegation-threshold)
-
-Running the DB verification (Docker Desktop restarted after a hung backend, `supabase start` + `supabase db reset`) surfaced a real bug the Dart suite could not see: this Supabase stack provisions `anon`/`authenticated` with NO table-level SELECT on `scores`, so both SECURITY INVOKER `my_*` RPCs failed with "permission denied for table scores" — 0001's world-readable RLS policy was never backed by a grant. One-line fix added to 0010: `grant select on table public.scores to authenticated;` (RLS remains the row-visibility authority). Re-ran `supabase db reset` + the full smoke script in the db container: **leaderboard smoke checks passed**, fixtures rolled back. Codex's round-2 insistence on database-level verification (finding #3) is what caught this.
-
-### Final verdict
-
-Build accepted: Flutter proof green (analyze clean, 534 tests), migration applies via supabase CLI, all 28 smoke assertions pass against live Postgres. Committing.
-
-### Deployment — hosted Supabase (2026-07-18)
-
-The database is the hosted project (nnoqqchqprfikhabrrjt), not local Docker (which served only as the smoke-test bench). `supabase migration list` revealed history drift: 0007–0009 had been applied remotely under MCP-generated timestamped names. Verified the local files match the applied SQL byte-for-byte (modulo comments), repaired history (`migration repair --status reverted` on the three timestamps, `--status applied 0007 0008 0009`), then `supabase db push` applied 0010 cleanly. Verified live: all four board RPCs SECURITY DEFINER with correct ACLs (globals anon+authenticated, friends/my_* authenticated-only), my_* INVOKER, scores SELECT grant present (hosted prod already had classic full default grants — the missing-grant failure was local-provisioning-specific), and a live `leaderboard()` call returns real rows. No season-2 scores exist yet, as expected pre-relaunch.
+Converged. 7 rounds total (5 planned + 1 process-error round + 1 user-requested extra round to clear it). PLAN.md is final.
