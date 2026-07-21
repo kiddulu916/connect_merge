@@ -10,15 +10,15 @@ class AdConfig {
 
   // Google test unit IDs (safe to ship while developing).
   static const _testBannerAndroid = 'ca-app-pub-3940256099942544/6300978111';
-  static const _testBannerIos = 'ca-app-pub-3940256099942544/2934735716';
+  static const _testBannerIos = 'null';
   static const _testRewardedAndroid = 'ca-app-pub-3940256099942544/5224354917';
-  static const _testRewardedIos = 'ca-app-pub-3940256099942544/1712485313';
+  static const _testRewardedIos = 'null';
 
   // Real unit IDs used for release builds.
-  static const _realBannerAndroid = 'ca-app-pub-4807961095325796/1830849771';
-  static const _realBannerIos = 'ca-app-pub-4807961095325796/1257803007';
-  static const _realRewardedAndroid = 'ca-app-pub-4807961095325796/8528798683';
-  static const _realRewardedIos = 'ca-app-pub-4807961095325796/1034441724';
+  static const _realBannerAndroid = 'ca-app-pub-4807961095325796/8783611212';
+  static const _realBannerIos = 'null';
+  static const _realRewardedAndroid = 'ca-app-pub-4807961095325796/9560406184';
+  static const _realRewardedIos = 'null';
 
   static bool get _ios => Platform.isIOS;
 
