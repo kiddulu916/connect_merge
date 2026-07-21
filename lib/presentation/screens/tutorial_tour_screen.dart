@@ -79,13 +79,21 @@ class _TutorialTourScreenState extends State<TutorialTourScreen> {
     super.dispose();
   }
 
-  void _measureAfterLayout() {
+  void _measureAfterLayout([int attempt = 0]) {
+    final targetStep = _step;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || _step != targetStep) return;
       final target =
           _step == 2 ? _movesKey.currentContext : _boardKey.currentContext;
       final box = target?.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) return;
+      if (box == null || !box.hasSize) {
+        // First frame(s) after a route push can land before the board's
+        // AspectRatio has settled — retry a few frames rather than leaving
+        // _targetRect null forever, which would AbsorbPointer the whole
+        // screen and make the interactive steps undraggable.
+        if (attempt < 5) _measureAfterLayout(attempt + 1);
+        return;
+      }
       final origin = box.localToGlobal(Offset.zero);
       final rect = switch (_step) {
         1 => _pathRect(origin, box.size, _stepOnePath),
