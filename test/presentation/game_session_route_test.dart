@@ -37,11 +37,20 @@ void main() {
       ),
     ));
 
+    // Tier select has already consumed its first-launch gate. A real game route
+    // must not independently read the flag and layer the retired tutorial over
+    // gameplay.
+    await storage.saveProfile(storage.loadProfile().copyWith(
+          settings:
+              storage.loadProfile().settings.copyWith(tutorialSeen: false),
+        ));
+
     await tester.tap(find.byKey(const Key('tier-easy')));
     await tester.pumpAndSettle();
 
     expect(find.byType(GameScreen), findsOneWidget);
     expect(find.byKey(const Key('undo-button')), findsOneWidget);
+    expect(find.byKey(const Key('tutorial-overlay')), findsNothing);
 
     Navigator.of(tester.element(find.byType(GameScreen))).pop();
     await tester.pumpAndSettle();

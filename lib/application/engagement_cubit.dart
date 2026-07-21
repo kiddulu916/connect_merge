@@ -462,6 +462,21 @@ class EngagementCubit extends Cubit<EngagementState> {
     return commit;
   }
 
+  /// Durably records first-launch tutorial completion in the same local-write
+  /// queue as startup prize commits, so neither writer can overwrite the
+  /// other's freshly loaded profile. The queue deliberately swallows storage
+  /// errors, so callers receive the persisted verification result.
+  Future<bool> markTutorialSeen() async {
+    await _serializedPrizeCommit(() async {
+      final profile = storage.loadProfile();
+      if (profile.settings.tutorialSeen) return;
+      await storage.saveProfile(profile.copyWith(
+        settings: profile.settings.copyWith(tutorialSeen: true),
+      ));
+    });
+    return storage.loadProfile().settings.tutorialSeen;
+  }
+
   // ---------------------------------------------------------------------------
   // Daily prize helpers
   // ---------------------------------------------------------------------------

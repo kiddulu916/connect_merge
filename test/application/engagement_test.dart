@@ -47,6 +47,19 @@ class _WriteThenThrowStorage extends InMemoryStorageService {
   }
 }
 
+class _FailTutorialOnceStorage extends InMemoryStorageService {
+  var failTutorialWrites = true;
+
+  @override
+  Future<void> saveProfile(PlayerProfile profile) async {
+    if (profile.settings.tutorialSeen && failTutorialWrites) {
+      failTutorialWrites = false;
+      throw StateError('tutorial save failed');
+    }
+    await super.saveProfile(profile);
+  }
+}
+
 Future<Map<String, Map<Difficulty, int>>> _rankOneDaily({
   required String from,
   required String to,
@@ -350,6 +363,79 @@ void main() {
   });
 
   group('prize commit serialization and failures', () {
+    test('tutorial queued after a prize commit preserves both writes',
+        () async {
+      final storage = _DelayedDailySaveStorage();
+      final cubit = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-24',
+      )..load();
+      addTearDown(cubit.close);
+
+      final daily = cubit.checkDailyPrizes(_rankOneDaily);
+      await storage.dailySaveStarted.future;
+      final tutorial = cubit.markTutorialSeen();
+      storage.releaseDailySave.complete();
+
+      expect(await tutorial, isTrue);
+      await daily;
+      final profile = storage.loadProfile();
+      expect(profile.settings.tutorialSeen, isTrue);
+      expect(profile.prizes.lastDailyPrizeDate, '2026-06-23');
+      expect(profile.wallet.coins, 50);
+    });
+
+    test('prize queued after tutorial preserves both writes', () async {
+      final storage = InMemoryStorageService();
+      final cubit = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-24',
+      )..load();
+      addTearDown(cubit.close);
+
+      final tutorial = cubit.markTutorialSeen();
+      final daily = cubit.checkDailyPrizes(_rankOneDaily);
+
+      expect(await tutorial, isTrue);
+      await daily;
+      final profile = storage.loadProfile();
+      expect(profile.settings.tutorialSeen, isTrue);
+      expect(profile.prizes.lastDailyPrizeDate, '2026-06-23');
+      expect(profile.wallet.coins, 50);
+    });
+
+    test('tutorial failure returns false and a retry can land', () async {
+      final storage = _FailTutorialOnceStorage();
+      final errors = <Object>[];
+      final cubit = EngagementCubit(
+        storage: storage,
+        onError: (error, stack, {fatal = false}) => errors.add(error),
+      )..load();
+      addTearDown(cubit.close);
+
+      expect(await cubit.markTutorialSeen(), isFalse);
+      expect(storage.loadProfile().settings.tutorialSeen, isFalse);
+      expect(errors, hasLength(1));
+
+      expect(await cubit.markTutorialSeen(), isTrue);
+      expect(storage.loadProfile().settings.tutorialSeen, isTrue);
+    });
+
+    test('a failed prize commit does not poison the tutorial write', () async {
+      final storage = _ThrowBeforeWriteStorage();
+      final cubit = EngagementCubit(
+        storage: storage,
+        todayProvider: () => '2026-06-24',
+      )..load();
+      addTearDown(cubit.close);
+
+      await cubit.checkDailyPrizes(_rankOneDaily);
+      storage.failBeforeWrite = false;
+
+      expect(await cubit.markTutorialSeen(), isTrue);
+      expect(storage.loadProfile().settings.tutorialSeen, isTrue);
+    });
+
     test('concurrent checks retain every guard payout and crown', () async {
       final storage = _DelayedDailySaveStorage();
       final cubit = EngagementCubit(

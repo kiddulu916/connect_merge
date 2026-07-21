@@ -29,6 +29,7 @@ import '../widgets/coin_balance.dart';
 import '../widgets/duel_banner.dart';
 import '../widgets/rival_indicator.dart';
 import '../widgets/streak_banner.dart';
+import '../widgets/tutorial_spotlight.dart';
 import 'achievements_screen.dart';
 import 'almanac_screen.dart';
 import 'cosmetics_screen.dart';
@@ -38,6 +39,9 @@ import 'leaderboard_screen.dart';
 import 'loot_chest_screen.dart';
 import 'practice_screen.dart';
 import 'profile_screen.dart';
+import 'tutorial_tour_screen.dart';
+
+enum _TourPhase { inactive, mechanics, tiers, leaderboard }
 
 /// Entry screen: pick a difficulty tier. Each card shows the starting tile
 /// count, whether the tier is already done today, and a live countdown to the
@@ -127,8 +131,41 @@ class TierSelectScreen extends StatefulWidget {
 }
 
 class _TierSelectScreenState extends State<TierSelectScreen> {
+  static const _tierTourTargets = <({
+    Difficulty difficulty,
+    bool practice,
+  })>[
+    (difficulty: Difficulty.easy, practice: false),
+    (difficulty: Difficulty.easy, practice: true),
+    (difficulty: Difficulty.medium, practice: false),
+    (difficulty: Difficulty.medium, practice: true),
+    (difficulty: Difficulty.hard, practice: false),
+    (difficulty: Difficulty.hard, practice: true),
+    (difficulty: Difficulty.legendary, practice: false),
+    (difficulty: Difficulty.legendary, practice: true),
+    (difficulty: Difficulty.challenge, practice: false),
+  ];
   Timer? _ticker;
   Duration _untilReset = Duration.zero;
+  final _tourScrollController = ScrollController();
+  final _tierTourKeys = <Difficulty, GlobalKey>{
+    for (final difficulty in Difficulty.values)
+      difficulty: GlobalKey(debugLabel: 'tutorial-tier-${difficulty.name}'),
+  };
+  final _practiceTourKeys = <Difficulty, GlobalKey>{
+    for (final difficulty in Difficulty.values
+        .where((difficulty) => difficulty != Difficulty.challenge))
+      difficulty: GlobalKey(debugLabel: 'tutorial-practice-${difficulty.name}'),
+  };
+  _TourPhase _tourPhase = _TourPhase.inactive;
+  int _tierTourIndex = 0;
+  Rect? _tourTargetRect;
+  bool _tierTourAdvancing = false;
+  bool _completing = false;
+  bool _completionFailed = false;
+  bool _completionPending = false;
+  bool _pendingSkipped = false;
+  int _pendingCompletionStep = 1;
 
   /// Cached so the share screen can offer an invite link without an extra RPC.
   String? _friendCode;
@@ -177,6 +214,11 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     // On app-open: reschedule the daily reminder based on current state.
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _rescheduleNotifications());
+    if (!widget.storage.loadProfile().settings.tutorialSeen) {
+      _tourPhase = _TourPhase.mechanics;
+      widget.analytics?.logEvent('tutorial_started');
+      WidgetsBinding.instance.addPostFrameCallback((_) => _launchMechanics());
+    }
   }
 
   Future<void> _loadFriendCode() async {
@@ -193,10 +235,247 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _tourScrollController.dispose();
     if (_ownsEngagement) _engagement.close();
     if (_ownsLoot) _loot.close();
     if (_ownsRivalry) _rivalry.close();
     super.dispose();
+  }
+
+  bool get _tourActive => _tourPhase != _TourPhase.inactive;
+
+  void _launchMechanics() {
+    if (!mounted || _tourPhase != _TourPhase.mechanics) return;
+    Navigator.of(context)
+        .push<TutorialTourResult>(
+      MaterialPageRoute<TutorialTourResult>(
+        builder: (_) => TutorialTourScreen(
+          onSkip: (step) => _completeTour(skipped: true, step: step),
+        ),
+      ),
+    )
+        .then((result) {
+      if (mounted && result == TutorialTourResult.completed) _startTierTour();
+    });
+  }
+
+  void _startTierTour() {
+    if (!mounted) return;
+    setState(() {
+      _tourPhase = _TourPhase.tiers;
+      _tierTourIndex = 0;
+      _tourTargetRect = null;
+      _tierTourAdvancing = true;
+    });
+    _measureTierTourTarget();
+  }
+
+  GlobalKey get _currentTierTourKey {
+    final target = _tierTourTargets[_tierTourIndex];
+    return target.practice
+        ? _practiceTourKeys[target.difficulty]!
+        : _tierTourKeys[target.difficulty]!;
+  }
+
+  Future<void> _measureTierTourTarget([int attempt = 0]) async {
+    final targetIndex = _tierTourIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted ||
+          _tourPhase != _TourPhase.tiers ||
+          _tierTourIndex != targetIndex) {
+        return;
+      }
+      final cardIndex =
+          Difficulty.values.indexOf(_tierTourTargets[targetIndex].difficulty);
+      if (_tourScrollController.hasClients) {
+        final approximate = (cardIndex * 164.0).clamp(
+          0.0,
+          _tourScrollController.position.maxScrollExtent,
+        );
+        await _tourScrollController.animateTo(
+          approximate,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      }
+      if (!mounted ||
+          _tourPhase != _TourPhase.tiers ||
+          _tierTourIndex != targetIndex) {
+        return;
+      }
+      final targetContext = _currentTierTourKey.currentContext;
+      if (targetContext == null) {
+        if (attempt < 3) {
+          _measureTierTourTarget(attempt + 1);
+        } else {
+          setState(() => _tierTourAdvancing = false);
+        }
+        return;
+      }
+      if (!targetContext.mounted) return;
+      await Scrollable.ensureVisible(
+        targetContext,
+        alignment: 0.45,
+        duration: const Duration(milliseconds: 180),
+      );
+      if (!mounted ||
+          !targetContext.mounted ||
+          _tourPhase != _TourPhase.tiers ||
+          _tierTourIndex != targetIndex) {
+        return;
+      }
+      final box = targetContext.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return;
+      final rect = box.localToGlobal(Offset.zero) & box.size;
+      setState(() {
+        _tourTargetRect = rect;
+        _tierTourAdvancing = false;
+      });
+    });
+  }
+
+  void _nextTierTourTarget() {
+    if (_tierTourAdvancing || _tourTargetRect == null) return;
+    _tierTourAdvancing = true;
+    if (_tierTourIndex < _tierTourTargets.length - 1) {
+      setState(() {
+        _tierTourIndex++;
+        _tourTargetRect = null;
+      });
+      _measureTierTourTarget();
+      return;
+    }
+    _launchLeaderboardTutorial();
+  }
+
+  void _launchLeaderboardTutorial() {
+    setState(() {
+      _tourPhase = _TourPhase.leaderboard;
+      _tourTargetRect = null;
+    });
+    final service = widget.leaderboard;
+    if (service == null) return;
+    Navigator.of(context)
+        .push<TutorialLeaderboardResult>(
+            MaterialPageRoute<TutorialLeaderboardResult>(
+      builder: (_) => LeaderboardScreen(
+        service: service,
+        friendsService: widget.friends,
+        initialDifficulty: Difficulty.easy,
+        todayProvider: widget.todayProvider,
+        weeklyPrizes: _engagement.state.weeklyPrizes,
+        tutorialMode: true,
+      ),
+    ))
+        .then((result) {
+      if (!mounted) return;
+      _completeTour(
+        skipped: result != TutorialLeaderboardResult.completed,
+        step: 7,
+      );
+    });
+  }
+
+  Future<bool> _completeTour({required bool skipped, required int step}) async {
+    if (_completing) return false;
+    if (!_completionPending) {
+      _completionPending = true;
+      _pendingSkipped = skipped;
+      _pendingCompletionStep = step;
+      if (skipped) {
+        widget.analytics?.logEvent('tutorial_skipped', {'step': step});
+      }
+    }
+    setState(() {
+      _completing = true;
+      _completionFailed = false;
+    });
+    final success = await _engagement.markTutorialSeen();
+    if (!mounted) return success;
+    if (!success) {
+      setState(() {
+        _completing = false;
+        _completionFailed = true;
+      });
+      return false;
+    }
+    widget.analytics?.logEvent('tutorial_completed');
+    setState(() {
+      _tourPhase = _TourPhase.inactive;
+      _completing = false;
+      _completionFailed = false;
+      _completionPending = false;
+    });
+    return true;
+  }
+
+  void _retryTourCompletion() {
+    _completeTour(
+      skipped: _pendingSkipped,
+      step: _pendingCompletionStep,
+    );
+  }
+
+  (String, String) get _tierTourCopy {
+    final target = _tierTourTargets[_tierTourIndex];
+    if (target.difficulty == Difficulty.challenge) {
+      return (
+        'Daily Challenge',
+        'Challenge uses the tightest board and a daily rule. It unlocks at '
+            'noon UTC and stays on its own leaderboard.',
+      );
+    }
+    final difficulty = target.difficulty;
+    if (target.practice) {
+      return (
+        '${difficulty.label} practice',
+        'Practice is off-leaderboard, replayable anytime, and has no daily '
+            'move budget.',
+      );
+    }
+    return (
+      '${difficulty.label} difficulty',
+      '${difficulty.gridSize}×${difficulty.gridSize} with '
+          '${difficulty.startingFill} starting tiles. Smaller boards and fewer '
+          'starting tiles leave less room to plan, so the lower numbers are harder.',
+    );
+  }
+
+  Widget _buildTourOverlay() {
+    final isTier = _tourPhase == _TourPhase.tiers;
+    final copy = isTier
+        ? _tierTourCopy
+        : (
+            'Leaderboards',
+            'Global rankings compare daily scores by difficulty and period. '
+                'Connect online to see the live board and friends results.',
+          );
+    return TutorialSpotlight(
+      key: _completing ? const Key('tutorial-completing') : null,
+      targetRect: isTier ? _tourTargetRect : null,
+      stepLabel: isTier ? 'step-6' : 'step-7',
+      title: _completionFailed ? 'Couldn’t save progress' : copy.$1,
+      body: _completionFailed
+          ? 'Your tour is still open. Check local storage and try again.'
+          : copy.$2,
+      onSkip: () => _completeTour(step: isTier ? 6 : 7, skipped: true),
+      onNext: _completionFailed
+          ? _retryTourCompletion
+          : isTier
+              ? _tierTourAdvancing || _tourTargetRect == null
+                  ? null
+                  : _nextTierTourTarget
+              : () => _completeTour(step: 7, skipped: false),
+      nextLabel: _completionFailed
+          ? 'Retry'
+          : isTier
+              ? 'Next'
+              : 'Finish',
+      nextKey: _completionFailed
+          ? const Key('tutorial-retry')
+          : const Key('tutorial-next'),
+      waiting: _completing,
+    );
   }
 
   /// True when every tier's day is already completed.
@@ -503,232 +782,232 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Top app bar: title left, secondary-nav icons right. The title
-              // uses FittedBox(scaleDown) so it always stays on ONE line —
-              // shrinking only if the (up to 5) compact action icons leave it
-              // too little room — and never wraps.
-              Row(
-                children: [
-                  const Expanded(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text('Connect Merge',
-                          maxLines: 1,
-                          softWrap: false,
-                          style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900)),
-                    ),
-                  ),
-                  _navIconButton(
-                    iconKey: const Key('open-achievements'),
-                    tooltip: 'Achievements',
-                    icon: Icons.emoji_events,
-                    onPressed: () => _openAchievements(context),
-                  ),
-                  _navIconButton(
-                    iconKey: const Key('open-cosmetics'),
-                    tooltip: 'Tile themes',
-                    icon: Icons.palette,
-                    onPressed: () => _openCosmetics(context),
-                  ),
-                  _navIconButton(
-                    iconKey: const Key('open-almanac'),
-                    tooltip: 'Merge Almanac',
-                    icon: Icons.menu_book,
-                    onPressed: () => _openAlmanac(context),
-                  ),
-                  if (widget.friends != null)
-                    _navIconButton(
-                      iconKey: const Key('open-friends'),
-                      tooltip: 'Friends',
-                      icon: Icons.group,
-                      onPressed: () => _openFriends(context),
-                    ),
-                  if (widget.auth != null)
-                    _navIconButton(
-                      iconKey: const Key('open-profile'),
-                      tooltip: 'Profile',
-                      icon: Icons.person,
-                      onPressed: () => _openProfile(context),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              BlocBuilder<EngagementCubit, EngagementState>(
-                bloc: _engagement,
-                builder: (context, eng) {
-                  if (eng.dailyActiveStreak <= 0) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: StreakBanner(
-                      streak: eng.dailyActiveStreak,
-                      freezeTokens: eng.freezeTokens,
-                      onFreeze: () => _watchFreezeAd(context),
-                    ),
-                  );
-                },
-              ),
-              BlocBuilder<RivalryCubit, RivalryState>(
-                bloc: _rivalry,
-                builder: (context, riv) {
-                  if (!riv.hasRival || riv.rivalName == null) {
-                    return const SizedBox.shrink();
-                  }
-                  // First still-incomplete tier: my best vs the rival's last
-                  // seen on that tier (display-only, never a leaderboard write).
-                  final tier = Difficulty.values.firstWhere(
-                    (d) => !_isCompleted(d),
-                    orElse: () => Difficulty.values.first,
-                  );
-                  final mine = widget.storage
-                          .loadSnapshot(widget.today(), tier)
-                          ?.board
-                          .score ??
-                      0;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Center(
-                      child: RivalIndicator(
-                        rivalName: riv.rivalName!,
-                        delta: RivalDelta(
-                          myScore: mine,
-                          rivalScore: riv.lastSeenFor(tier) ?? 0,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text('Choose your daily challenge',
+    final content = SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top app bar: title left, secondary-nav icons right. The title
+            // uses FittedBox(scaleDown) so it always stays on ONE line —
+            // shrinking only if the (up to 5) compact action icons leave it
+            // too little room — and never wraps.
+            Row(
+              children: [
+                const Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text('Connect Merge',
+                        maxLines: 1,
+                        softWrap: false,
                         style: TextStyle(
-                            color: AppColors.textMuted, fontSize: 14)),
+                            color: AppColors.textPrimary,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900)),
                   ),
-                  Tooltip(
-                    message: 'Resets at 00:00 UTC',
-                    child: Container(
-                      key: const Key('reset-countdown'),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppRadii.pill),
-                        border: Border.all(
-                            color: AppColors.accent.withValues(alpha: 0.35)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.timer_outlined,
-                              size: 14, color: AppColors.accent),
-                          const SizedBox(width: 6),
-                          Text('Resets in ${_fmt(_untilReset)}',
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  fontFeatures: [
-                                    FontFeature.tabularFigures()
-                                  ])),
-                        ],
+                ),
+                _navIconButton(
+                  iconKey: const Key('open-achievements'),
+                  tooltip: 'Achievements',
+                  icon: Icons.emoji_events,
+                  onPressed: () => _openAchievements(context),
+                ),
+                _navIconButton(
+                  iconKey: const Key('open-cosmetics'),
+                  tooltip: 'Tile themes',
+                  icon: Icons.palette,
+                  onPressed: () => _openCosmetics(context),
+                ),
+                _navIconButton(
+                  iconKey: const Key('open-almanac'),
+                  tooltip: 'Merge Almanac',
+                  icon: Icons.menu_book,
+                  onPressed: () => _openAlmanac(context),
+                ),
+                if (widget.friends != null)
+                  _navIconButton(
+                    iconKey: const Key('open-friends'),
+                    tooltip: 'Friends',
+                    icon: Icons.group,
+                    onPressed: () => _openFriends(context),
+                  ),
+                if (widget.auth != null)
+                  _navIconButton(
+                    iconKey: const Key('open-profile'),
+                    tooltip: 'Profile',
+                    icon: Icons.person,
+                    onPressed: () => _openProfile(context),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            BlocBuilder<EngagementCubit, EngagementState>(
+              bloc: _engagement,
+              builder: (context, eng) {
+                if (eng.dailyActiveStreak <= 0) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: StreakBanner(
+                    streak: eng.dailyActiveStreak,
+                    freezeTokens: eng.freezeTokens,
+                    onFreeze: () => _watchFreezeAd(context),
+                  ),
+                );
+              },
+            ),
+            BlocBuilder<RivalryCubit, RivalryState>(
+              bloc: _rivalry,
+              builder: (context, riv) {
+                if (!riv.hasRival || riv.rivalName == null) {
+                  return const SizedBox.shrink();
+                }
+                // First still-incomplete tier: my best vs the rival's last
+                // seen on that tier (display-only, never a leaderboard write).
+                final tier = Difficulty.values.firstWhere(
+                  (d) => !_isCompleted(d),
+                  orElse: () => Difficulty.values.first,
+                );
+                final mine = widget.storage
+                        .loadSnapshot(widget.today(), tier)
+                        ?.board
+                        .score ??
+                    0;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Center(
+                    child: RivalIndicator(
+                      rivalName: riv.rivalName!,
+                      delta: RivalDelta(
+                        myScore: mine,
+                        rivalScore: riv.lastSeenFor(tier) ?? 0,
                       ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              BlocBuilder<LootCubit, LootState>(
-                bloc: _loot,
-                builder: (context, loot) {
-                  final ready = loot is LootReady;
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          key: const Key('open-loot-chest'),
-                          onPressed: () => _openLootChest(context),
-                          icon: const Icon(Icons.card_giftcard, size: 18),
-                          label: Text(ready ? 'Daily chest' : 'Chest claimed',
-                              overflow: TextOverflow.ellipsis),
-                          style: FilledButton.styleFrom(
-                            backgroundColor:
-                                ready ? AppColors.accent : AppColors.surface,
-                            foregroundColor: AppColors.textPrimary,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: AppSpacing.md),
-                          ),
+                );
+              },
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('Choose your daily challenge',
+                      style:
+                          TextStyle(color: AppColors.textMuted, fontSize: 14)),
+                ),
+                Tooltip(
+                  message: 'Resets at 00:00 UTC',
+                  child: Container(
+                    key: const Key('reset-countdown'),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                      border: Border.all(
+                          color: AppColors.accent.withValues(alpha: 0.35)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.timer_outlined,
+                            size: 14, color: AppColors.accent),
+                        const SizedBox(width: 6),
+                        Text('Resets in ${_fmt(_untilReset)}',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                fontFeatures: [FontFeature.tabularFigures()])),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            BlocBuilder<LootCubit, LootState>(
+              bloc: _loot,
+              builder: (context, loot) {
+                final ready = loot is LootReady;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const Key('open-loot-chest'),
+                        onPressed: () => _openLootChest(context),
+                        icon: const Icon(Icons.card_giftcard, size: 18),
+                        label: Text(ready ? 'Daily chest' : 'Chest claimed',
+                            overflow: TextOverflow.ellipsis),
+                        style: FilledButton.styleFrom(
+                          backgroundColor:
+                              ready ? AppColors.accent : AppColors.surface,
+                          foregroundColor: AppColors.textPrimary,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.md),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      CoinBalance(coins: loot.coins),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          key: const Key('open-leaderboard-menu'),
-                          onPressed: () => _openLeaderboardOrExplain(context),
-                          icon: const Icon(Icons.leaderboard, size: 18),
-                          label: const Text('Leaderboard',
-                              overflow: TextOverflow.ellipsis),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textPrimary,
-                            side: const BorderSide(color: AppColors.border),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: AppSpacing.md),
-                          ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    CoinBalance(coins: loot.coins),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        key: const Key('open-leaderboard-menu'),
+                        onPressed: () => _openLeaderboardOrExplain(context),
+                        icon: const Icon(Icons.leaderboard, size: 18),
+                        label: const Text('Leaderboard',
+                            overflow: TextOverflow.ellipsis),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.md),
                         ),
                       ),
-                    ],
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            if (widget.duels != null)
+              BlocBuilder<DuelCubit, DuelState>(
+                bloc: _duelsCubit,
+                builder: (context, duel) {
+                  final challenge = duel.challenge;
+                  if (challenge == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: DuelBanner(
+                      challenge: challenge,
+                      expired: duel.expired,
+                      onPlay: () => _startTier(context, challenge.difficulty),
+                      onPlayToday: () =>
+                          _startTier(context, challenge.difficulty),
+                      onDismiss: () => widget.duels!.dismiss(),
+                    ),
                   );
                 },
               ),
-              const SizedBox(height: AppSpacing.lg),
-              if (widget.duels != null)
-                BlocBuilder<DuelCubit, DuelState>(
-                  bloc: _duelsCubit,
-                  builder: (context, duel) {
-                    final challenge = duel.challenge;
-                    if (challenge == null) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: DuelBanner(
-                        challenge: challenge,
-                        expired: duel.expired,
-                        onPlay: () => _startTier(context, challenge.difficulty),
-                        onPlayToday: () =>
-                            _startTier(context, challenge.difficulty),
-                        onDismiss: () => widget.duels!.dismiss(),
-                      ),
-                    );
-                  },
-                ),
-              Expanded(
-                child: ListView(
-                  children: [
-                    for (final d in Difficulty.values
-                        .where((d) => d != Difficulty.challenge))
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+            Expanded(
+              child: ListView(
+                controller: _tourScrollController,
+                children: [
+                  for (final d in Difficulty.values
+                      .where((d) => d != Difficulty.challenge))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      child: KeyedSubtree(
+                        key: _tierTourKeys[d],
                         child: _TierCard(
                           difficulty: d,
                           completed: _isCompleted(d),
                           accent: TilePalette.colorForTier(d.startingFill),
                           rank: Difficulty.values.indexOf(d),
+                          practiceTargetKey: _practiceTourKeys[d],
                           onTap: _isCompleted(d)
                               ? null
                               : () => _startTier(context, d),
@@ -738,12 +1017,48 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                               : () => _openLeaderboard(context, d),
                         ),
                       ),
-                    _buildChallengeCard(context),
-                  ],
+                    ),
+                  KeyedSubtree(
+                    key: _tierTourKeys[Difficulty.challenge],
+                    child: _buildChallengeCard(context),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return PopScope(
+      canPop: !_tourActive,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _tourPhase != _TourPhase.mechanics) {
+          _completeTour(
+            skipped: true,
+            step: _tourPhase == _TourPhase.tiers ? 6 : 7,
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: AbsorbPointer(
+                absorbing: _tourActive,
+                child: ExcludeSemantics(
+                  excluding: _tourActive,
+                  child: content,
                 ),
               ),
-            ],
-          ),
+            ),
+            if (_tourPhase == _TourPhase.tiers ||
+                (_tourPhase == _TourPhase.leaderboard &&
+                    (widget.leaderboard == null ||
+                        _completing ||
+                        _completionFailed)))
+              Positioned.fill(child: _buildTourOverlay()),
+          ],
         ),
       ),
     );
@@ -967,6 +1282,7 @@ class _TierCard extends StatefulWidget {
   /// Tap handler. Null when the tier is already completed (card is inert).
   final VoidCallback? onTap;
   final VoidCallback onPractice;
+  final GlobalKey? practiceTargetKey;
 
   /// Opens the per-tier leaderboard; null hides the icon (offline).
   final VoidCallback? onLeaderboard;
@@ -978,6 +1294,7 @@ class _TierCard extends StatefulWidget {
     required this.rank,
     required this.onTap,
     required this.onPractice,
+    this.practiceTargetKey,
     required this.onLeaderboard,
   });
 
@@ -1116,11 +1433,14 @@ class _TierCardState extends State<_TierCard> {
                     ],
                   ),
                 ),
-                _cardIconButton(
-                  iconKey: Key('practice-${d.name}'),
-                  tooltip: 'Practice',
-                  icon: Icons.fitness_center,
-                  onPressed: widget.onPractice,
+                KeyedSubtree(
+                  key: widget.practiceTargetKey,
+                  child: _cardIconButton(
+                    iconKey: Key('practice-${d.name}'),
+                    tooltip: 'Practice',
+                    icon: Icons.fitness_center,
+                    onPressed: widget.onPractice,
+                  ),
                 ),
                 if (widget.onLeaderboard != null)
                   _cardIconButton(

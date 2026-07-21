@@ -24,14 +24,11 @@ import '../theme/tokens.dart';
 import '../widgets/streak_banner.dart';
 import 'score_share_screen.dart';
 import 'stats_calendar_screen.dart';
-import 'tutorial_overlay.dart';
 
 class GameScreen extends StatefulWidget {
   final AdService adService;
 
-  /// Storage, so the screen can gate the first-run tutorial (`tutorialSeen`),
-  /// read the `colorblindMode` setting, and load the day-result history for the
-  /// stats calendar (Phase 4). Required.
+  /// Storage for colorblind mode and day-result history. Required.
   final StorageService storage;
 
   /// Phase 4 engagement state (streak banner, cosmetic, newly-unlocked badges).
@@ -62,10 +59,6 @@ class _GameScreenState extends State<GameScreen> {
   /// Last revealed next-drop tier (null until a hint is used). Read-only display.
   int? _hintTier;
 
-  /// Whether the first-run tutorial overlay is currently showing. Set on init
-  /// from the persisted `tutorialSeen` flag; cleared (and persisted) on dismiss.
-  bool _showTutorial = false;
-
   /// Cached colorblind-mode setting (Phase 4). Read once from the profile; drives
   /// the per-tier pattern overlay on the board.
   bool _colorblind = false;
@@ -80,18 +73,7 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     final profile = widget.storage.loadProfile();
-    _showTutorial = !profile.settings.tutorialSeen;
     _colorblind = profile.settings.colorblindMode;
-  }
-
-  /// Persist `tutorialSeen` BEFORE removing the overlay so it can never reappear
-  /// on relaunch (failure mode: shows every launch).
-  Future<void> _dismissTutorial() async {
-    final profile = widget.storage.loadProfile();
-    await widget.storage.saveProfile(profile.copyWith(
-      settings: profile.settings.copyWith(tutorialSeen: true),
-    ));
-    if (mounted) setState(() => _showTutorial = false);
   }
 
   void _openStatsCalendar(BuildContext context, Difficulty difficulty) {
@@ -152,10 +134,6 @@ class _GameScreenState extends State<GameScreen> {
                 BannerSlot(adService: adService),
               ],
             ),
-            if (_showTutorial)
-              Positioned.fill(
-                child: TutorialOverlay(onDismiss: _dismissTutorial),
-              ),
           ],
         ),
       ),
@@ -245,7 +223,8 @@ class _GameScreenState extends State<GameScreen> {
               child: Text(
                 'Today: ${cubit.activeRule!.label}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600),
               ),
             ),
           if (engagement != null)

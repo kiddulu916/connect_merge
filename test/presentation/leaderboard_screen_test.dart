@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:connect_merge/domain/models/difficulty.dart';
@@ -20,6 +22,11 @@ LeaderboardService _serviceReturning(List<LeaderboardEntry> entries) {
         .toList(),
   );
 }
+
+LeaderboardService _serviceThrowing() => LeaderboardService.withSeams(
+      invoke: (_, __) async => const {},
+      rpc: (_, __) async => throw StateError('offline'),
+    );
 
 class _RpcCapture {
   final calls = <(String, Map<String, dynamic>)>[];
@@ -44,6 +51,96 @@ class _RpcCapture {
 }
 
 void main() {
+  testWidgets('tutorial skips the Friends spotlight when friends are disabled',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: LeaderboardScreen(
+        service: _serviceReturning(const []),
+        todayProvider: () => '2026-06-07',
+        tutorialMode: true,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose a time period'), findsOneWidget);
+    expect(find.text('Global or friends'), findsNothing);
+    expect(find.byKey(const Key('tutorial-skip')), findsOneWidget);
+  });
+
+  for (final service in [_serviceReturning(const []), _serviceThrowing()]) {
+    testWidgets('tutorial explains rows in text when no row can be targeted',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: LeaderboardScreen(
+          service: service,
+          todayProvider: () => '2026-06-07',
+          tutorialMode: true,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('tutorial-next')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('How rankings work'), findsOneWidget);
+      expect(find.byKey(const Key('tutorial-text-fallback')), findsOneWidget);
+    });
+  }
+
+  testWidgets('tutorial locks in text fallback when rows are still loading',
+      (tester) async {
+    final rows = Completer<List<dynamic>>();
+    final service = LeaderboardService.withSeams(
+      invoke: (_, __) async => const {},
+      rpc: (_, __) => rows.future,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: LeaderboardScreen(
+        service: service,
+        todayProvider: () => '2026-06-07',
+        tutorialMode: true,
+      ),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('tutorial-next')));
+    await tester.pump();
+    expect(find.byKey(const Key('tutorial-text-fallback')), findsOneWidget);
+
+    rows.complete(const [
+      {
+        'rank': 1,
+        'display_name': 'Late player',
+        'score': 100,
+        'is_me': false,
+      },
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tutorial-text-fallback')), findsOneWidget);
+  });
+
+  testWidgets('tutorial ignores rapid Next taps while changing targets',
+      (tester) async {
+    final capture = _RpcCapture();
+    await tester.pumpWidget(MaterialApp(
+      home: LeaderboardScreen(
+        service: capture.leaderboard(),
+        friendsService: capture.friends(),
+        todayProvider: () => '2026-06-07',
+        tutorialMode: true,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final next = find.byKey(const Key('tutorial-next'));
+    await tester.tap(next);
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose a time period'), findsOneWidget);
+    expect(find.text('How rankings work'), findsNothing);
+  });
+
   testWidgets('empty state when no scores today', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: LeaderboardScreen(

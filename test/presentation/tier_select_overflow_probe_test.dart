@@ -23,7 +23,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(375, 812));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final storage = InMemoryStorageService();
+    final storage = await _storageWithTutorialSeen();
     // Complete EVERY tier so all four cards show the worst-case trailing cluster.
     for (final d in Difficulty.values) {
       await storage.saveSnapshot(GameSnapshot(
@@ -71,9 +71,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(360, 812));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
+    final storage = await _storageWithTutorialSeen();
     await tester.pumpWidget(MaterialApp(
       home: TierSelectScreen(
-        storage: InMemoryStorageService(),
+        storage: storage,
         adService: AdService(),
         leaderboard: _seamLeaderboard(),
         friends: _seamFriends(),
@@ -97,7 +98,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(375, 812));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final storage = InMemoryStorageService();
+    final storage = await _storageWithTutorialSeen();
     for (final d in Difficulty.values) {
       await storage.saveSnapshot(GameSnapshot(
         date: '2026-06-07',
@@ -146,6 +147,15 @@ FriendsService _seamFriends() => FriendsService.withSeams(
       deleteMine: (_) async {},
       selectMine: (_) async => const [],
     );
+
+Future<InMemoryStorageService> _storageWithTutorialSeen() async {
+  final storage = InMemoryStorageService();
+  final profile = storage.loadProfile();
+  await storage.saveProfile(profile.copyWith(
+    settings: profile.settings.copyWith(tutorialSeen: true),
+  ));
+  return storage;
+}
 
 BoardState _completedBoard() => BoardState(
       cells: List<Tile?>.filled(kCellCount, null),
