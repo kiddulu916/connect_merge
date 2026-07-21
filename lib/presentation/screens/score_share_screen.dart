@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -14,6 +13,7 @@ import '../../infrastructure/share_card_renderer.dart';
 import '../../infrastructure/storage_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/level_badge.dart';
+import '../widgets/ad_busy_gate.dart';
 import '../widgets/share_card.dart';
 
 /// Offline daily result: the player's own score/tier/moves plus local personal
@@ -28,6 +28,7 @@ class ScoreShareScreen extends StatelessWidget {
   final LifetimeStats stats;
   final bool canOfferAd;
   final VoidCallback onWatchAd;
+  final ValueListenable<bool> adBusy;
 
   /// Returns to the main menu (tier select). When null, no button is shown.
   final VoidCallback? onMainMenu;
@@ -110,6 +111,7 @@ class ScoreShareScreen extends StatelessWidget {
     required this.stats,
     required this.canOfferAd,
     required this.onWatchAd,
+    required this.adBusy,
     this.onMainMenu,
     this.friendCode,
     this.newlyUnlocked = const {},
@@ -150,99 +152,109 @@ class ScoreShareScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-              // Personal-only flair (near-miss, level-up, achievements) stays
-              // OUTSIDE the boundary so the shared PNG is a clean flex card.
-              RepaintBoundary(
-                key: _cardKey,
-                child: Center(
-                  child: ShareCard(
-                    board: board,
-                    difficulty: difficulty,
-                    score: board.score,
-                    highestTier: board.highestTier,
-                    streak: stats.streak,
-                    level: level,
-                    displayName: displayName,
-                    rank: rank,
-                    cosmetic: cosmetic,
-                  ),
-                ),
-              ),
-              if (xpGained > 0) ...[
-                const SizedBox(height: 16),
-                _xpRow(),
-              ],
-              if (nearMiss != null) ...[
-                const SizedBox(height: 16),
-                Text(nearMiss!,
-                    key: const Key('near-miss-line'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.amberAccent,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700)),
-              ],
-              if (leveledUp) ...[
-                const SizedBox(height: 12),
-                _levelUpBanner(),
-              ],
-              if (newlyUnlocked.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                _achievementsBanner(),
-              ],
-              const SizedBox(height: 24),
-              if (coinsEarned > 0 && !coinsDoubled && onDoubleCoins != null)
-                FilledButton.tonal(
-                  key: const Key('double-coins-button'),
-                  onPressed: onDoubleCoins,
-                  child: Text('Watch ad: double $coinsEarned coins'),
-                ),
-              if (canOfferAd)
-                FilledButton.tonal(
-                  onPressed: onWatchAd,
-                  child: const Text('Watch ad for more moves'),
-                ),
-              const SizedBox(height: 8),
-              FilledButton(
-                key: const Key('share-card-button'),
-                onPressed: () => _share(context),
-                child: const Text('Share'),
-              ),
-              if (onMainMenu != null) ...[
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  key: const Key('main-menu-button'),
-                  onPressed: onMainMenu,
-                  child: const Text('Main Menu'),
-                ),
-              ],
-              if (onChallengeFriend != null && displayName != null) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  key: const Key('challenge-friend-button'),
-                  onPressed: () => _challenge(context),
-                  icon: const Icon(Icons.sports_kabaddi),
-                  label: const Text('Challenge a friend'),
-                ),
-              ],
-              if (onSetRival != null) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  key: const Key('set-rival-button'),
-                  onPressed: onSetRival,
-                  icon: const Icon(Icons.flag),
-                  label: const Text('Set as rival'),
-                ),
-              ],
-              if (friendCode != null) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  key: const Key('invite-friend-button'),
-                  onPressed: () => _invite(context),
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Invite a friend'),
-                ),
-              ],
+                    // Personal-only flair (near-miss, level-up, achievements) stays
+                    // OUTSIDE the boundary so the shared PNG is a clean flex card.
+                    RepaintBoundary(
+                      key: _cardKey,
+                      child: Center(
+                        child: ShareCard(
+                          board: board,
+                          difficulty: difficulty,
+                          score: board.score,
+                          highestTier: board.highestTier,
+                          streak: stats.streak,
+                          level: level,
+                          displayName: displayName,
+                          rank: rank,
+                          cosmetic: cosmetic,
+                        ),
+                      ),
+                    ),
+                    if (xpGained > 0) ...[
+                      const SizedBox(height: 16),
+                      _xpRow(),
+                    ],
+                    if (nearMiss != null) ...[
+                      const SizedBox(height: 16),
+                      Text(nearMiss!,
+                          key: const Key('near-miss-line'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Colors.amberAccent,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700)),
+                    ],
+                    if (leveledUp) ...[
+                      const SizedBox(height: 12),
+                      _levelUpBanner(),
+                    ],
+                    if (newlyUnlocked.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      _achievementsBanner(),
+                    ],
+                    const SizedBox(height: 24),
+                    if (coinsEarned > 0 &&
+                        !coinsDoubled &&
+                        onDoubleCoins != null)
+                      AdBusyGate(
+                        busy: adBusy,
+                        onPressed: onDoubleCoins,
+                        builder: (context, onPressed) => FilledButton.tonal(
+                          key: const Key('double-coins-button'),
+                          onPressed: onPressed,
+                          child: Text('Watch ad: double $coinsEarned coins'),
+                        ),
+                      ),
+                    if (canOfferAd)
+                      AdBusyGate(
+                        busy: adBusy,
+                        onPressed: onWatchAd,
+                        builder: (context, onPressed) => FilledButton.tonal(
+                          onPressed: onPressed,
+                          child: const Text('Watch ad for more moves'),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      key: const Key('share-card-button'),
+                      onPressed: () => _share(context),
+                      child: const Text('Share'),
+                    ),
+                    if (onMainMenu != null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        key: const Key('main-menu-button'),
+                        onPressed: onMainMenu,
+                        child: const Text('Main Menu'),
+                      ),
+                    ],
+                    if (onChallengeFriend != null && displayName != null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        key: const Key('challenge-friend-button'),
+                        onPressed: () => _challenge(context),
+                        icon: const Icon(Icons.sports_kabaddi),
+                        label: const Text('Challenge a friend'),
+                      ),
+                    ],
+                    if (onSetRival != null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        key: const Key('set-rival-button'),
+                        onPressed: onSetRival,
+                        icon: const Icon(Icons.flag),
+                        label: const Text('Set as rival'),
+                      ),
+                    ],
+                    if (friendCode != null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        key: const Key('invite-friend-button'),
+                        onPressed: () => _invite(context),
+                        icon: const Icon(Icons.person_add),
+                        label: const Text('Invite a friend'),
+                      ),
+                    ],
                   ],
                 ),
               ),

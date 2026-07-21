@@ -19,6 +19,7 @@ class LootCubit extends Cubit<LootState> {
   /// The reward revealed by the current claim; retained so [doubleReward] can
   /// credit the same amount again after a rewarded ad.
   LootReward? _claimed;
+  bool _grantingLootDouble = false;
 
   LootCubit({
     required this.storage,
@@ -65,12 +66,23 @@ class LootCubit extends Cubit<LootState> {
   Future<void> doubleReward() async {
     final s = state;
     final base = _claimed;
-    if (s is! LootClaimed || base == null || base.doubled) return;
-    final profile = storage.loadProfile();
-    final coins = profile.wallet.coins + base.coins; // credit the same amount again
-    await storage.saveProfile(profile.creditCoins(base.coins));
-    final doubled = base.asDoubled();
-    _claimed = doubled;
-    emit(LootClaimed(coins: coins, reward: doubled));
+    if (_grantingLootDouble ||
+        s is! LootClaimed ||
+        base == null ||
+        base.doubled) {
+      return;
+    }
+    try {
+      _grantingLootDouble = true;
+      final profile = storage.loadProfile();
+      final coins =
+          profile.wallet.coins + base.coins; // credit the same amount again
+      await storage.saveProfile(profile.creditCoins(base.coins));
+      final doubled = base.asDoubled();
+      _claimed = doubled;
+      emit(LootClaimed(coins: coins, reward: doubled));
+    } finally {
+      _grantingLootDouble = false;
+    }
   }
 }

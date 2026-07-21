@@ -360,6 +360,19 @@ void main() {
         expect(storage.loadStats(d).streakFreezeTokens, 1);
       }
     });
+
+    test('overlapping freeze callbacks grant once', () async {
+      final c = make()..load();
+
+      final first = c.grantFreezeToken();
+      final second = c.grantFreezeToken();
+      final results = await Future.wait([first, second]);
+
+      expect(results.where((granted) => granted), hasLength(1));
+      for (final d in Difficulty.values) {
+        expect(storage.loadStats(d).streakFreezeTokens, 1);
+      }
+    });
   });
 
   group('prize commit serialization and failures', () {

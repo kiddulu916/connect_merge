@@ -6,6 +6,7 @@ import '../../application/loot_state.dart';
 import '../../infrastructure/ad_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/coin_balance.dart';
+import '../widgets/ad_busy_gate.dart';
 
 /// The Daily Loot Chest screen: tap a sealed chest to reveal the day's
 /// seed-derived reward, then optionally watch a rewarded ad to double it.
@@ -90,8 +91,7 @@ class LootChestScreen extends StatelessWidget {
       LootClaimed(:final reward) => Column(
           key: const Key('loot-claimed'),
           children: [
-            const Icon(Icons.auto_awesome,
-                color: Colors.amberAccent, size: 96),
+            const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 96),
             const SizedBox(height: 24),
             Text('+${reward.coins} coins',
                 key: const Key('loot-reward-coins'),
@@ -106,16 +106,19 @@ class LootChestScreen extends StatelessWidget {
             ],
             const SizedBox(height: 24),
             if (!reward.doubled)
-              FilledButton.tonal(
-                key: const Key('double-loot-button'),
+              AdBusyGate(
+                busy: adService.showing,
                 onPressed: () => _doubleWithAd(context),
-                child: const Text('Watch ad to double it'),
+                builder: (context, onPressed) => FilledButton.tonal(
+                  key: const Key('double-loot-button'),
+                  onPressed: onPressed,
+                  child: const Text('Watch ad to double it'),
+                ),
               )
             else
               const Text('Doubled!',
                   style: TextStyle(
-                      color: Colors.greenAccent,
-                      fontWeight: FontWeight.w700)),
+                      color: Colors.greenAccent, fontWeight: FontWeight.w700)),
           ],
         ),
       LootSealed() => const Column(

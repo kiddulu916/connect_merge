@@ -7,11 +7,13 @@ import '../../domain/constants.dart';
 class RewardedDialog extends StatelessWidget {
   final VoidCallback onWatch;
   final VoidCallback onDecline;
+  final bool busy;
 
   const RewardedDialog({
     super.key,
     required this.onWatch,
     required this.onDecline,
+    this.busy = false,
   });
 
   @override
@@ -23,7 +25,8 @@ class RewardedDialog extends StatelessWidget {
       actions: [
         TextButton(onPressed: onDecline, child: const Text('No thanks')),
         FilledButton(
-            onPressed: onWatch, child: const Text('Watch for +$kAdMoveReward')),
+            onPressed: busy ? null : onWatch,
+            child: const Text('Watch for +$kAdMoveReward')),
       ],
     );
   }

@@ -162,6 +162,7 @@ class GameCubit extends Cubit<GameState> {
   /// Prevent overlapping rewarded-ad callbacks from granting twice while the
   /// first snapshot write is still in flight.
   bool _grantingAd = false;
+  bool _grantingUndo = false;
 
   /// Optional error-reporting hook (observability). Fired for exceptions that
   /// are currently swallowed silently (best-effort background work — a
@@ -457,8 +458,13 @@ class GameCubit extends Cubit<GameState> {
   /// reward fires). No-op if no frame is available or the run is locked. Does
   /// NOT consume a free undo — it bypasses the [kFreeUndosPerDay] cap.
   Future<void> undoAfterReward() async {
-    if (!canUndo) return;
-    await _applyUndo();
+    if (_grantingUndo || !canUndo) return;
+    try {
+      _grantingUndo = true;
+      await _applyUndo();
+    } finally {
+      _grantingUndo = false;
+    }
   }
 
   /// Pop the most-recent frame and restore board + landing-PRNG + drop-tier-PRNG

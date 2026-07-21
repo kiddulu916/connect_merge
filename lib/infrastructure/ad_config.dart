@@ -29,4 +29,6 @@ class AdConfig {
   static String get rewardedUnitId => useTestAds
       ? (_ios ? _testRewardedIos : _testRewardedAndroid)
       : (_ios ? _realRewardedIos : _realRewardedAndroid);
+
+  static bool isPlaceholder(String unitId) => unitId == 'null';
 }

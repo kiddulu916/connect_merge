@@ -53,25 +53,29 @@ class _CosmeticsScreenState extends State<CosmeticsScreen> {
               ),
             ],
           ),
-          body: ListView(
-            key: const Key('cosmetics-list'),
-            padding: const EdgeInsets.all(16),
-            children: [
-              for (final c in Cosmetic.values)
-                _CosmeticTile(
-                  cosmetic: c,
-                  selected: state.selectedCosmetic == c,
-                  unlocked: state.unlockedCosmetics.contains(c),
-                  affordable: state.coins >= c.price,
-                  onSelect: () => widget.engagement.selectCosmetic(c),
-                  onUnlockViaAd: c.unlock == CosmeticUnlock.rewardedAd
-                      ? () => _unlockViaAd(context, c)
-                      : null,
-                  onBuy: c.unlock == CosmeticUnlock.purchase
-                      ? () => _buy(context, c)
-                      : null,
-                ),
-            ],
+          body: ValueListenableBuilder<bool>(
+            valueListenable: widget.adService.showing,
+            builder: (context, busy, _) => ListView(
+              key: const Key('cosmetics-list'),
+              padding: const EdgeInsets.all(16),
+              children: [
+                for (final c in Cosmetic.values)
+                  _CosmeticTile(
+                    cosmetic: c,
+                    selected: state.selectedCosmetic == c,
+                    unlocked: state.unlockedCosmetics.contains(c),
+                    affordable: state.coins >= c.price,
+                    busy: busy,
+                    onSelect: () => widget.engagement.selectCosmetic(c),
+                    onUnlockViaAd: c.unlock == CosmeticUnlock.rewardedAd
+                        ? () => _unlockViaAd(context, c)
+                        : null,
+                    onBuy: c.unlock == CosmeticUnlock.purchase
+                        ? () => _buy(context, c)
+                        : null,
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -108,6 +112,7 @@ class _CosmeticTile extends StatelessWidget {
   final bool selected;
   final bool unlocked;
   final bool affordable;
+  final bool busy;
   final VoidCallback onSelect;
   final VoidCallback? onUnlockViaAd;
   final VoidCallback? onBuy;
@@ -117,6 +122,7 @@ class _CosmeticTile extends StatelessWidget {
     required this.selected,
     required this.unlocked,
     required this.affordable,
+    required this.busy,
     required this.onSelect,
     this.onUnlockViaAd,
     this.onBuy,
@@ -186,7 +192,7 @@ class _CosmeticTile extends StatelessWidget {
                 else if (!unlocked && onUnlockViaAd != null)
                   TextButton(
                     key: Key('cosmetic-ad-${cosmetic.name}'),
-                    onPressed: onUnlockViaAd,
+                    onPressed: busy ? null : onUnlockViaAd,
                     child: const Text('Unlock'),
                   )
                 else if (!unlocked)

@@ -850,10 +850,14 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                 }
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: StreakBanner(
-                    streak: eng.dailyActiveStreak,
-                    freezeTokens: eng.freezeTokens,
-                    onFreeze: () => _watchFreezeAd(context),
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: widget.adService.showing,
+                    builder: (context, busy, _) => StreakBanner(
+                      streak: eng.dailyActiveStreak,
+                      freezeTokens: eng.freezeTokens,
+                      busy: busy,
+                      onFreeze: () => _watchFreezeAd(context),
+                    ),
                   ),
                 );
               },

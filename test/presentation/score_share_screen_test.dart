@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:connect_merge/domain/constants.dart';
@@ -50,6 +49,7 @@ void main() {
   testWidgets('shows the core stats', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
         board: _board(),
         date: '2026-06-06',
         stats: _stats,
@@ -65,6 +65,7 @@ void main() {
     var tapped = 0;
     await tester.pumpWidget(MaterialApp(
       home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
         board: _board(),
         date: '2026-06-06',
         stats: _stats,
@@ -88,6 +89,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
         board: _board(),
         date: '2026-06-06',
         stats: _stats,
@@ -102,6 +104,7 @@ void main() {
     final sharer = _FakeSharer(true);
     await tester.pumpWidget(MaterialApp(
       home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
         board: _board(),
         date: '2026-06-06',
         stats: _stats,
@@ -124,6 +127,7 @@ void main() {
     final sharer = _FakeSharer(false);
     await tester.pumpWidget(MaterialApp(
       home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
         board: _board(),
         date: '2026-06-06',
         stats: _stats,
@@ -147,6 +151,7 @@ void main() {
     String? shared;
     await tester.pumpWidget(MaterialApp(
       home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
         board: _board(),
         date: '2026-06-06',
         stats: _stats,

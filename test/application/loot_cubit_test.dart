@@ -95,6 +95,18 @@ void main() {
     expect(storage.loadProfile().wallet.coins, base * 2);
   });
 
+  test('overlapping doubleReward callbacks credit once', () async {
+    final c = make('2026-06-11')..load();
+    await c.claim();
+    final base = (c.state as LootClaimed).reward.coins;
+
+    final first = c.doubleReward();
+    final second = c.doubleReward();
+    await Future.wait([first, second]);
+
+    expect(storage.loadProfile().wallet.coins, base * 2);
+  });
+
   test('doubleReward without a prior claim is a no-op', () async {
     final c = make('2026-06-11')..load();
     await c.doubleReward();

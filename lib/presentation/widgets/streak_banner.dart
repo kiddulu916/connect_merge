@@ -12,12 +12,14 @@ class StreakBanner extends StatelessWidget {
   /// Invoked when the player taps the freeze CTA (parent shows a rewarded ad,
   /// then grants a token). When null, the CTA is hidden.
   final VoidCallback? onFreeze;
+  final bool busy;
 
   const StreakBanner({
     super.key,
     required this.streak,
     required this.freezeTokens,
     this.onFreeze,
+    this.busy = false,
   });
 
   @override
@@ -38,9 +40,7 @@ class StreakBanner extends StatelessWidget {
             '$streak-day streak',
             key: const Key('streak-count'),
             style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w800),
+                color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
           ),
           const Spacer(),
           if (freezeTokens > 0)
@@ -62,7 +62,7 @@ class StreakBanner extends StatelessWidget {
           if (onFreeze != null)
             TextButton.icon(
               key: const Key('freeze-cta'),
-              onPressed: onFreeze,
+              onPressed: busy ? null : onFreeze,
               icon: const Icon(Icons.ac_unit, size: 16),
               label: const Text('Freeze'),
             ),

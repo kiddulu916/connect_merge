@@ -14,6 +14,7 @@ import '../../domain/models/difficulty.dart';
 import '../../infrastructure/ad_service.dart';
 import '../../infrastructure/notification_service.dart';
 import '../widgets/banner_slot.dart';
+import '../widgets/ad_busy_gate.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/drop_queue_rail.dart';
 import '../widgets/hint_button.dart';
@@ -161,6 +162,7 @@ class _GameScreenState extends State<GameScreen> {
     final leveledUp = level > levelForXp(lifetimeXp - xpGained);
 
     return ScoreShareScreen(
+      adBusy: adService.showing,
       board: board,
       date: date,
       stats: stats,
@@ -256,16 +258,23 @@ class _GameScreenState extends State<GameScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              HintButton(
-                enabled: cubit.canUseHint,
-                onTap: () => _watchHint(context, cubit),
+              ValueListenableBuilder<bool>(
+                valueListenable: adService.showing,
+                builder: (context, busy, _) => HintButton(
+                  enabled: cubit.canUseHint && !busy,
+                  onTap: () => _watchHint(context, cubit),
+                ),
               ),
               const SizedBox(width: 12),
-              OutlinedButton.icon(
-                key: const Key('undo-button'),
+              AdBusyGate(
+                busy: adService.showing,
                 onPressed: cubit.canUndo ? () => _undo(context, cubit) : null,
-                icon: const Icon(Icons.undo, size: 18),
-                label: const Text('Undo'),
+                builder: (context, onPressed) => OutlinedButton.icon(
+                  key: const Key('undo-button'),
+                  onPressed: onPressed,
+                  icon: const Icon(Icons.undo, size: 18),
+                  label: const Text('Undo'),
+                ),
               ),
               const SizedBox(width: 12),
               IconButton(
@@ -327,7 +336,7 @@ class _GameScreenState extends State<GameScreen> {
   void _watchHint(BuildContext context, GameCubit cubit) {
     adService.showRewarded(
       adType: 'hint',
-      onReward: () {
+      onReward: () async {
         final tier = cubit.revealNextDropAfterReward();
         if (tier != null && mounted) setState(() => _hintTier = tier);
       },
@@ -345,12 +354,16 @@ class _GameScreenState extends State<GameScreen> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => RewardedDialog(
-        onWatch: () {
-          Navigator.of(dialogContext).pop();
-          _watchRewarded(context, cubit);
-        },
-        onDecline: () => Navigator.of(dialogContext).pop(),
+      builder: (dialogContext) => ValueListenableBuilder<bool>(
+        valueListenable: adService.showing,
+        builder: (context, busy, _) => RewardedDialog(
+          busy: busy,
+          onWatch: () {
+            Navigator.of(dialogContext).pop();
+            _watchRewarded(context, cubit);
+          },
+          onDecline: () => Navigator.of(dialogContext).pop(),
+        ),
       ),
     );
   }

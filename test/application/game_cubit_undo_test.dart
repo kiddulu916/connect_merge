@@ -353,6 +353,24 @@ void main() {
       expect((c.state as GamePlaying).board.moveLog.length, logBefore - 1);
     });
 
+    test('overlapping rewarded undo callbacks grant one undo', () async {
+      const date = '2026-07-02';
+      final c = make(date);
+      await c.init(difficulty: Difficulty.medium);
+
+      for (var i = 0; i < 3; i++) {
+        final b = (c.state as GamePlaying).board;
+        await c.playChain(_findChain(b));
+      }
+      final logBefore = (c.state as GamePlaying).board.moveLog.length;
+
+      final first = c.undoAfterReward();
+      final second = c.undoAfterReward();
+      await Future.wait([first, second]);
+
+      expect((c.state as GamePlaying).board.moveLog.length, logBefore - 1);
+    });
+
     test('undo is a no-op with an empty stack', () async {
       const date = '2026-06-02';
       final c = make(date);

@@ -132,6 +132,7 @@ class EngagementCubit extends Cubit<EngagementState> {
       onAnalyticsEvent;
 
   Future<void> _prizeCommit = Future.value();
+  bool _grantingFreeze = false;
 
   EngagementCubit({
     required this.storage,
@@ -736,19 +737,25 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// up to [kMaxFreezeTokens] each, so a missed day is shielded regardless of
   /// which tier the player resumes. Returns whether anything was granted.
   Future<bool> grantFreezeToken() async {
-    var grantedAny = false;
-    for (final d in Difficulty.values) {
-      final stats = storage.loadStats(d);
-      if (stats.streakFreezeTokens < kMaxFreezeTokens) {
-        await storage.saveStats(d,
-            stats.copyWith(streakFreezeTokens: stats.streakFreezeTokens + 1));
-        grantedAny = true;
+    if (_grantingFreeze) return false;
+    try {
+      _grantingFreeze = true;
+      var grantedAny = false;
+      for (final d in Difficulty.values) {
+        final stats = storage.loadStats(d);
+        if (stats.streakFreezeTokens < kMaxFreezeTokens) {
+          await storage.saveStats(d,
+              stats.copyWith(streakFreezeTokens: stats.streakFreezeTokens + 1));
+          grantedAny = true;
+        }
       }
+      if (grantedAny) {
+        emit(state.copyWith(freezeTokens: _maxTierFreezeTokens()));
+      }
+      return grantedAny;
+    } finally {
+      _grantingFreeze = false;
     }
-    if (grantedAny) {
-      emit(state.copyWith(freezeTokens: _maxTierFreezeTokens()));
-    }
-    return grantedAny;
   }
 
   // --- helpers ---
