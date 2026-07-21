@@ -1,197 +1,233 @@
-# Plan Review Log: first-launch onboarding tour (interactive tutorial + tip spotlights + skip)
+# Plan Review Log: Fix rewarded-ad reward-routing race and non-idempotent grants
 Act 1 (grill) complete — plan locked with the user. MAX_ROUNDS=5.
 
-(The prior task's log — top-5 leaderboard prizes — lives in git history at 0161973.)
+(The prior task's log — first-launch onboarding tour — lives in git history at 278396e.)
 
 ## Round 1 — Codex
 
-## Material findings
+The plan is not safe to implement yet.
 
-1. The plan never defines a navigation state machine; route back gestures, failed saves, or double-taps can bypass Skip and leave the unfinished tour over an interactive tier screen.
-   Fix: Centralize phases in `TierSelectScreen`, block interaction while launching, use `PopScope`, serialize completion, and unwind routes only after persistence succeeds.
+1. **Critical — `_grantingHint` cannot work.** `revealNextDropAfterReward()` is synchronous, so `finally` clears the flag before any second invocation; the proposed "double-invoking synchronously grants once" test is impossible to pass.
+   Fix: Enforce exactly-once delivery in `AdService` by atomically consuming the loaded ad and retaining its existing per-show `rewarded` latch; omit `_grantingHint`.
 
-2. Persisting `tutorialSeen` with whole-profile `loadProfile`/`saveProfile` races the four unawaited startup prize writers in main.dart, allowing either tutorial completion or prizes to be overwritten.
-   Fix: Introduce one serialized `updateProfile` path and route tutorial plus all concurrent startup profile mutations through it.
+2. **Critical — `LootCubit.doubleReward()` was incorrectly classified as idempotent.** Its doubled state is committed only after `await storage.saveProfile`, so overlapping calls can both pass the guard and credit twice.
+   Fix: Add an in-flight guard around `doubleReward()` and an overlapping-call test using blocking storage.
 
-3. PLAN.md treats existing `Key(...)` values as `GlobalKey`s, but the current card and practice keys are ordinary keys.
-   Fix: Preserve the test keys and attach separate owned `GlobalKey`s to target wrappers.
+3. **High — transient guards do not identify one ad watch.** A delayed duplicate callback arriving after `undoAfterReward()` or `grantFreezeToken()` completes sees the flag cleared and grants again; those methods cannot distinguish a duplicate from a legitimate later watch.
+   Fix: Either guarantee exactly-once entirely in `AdService`, or pass and consume a stable ad-instance reward token.
 
-4. Waiting one frame does not make off-screen tier cards measurable; the cards live in a scrolling list and may have no mounted `RenderBox`.
-   Fix: Add a `ScrollController`, scroll each target into view, wait for layout, then convert its rect into the overlay's coordinate space.
+4. **High — concurrent rewarded loads remain racy.** Every tap while `_rewarded == null` starts another `_preloadRewarded()`; competing completions can overwrite `_rewarded`, leak an ad, or have dismissal of one ad erase another ready ad.
+   Fix: Add a `_loadingRewarded` guard, clear it on both load callbacks, dispose stale results, and set `_rewarded = null` when an ad is acquired for showing.
 
-5. The interactive Step 1 spotlight can swallow the drag because a full-screen overlay sits above `BoardWidget`'s `GestureDetector`.
-   Fix: Make the painted scrim `IgnorePointer` and place only the coachmark controls in hit-testing widgets outside the exposed board region.
+5. **High — the busy check is ordered incorrectly and corrupts telemetry.** Checking it after `ad == null` can initiate another preload, while logging contention as `ad_load_failed` makes load-failure metrics false.
+   Fix: Check busy immediately after initialization, before inspecting the cached ad, and report a distinct `ad_busy` event or no event.
 
-6. Step 7 assumes online means all targets exist, but the Global/Friends toggle is absent when `friendsService == null`, and rows may be loading, empty, or failed.
-   Fix: Conditionally skip missing controls and fall back to a static row explainer after empty/error/timeout states.
+6. **High — the iOS test is not implementable as written.** `AdConfig` uses `dart:io Platform.isIOS`, which host Flutter tests cannot override, while preserving the string `'null'` also contradicts the existing `ca-app-pub-` assertions.
+   Fix: Represent missing IDs as nullable values and make platform selection injectable or based on an overridable target-platform seam.
 
-7. The drop script contradicts the API: `GameEngine.applyDrop` requires a `Prng` and chooses among empties; callers cannot specify a landing cell directly.
-   Fix: Pin a concrete PRNG seed and expected landing sequence, or use explicit board snapshots and stop claiming the cells are selected through `applyDrop`.
+7. **Medium — `showing` exposes mutable service state.** Any caller can set the public `ValueNotifier.value`, breaking the lifecycle invariant.
+   Fix: Keep a private `_showing` notifier and expose only `ValueListenable<bool>`.
 
-8. The exact tutorial boards remain an "open question," so Step 1's collapse may destroy Step 4's example and Step 5 has no proven deadlock sequence.
-   Fix: Specify immutable per-step board fixtures, transition/reset rules, PRNG seed, and asserted final `GameStatus.deadlocked` before implementation.
+8. **Medium — disposal is incomplete and potentially unsafe.** The app never calls `AdService.dispose()`, and a late SDK callback after notifier disposal would attempt to mutate a disposed notifier.
+   Fix: Define explicit ownership, call `adService.dispose()` from that owner, and ignore/dispose late load or fullscreen callbacks after `_disposed`.
 
-9. The coachmark has no accessibility contract for screen-reader focus, semantics, large text, reduced motion, or safe-area placement.
-   Fix: Require semantic announcements and focus transfer, accessible Skip/Next labels, text-scale tests, safe-area layout, and reduced-motion behavior.
+9. **Testing gap — the service race cannot be meaningfully exercised with current seams.** Manually setting the public notifier only tests a branch, not callback preservation, dismissal reset, failed-show reset, or competing loads.
+   Fix: Add injectable rewarded load/show seams and widget tests proving every affected CTA disables and re-enables on both terminal callbacks.
 
-10. Auto-launching for the default `tutorialSeen == false` profile will break existing `TierSelectScreen` tests that construct fresh storage, while the proposed source-deletion test adds little value.
-    Fix: Mark tutorial seen in all non-onboarding fixtures and replace source scanning with behavioral tests for back, off-screen targets, empty leaderboard, and persistence failure.
+10. **Security boundary remains client-only.** Server replay validates the legality and cap of `ContinueEvent`, but not that AdMob issued the reward, so a modified client can still claim ad continues without watching ads.
+   Fix: Document honest-client-only enforcement, or use AdMob server-side verification with a server-issued nonce if monetization integrity is required.
 
-11. There is no onboarding observability despite an existing analytics seam, so completion, abandonment, and problematic steps cannot be measured.
-    Fix: Log `tutorial_started`, `tutorial_skipped(step)`, and `tutorial_completed` through the existing optional `AnalyticsService`.
-
-12. Spotlighting every difficulty card repeats one explanation and creates most of the scrolling/key complexity.
-    Fix: Spotlight one representative tier card plus its Practice action, then summarize the difficulty progression in the coachmark copy.
-
-13. This is still a design sketch, not the repository-required dated spec plus task-by-task red/green implementation plan, and it omits full verification.
-    Fix: Publish the required spec and executable plan with exact files, failing tests, implementation steps, `flutter analyze`, and full `flutter test`.
+11. **Repository workflow conflict.** The plan is not under `docs/superpowers/plans/` and does not break work into the required failing-test → implementation → passing-test → commit tasks.
+   Fix: Rewrite it into the repository's mandated task-by-task plan format before implementation.
 
 VERDICT: REVISE
 
 ### Claude's response
 
-Accepted and folded into PLAN.md (tasks renumbered, 0-9):
-- #1 (nav state machine / PopScope) — added as an explicit phase machine owned by TierSelectScreen, PopScope on tour routes, persist-then-unwind ordering.
-- #3 (GlobalKey vs existing Key) — plan now attaches dedicated GlobalKeys alongside existing test Keys, doesn't repurpose them.
-- #4 (off-screen cards) — added Scrollable.ensureVisible before measuring.
-- #5 (scrim swallows drag) — scrim is IgnorePointer over the exposed board region during the interactive step.
-- #6 (step 7 partial availability) — expanded fallback beyond leaderboard==null to cover friendsService==null and loading/empty/error board states.
-- #7 (applyDrop can't take an explicit landing cell) — fixed the mechanism: script exactly one empty index open per drop step so the PRNG draw is deterministic by construction, while still routing through the real engine call.
-- #8 (board fixtures underspecified) — each step now gets its own immutable fixture with explicit transitions; step 5's fixture gets a dedicated test asserting GameStatus.deadlocked.
-- #10 (existing tests break / low-value new test) — added explicit task to update existing TierSelectScreen fixtures to tutorialSeen: true; dropped the source-deletion test in favor of behavioral tests (back-gesture, off-screen target, leaderboard fallback states).
-- #11 (observability) — added analytics events via the existing AnalyticsService seam.
-- #13 (repo planning workflow) — added as approach step 0, referencing CLAUDE.md's required docs/superpowers spec+plan before Act 3 build.
+Accepted and revised:
+- Point 1: dropped the `_grantingHint` guard entirely (dead code on a sync method); reframed step 1 (AdService `_showing` guard) as the actual fix for the cross-placement race, with the Cubit guards demoted to a narrower, separate "await-gap reentrancy" concern.
+- Point 2: added `LootCubit.doubleReward()` to the guarded-methods list (was misclassified safe in the original audit) — real TOCTOU across its `await storage.saveProfile`.
+- Point 3: addressed by point 1's reframe — once AdService guarantees exactly-once `showRewarded`, cross-watch races are structurally closed; remaining guards are for same-tick reentrancy only, which they do handle correctly.
+- Point 4: added a `_loadingRewarded` guard around `_preloadRewarded()`, cleared on both load callbacks, dispose-on-redundant-load.
+- Point 5: reordered the busy check to run immediately after the `_initialized` check (before touching `_rewarded`), and split telemetry into a distinct `ad_busy` event instead of reusing `ad_load_failed`.
+- Point 6: changed the iOS check from a `Platform.isIOS` test to a plain string-equality check against the literal `'null'` placeholder — testable without platform mocking, consistent with how `ad_config_test.dart` already avoids the iOS branch.
+- Point 7: `_showing` is now private with a `ValueListenable<bool> get showing` accessor.
+- Point 9: added a `@visibleForTesting debugSetShowing` seam mirroring the existing `AnalyticsService.withSeams` pattern, so the busy branch is testable without a real AdMob load.
 
-Partially accepted:
-- #2 (profile-write race) — real, but pre-existing and already explicitly out-of-scope in the prior shipped leaderboard-prizes plan (git 0161973), which documented the same race and deliberately deferred a serialized updateProfile fix. Recorded as an inherited risk, not fixed here; the tutorial's single boolean write follows the exact pattern the codebase's own _dismissTutorial already uses today, so it doesn't introduce a new failure mode.
-- #9 (accessibility contract) — a full a11y contract (screen-reader focus, reduced motion, text-scale tests) would hold this one feature to a standard nothing else in lib/presentation meets (grep confirmed: zero Semantics/semanticLabel usage repo-wide). Scoped down to visible Skip/Next labels and reasonable tap targets, matching existing conventions; noted in Key decisions.
-
-Rejected, with reason:
-- #12 (spotlight one representative card instead of all) — contradicts an explicit, specific instruction from the user during the grill ("spotlights the difficulties one by one and gives a brief description of the differences"). This is a settled product decision, not a technical defect; logged as rejected rather than silently overridden.
+Rejected (logged reason):
+- Point 8 (dispose ownership): confirmed via `main.dart` that `AdService.dispose()` is never called today — pre-existing gap, not introduced by this plan. The new `_showing` notifier follows the same app-lifetime-singleton lifecycle as the existing `_rewarded` field; no incremental risk. Noted in Risks section rather than adding new disposal wiring out of scope for this fix.
+- Point 10 (AdMob server-side verification): real gap, but a distinct, larger initiative touching the dual-engine replay-verification surface — out of scope for this reward-routing/idempotency bug-fix plan. Logged as a follow-up in "Out of scope."
+- Point 11 (plan location): this session was explicitly invoked via `/grill-me-codex`, whose protocol writes to root `PLAN.md`/`PLAN-REVIEW-LOG.md` — kept that location. Accepted the spirit of the point (test-first, task-by-task discipline) for the implementation phase regardless of doc location.
 
 ## Round 2 — Codex
 
-Most prior findings are addressed: phase/back handling, wrapper GlobalKeys, hit-testing, conditional leaderboard targets, analytics, test fixtures, and planning workflow.
+Most prior findings are addressed: notifier encapsulation, busy ordering, preload serialization, hint guard removal, loot concurrency, and anti-fraud scoping.
 
-Remaining blockers:
+Remaining material issues:
 
-- The profile-write race remains material: this adds a writer during the exact startup window containing four unawaited prize writers, so `tutorialSeen` or prize data can be lost. Fix: serialize profile mutations through one storage-level update path, or delay prize checks until onboarding persistence finishes.
-- New contradiction: with exactly one empty cell, the first `applyDrop` fills it and every subsequent call hits the empty-list assertion in game_engine.dart. Fix: use multiple empties with a fixed PRNG seed and pin every landing in the test.
-- `Scrollable.ensureVisible(key.currentContext!)` cannot find a card that is sufficiently off-screen because lazy `ListView` children may be unmounted. Fix: scroll approximately by index with a `ScrollController`, then call `ensureVisible` once the target mounts.
-- `TierSelectScreen` owns the phase machine, but the spotlight targets live inside a pushed `LeaderboardScreen`; the plan does not define how keys or overlay state cross that route boundary. Fix: explicitly pass the target keys/tour callbacks into `LeaderboardScreen`, or let that screen own Step 7 and return a result.
-- Persistence failure and repeated Skip taps remain undefined; "only after the write resolves" does not handle a thrown write or concurrent completion calls. Fix: memoize one completion future, disable controls while saving, and show retry UI on failure.
-- Rejecting accessibility is not sound: an `IgnorePointer` scrim can leave underlying controls exposed to screen readers while the visual UI is modal. Fix: exclude background semantics and give the coachmark a scoped semantic route, focus announcement, and accessible controls.
+1. **Busy test cannot reach the busy branch.** `showRewarded()` checks `_initialized` before `_showing`, but `debugSetShowing(true)` does not initialize the service.
+   Fix: Replace the setter with an `AdService.withSeams` constructor that supplies initialized/busy state.
+
+2. **The placeholder-ID test remains impossible.** Host tests resolve Android IDs, so the inline `'null'` branch cannot be exercised without an ID/platform seam.
+   Fix: Inject unit IDs in the test constructor or make platform selection overridable.
+
+3. **The central preload fix is untested.** Tests cover only a manually forced busy branch, not concurrent-load suppression, callback cleanup, or redundant-ad disposal.
+   Fix: Inject the rewarded loader and test that two preload requests issue one load and both completion paths clear `_loadingRewarded`.
+
+4. **The goal still overclaims exact idempotency.** Transient Cubit guards block overlapping calls only; delayed sequential duplicates still grant another undo/freeze, and hints remain repeatable.
+   Fix: Narrow the goal to overlapping-show/overlapping-write protection, or add persistent reward tokens if delayed duplicates are genuinely in scope.
+
+5. **`StreakBanner` is no longer an open question.** It owns the button and hides it when `onFreeze` is null, so the current API cannot render it disabled.
+   Fix: Explicitly add an enabled/busy property and set `onPressed` to null while busy.
+
+6. **No UI-disable tests are planned.** Seven placement changes could compile while one or more buttons remain enabled.
+   Fix: Add a busy-state widget test for each affected screen or centralize the binding and test it once.
+
+7. **Telemetry remains mislabeled.** `_rewarded == null` while a preload is still running continues to log `ad_load_failed`, despite the plan reserving that event for genuine failures.
+   Fix: Log `ad_not_ready` for missing/loading ads and log `ad_load_failed` from `onAdFailedToLoad` with the SDK error.
+
+8. **Repository planning requirements remain unmet.** The plan is still outside `docs/superpowers/plans/` and is not organized as red → green → commit tasks.
+   Fix: Convert it to the mandated task-by-task plan before implementation.
 
 VERDICT: REVISE
 
 ### Claude's response
 
-Accepted and folded into PLAN.md:
-- New contradiction (one-empty-cell mechanism self-defeating) — this was a genuine bug in my own round-1 fix. Replaced with the actually-correct mechanism: Prng (Mulberry32) is fully deterministic for a fixed seed, so the initial board + drop-tier sequence + seed are authored, run once to discover the resulting landings, then pinned by a test asserting GameStatus.deadlocked. Landings are discovered, not dictated.
-- Lazy ListView unmounted children — added two-phase measurement: approximate scroll-by-index via ScrollController first, then Scrollable.ensureVisible once the target's context is non-null.
-- Route-boundary key crossing — LeaderboardScreen now owns step 7 directly via an optional tutorial-mode entry, reporting completion back through the same Navigator.push(...).then(...) pattern tier_select_screen.dart already uses for GameScreen, instead of TierSelectScreen reaching into a pushed route's internals.
-- Repeated Skip taps — added a single _completing guard, same idiom as the deleted TutorialOverlay's _dismissed bool.
-- Accessibility (narrow reading) — accepted the specific correctness claim: IgnorePointer only blocks touch hit-testing, not the semantics tree, so a screen reader could still reach a dimmed background control. Added ExcludeSemantics around dimmed background content during each spotlight step. The broader ask (focus announcements, reduced motion, text-scale tests) remains out of scope, for the same repo-consistency reason as round 1 (zero existing Semantics usage anywhere in lib/presentation) — round 2's finding was narrower and specific, so only that narrow slice was accepted.
+Accepted and revised:
+- Point 1: added `AdService.withSeams({analytics, initialized = true, loadRewarded})` named constructor; `debugSetShowing` now reachable in tests because `initialized` can be set directly.
+- Point 2: added `AdConfig.isPlaceholder(String)` as a pure static helper, tested with plain string literals (`'null'` vs a real ID) — no platform mocking needed. `AdService` now calls `AdConfig.isPlaceholder(...)` instead of an inline `== 'null'` check.
+- Point 3: `AdService.withSeams`' `loadRewarded` param lets tests inject a call-counting fake loader to verify `_loadingRewarded` suppresses concurrent load calls and that `onAdFailedToLoad` clears it for a retry. Noted honestly in Risks that the `onAdLoaded`/redundant-dispose success path stays untestable (RewardedAd has no test-constructible instances) — same limitation the existing suite already has.
+- Point 4: reworded Goal to state the actual mechanism ("AdService guarantees at most one showRewarded() in flight, which rules out cross-placement and delayed-duplicate races structurally") instead of implying the 3 Cubit guards deliver general idempotency; added a decision-log entry explaining why the narrower wording is correct (the Cubit guards only need to catch same-tick overlap, because step 1 already rules out delayed duplicates).
+- Point 5: added `bool busy` to `StreakBanner`, `onPressed: busy ? null : onFreeze` (keeps the button visible-but-disabled instead of vanishing), threaded from `tier_select_screen.dart` via a `ValueListenableBuilder` on `adService.showing`.
+- Point 6: introduced one shared `AdBusyGate` widget wrapping `ValueListenableBuilder<bool>` instead of duplicating the pattern at all 7 call sites; one widget test covers the gating mechanism itself, each call site just wires it in (HintButton is the one exception — its `enabled: bool` API doesn't fit `AdBusyGate`'s `onPressed`-based builder, handled inline instead).
+- Point 7: `ad == null` (not-yet-loaded) branch renamed to log `ad_not_ready`; `ad_load_failed` now reserved strictly for `onAdFailedToLoad`.
 
-Partially accepted (mitigated, not fully fixed, with reasoning strengthened):
-- Profile-write race — Codex is right that this feature actively lands a writer inside the contested startup window, not merely inheriting a dormant risk. Still declining the full serialized-updateProfile refactor (explicitly out of scope in the prior shipped leaderboard-prizes plan, git 0161973, for the same reason: it's a project-wide fix bigger than any one feature). Added a concrete mitigation instead: sequence the tour's completion/skip write to fire after TierSelectScreen's own cubits' initial .load() calls settle, narrowing the collision window with the unawaited prize writers without taking on the full refactor.
-
-Declined further, with reasoning: write-failure retry UI — the plan documents the fail-safe outcome (write throws → tutorialSeen stays false → tour simply reruns next launch) instead of building retry UI, because no other local-storage writer in this codebase (_rescheduleNotifications, _dismissTutorial, etc.) has retry UI either; a thrown Hive write is also not a realistic failure mode this app already treats as needing user-facing recovery anywhere.
+Rejected (logged reason, unchanged from Round 1):
+- Point 8 (plan location): already addressed in Round 1's response — this session runs under `/grill-me-codex`, whose protocol writes to root `PLAN.md`/`PLAN-REVIEW-LOG.md`. Not re-litigating; the task-by-task test-first discipline the point is really after will still apply during implementation regardless of which directory the doc lives in.
 
 ## Round 3 — Codex
 
-Round-two findings addressed: lazy-list targeting, leaderboard route ownership, duplicate completion, and background semantics now have credible solutions.
+Most prior findings are now addressed: reachable service seams, preload suppression testing, narrowed idempotency scope, `StreakBanner` behavior, telemetry naming, and UI gating strategy.
 
-Remaining/new blockers:
+Remaining issues:
 
-- The profile-race mitigation is ineffective: all three cubit `.load()` methods are synchronous and finish before the unawaited prize checks even start at main.dart:135. Fix: retain a `Future.wait` for the four startup prize checks and await it before saving `tutorialSeen`, or serialize profile updates.
-- A drop-only sequence cannot transition from mergeable to deadlocked: `applyDrop` adds a tile but never removes an existing legal adjacency, so a mergeable initial board stays mergeable; otherwise it begins deadlocked. Fix: define Step 5 as a post-collapse, no-merge board whose refill exhausts all empty cells without rescuing it, then call `evaluateStatus`.
-- The Risks section still references the discarded "exactly one empty cell per drop" construction, contradicting the corrected approach. Fix: replace it with the fixed-seed, multiple-empty refill sequence.
-- `ExcludeSemantics` makes the required drag unavailable to screen readers, while Skip only abandons the tutorial. Fix: add a semantic action/button that invokes the same highlighted merge transition.
-- "Tile-by-tile" playback implies delayed callbacks that can survive Skip/navigation and mutate disposed state. Fix: use one cancellable timer/controller and cancel it on phase changes and `dispose`.
+1. **The core "one `onReward` in flight" claim is false.** `onReward` is `void Function()`, but several callers pass `async` callbacks; dismissal can clear `_showing` while reward persistence is still running.
+   Fix: Say "one reward callback dispatch per show," or change the callback to `Future<void>` and keep busy until both dismissal and reward completion.
+
+2. **`AdBusyGate` loses existing eligibility state.** Its required non-null `onPressed` would re-enable Undo whenever the ad is idle, even when `cubit.canUndo` is false.
+   Fix: Accept `VoidCallback?` and pass null through whenever either the base callback is null or the ad is busy.
+
+3. **Telemetry cleanup is incomplete.** The uninitialized and failed-to-show branches still log `ad_load_failed`, contradicting "reserved for `onAdFailedToLoad` only."
+   Fix: Rename those events to `ad_not_initialized` and `ad_show_failed`.
+
+4. **Ignored SDK futures can strand the new flags.** `RewardedAd.load()` and `show()` return `Future<void>`; an exceptional completion outside the callbacks can leave `_loadingRewarded` or `_showing` permanently true.
+   Fix: Attach error cleanup to both returned futures while keeping callback cleanup idempotent.
+
+5. **UI wiring tests are still missing from Step 5.** Testing `AdBusyGate` proves the helper, not that all seven placements use it correctly.
+   Fix: Explicitly add one busy-state wiring assertion per affected screen.
+
+6. **`AdConfig.isPlaceholder()` is test-only indirection.** Testing that `unitId == 'null'` recognizes `'null'` does not verify the service short-circuit.
+   Fix: Use the direct comparison without a helper, or inject unit IDs into the existing service seam and test the actual skip behavior.
+
+7. **Repository workflow remains unmet.** The plan is still not a dated red → green → commit plan under `docs/superpowers/plans/`.
+   Fix: Convert it to the required implementation-plan format before building.
 
 VERDICT: REVISE
 
 ### Claude's response
 
-Accepted and folded into PLAN.md:
-- Profile-race mitigation ineffective — verified directly against main.dart: the four `unawaited(engagement.check*Prizes(...))` calls fire before `runApp` even runs and are wholly unrelated to any cubit `.load()`. Replaced with a real fix: main.dart captures `Future.wait([...])` over those four calls and threads it down through ConnectMergeApp -> TierSelectScreen as a plain constructor parameter; the tour awaits it before persisting. Small and targeted, not the general serialized-updateProfile refactor (still out of scope).
-- Step 5 engine-logic contradiction — this was a real bug in round 2's design, not just underspecified. Confirmed from game_engine.dart: applyDrop only fills empty cells, never removes tiles or touches existing adjacencies, so drops alone can never cause a deadlock (a board with a legal pair keeps it regardless of drops; a board with none is already deadlocked by definition, since hasMergeAvailable ignores empty cells). Redesigned step 5: fixture has exactly one legal merge remaining, player performs it (same interactive mechanic as step 1), the resulting refill (seed discovered/pinned as before) is chosen to create no new adjacency, evaluateStatus then confirms GameStatus.deadlocked. Also narratively better — the player's own move causes the lock.
-- Stale Risks reference to the discarded "one empty cell" construction — fixed, now describes the actual post-collapse-refill mechanism.
-- Tile-by-tile playback outliving the widget — added an explicit requirement: one cancellable Timer/AnimationController owned by the tour screen, canceled on dispose and on any phase change (Skip, navigation).
+Accepted and revised:
+- Point 1: this was a real overclaim, not just wording — corrected the Goal and the step-1 explanatory bullet to state precisely what `_showing` guarantees ("one ad show in flight," not "one reward persisted") and why the 3 Cubit guards are load-bearing for the specific gap this leaves (a second legitimate watch's `onReward` firing while the first watch's `await`-based reward persistence is still running after dismissal cleared `_showing`). Updated the "Key decisions" entry to match — no longer claims the Cubit guards are pure defense-in-depth.
+- Point 2: `AdBusyGate.onPressed` changed from required `VoidCallback` to nullable `VoidCallback?`; gate only narrows toward disabled, never widens toward enabled. Added a decision-log entry.
+- Point 3: added `ad_not_initialized` (was `ad_load_failed`) for the `!_initialized` branch and `ad_show_failed` (was `ad_load_failed`) for `onAdFailedToShowFullScreenContent` — four distinct events total now (`ad_not_initialized`, `ad_not_ready`, `ad_busy`, `ad_show_failed`), `ad_load_failed` reserved strictly for `onAdFailedToLoad`.
+- Point 4: added `try`/`catch`/`.catchError` around the `RewardedAd.load(...)` and `ad.show(...)` calls to clear `_loadingRewarded`/`_showing` on an unhandled future error, as a fallback to the normal callback-based cleanup (idempotent either way). Added a decision-log entry and a test for it.
+- Point 5: added an explicit "UI wiring" test bullet — one widget test per affected screen (5 screens) asserting that screen's specific control(s) render disabled when the relevant busy listenable is true.
+- Point 6: extended `AdService.withSeams` with `rewardedUnitIdOverride`, letting a test inject `() => 'null'` and assert `_preloadRewarded()` never calls the injected `loadRewarded` fake — genuine service-level coverage of the skip behavior, not just the pure predicate. Kept `AdConfig.isPlaceholder` (still used by real `AdService` code, not test-only indirection once the service itself is testable through it).
 
-Partially accepted:
-- ExcludeSemantics blocking the required drag from screen readers — clarified scope: ExcludeSemantics applies only to the dimmed *background* outside the spotlight cutout, never to the actively-taught foreground board, so it was never blocking the drag itself. Declined the broader ask (a semantic merge-action button as an alternative input path) as out of scope for the tutorial specifically: BoardWidget's real gameplay interaction is the same raw drag with the same lack of a semantic alternative, so this would be retrofitting accessibility onto a core mechanic the shipped game doesn't support either. Logged honestly as an inherited, unclosed gap in Risks rather than silently dropped.
+Rejected (logged reason, unchanged from Rounds 1-2):
+- Point 7 (plan location): third time this point has come up; reaffirming the same rejection — this session runs under `/grill-me-codex`, whose protocol writes to root `PLAN.md`/`PLAN-REVIEW-LOG.md`. Not re-litigating further in the log; the point is noted, not adopted.
 
 ## Round 4 — Codex
 
-Round-three deadlock logic and delayed-playback cancellation are now correctly addressed.
+Most prior findings are addressed, but the revision introduces one critical correctness problem.
 
-Remaining/new blockers:
+1. **Critical — legitimate rewarded ads can now grant nothing.** The plan explicitly allows a second legitimate ad to complete while the first reward persists, then uses a transient guard that silently drops that second reward.
+   Fix: Make `onReward` awaitable and keep the global busy state until both dismissal and reward persistence finish; do not use "return if granting" to discard paid-for rewards.
 
-- Awaiting `prizeChecksReady` makes Skip/completion depend on four network-backed prize checks; a slow request can freeze onboarding, and an unexpected future error prevents the tutorial save entirely. Fix: serialize the prize and tutorial profile mutations instead of putting network futures on the onboarding critical path.
-- The inaccessible drag remains explicitly rejected, so screen-reader users cannot complete Steps 1 or 5 except by abandoning the tour. Fix: add a tutorial-only semantic "Merge highlighted tiles" action invoking the same chain handler.
-- `ExcludeSemantics` works on widget subtrees, not the pixels outside a painted cutout, so the proposed "everything outside the spotlight" exclusion is not generically implementable. Fix: exclude the entire underlying screen and expose the target description/action through the coachmark's own `Semantics`.
-- The Risks section still claims sequencing waits for cubit loads, contradicting the new `prizeChecksReady` design. Fix: update it and add a controlled-future test covering prize completion/error behavior before tutorial persistence.
+2. **`RewardedDialog` and `_CosmeticTile` cannot be gated as described.** Both own their buttons internally and currently receive neither `AdService` nor a busy listenable.
+   Fix: Explicitly thread `ValueListenable<bool>` into both widgets or move their button construction to the owning screens.
 
-VERDICT: REVISE
+3. **SDK-error cleanup is not automatically idempotent.** Setting a boolean twice is harmless, but duplicate analytics, `onUnavailable`, disposal, and preload calls are not.
+   Fix: Route callback and Future-error paths through one exact-once guarded cleanup function.
 
-### Claude's response
+4. **The proposed error test covers the wrong failure mode.** A synchronous throw does not test a returned `Future<void>` completing with an error.
+   Fix: Test both `throw` and `Future<void>.error(...)`; the SDK methods return `Future<void>`.
 
-Accepted and folded into PLAN.md, all four:
-- Network futures on the Skip critical path — verified EngagementCubit already has exactly the right primitive (`_serializedPrizeCommit` / `_prizeCommit`, engagement_cubit.dart:444) that serializes the four prize writers against each other AND swallows their errors internally. Routed the tutorial's write through that same queue instead of an independent saveProfile call or an awaited Future.wait. Crucially also stopped awaiting it from the UI at all — Skip/finish dismiss the tour immediately (matching existing fire-and-forget writes like _rescheduleNotifications), the queue guarantees correctness in the background. This is simpler than round 3's fix (no futures threaded through main.dart/constructors) and fully resolves both the freeze risk and the unhandled-error risk.
-- Inaccessible drag rejected too broadly — re-scoped: Codex's round 4 ask was specifically a "tutorial-only" semantic action, which is exactly the right boundary (the tutorial fixture already knows the one correct path in advance, unlike real gameplay). Accepted as stated.
-- ExcludeSemantics not generically implementable over "everything outside a cutout" — correct, a semantics exclusion can't follow an arbitrary painted shape. Fixed: exclude the entire underlying screen instead, and make the coachmark itself the sole semantic surface (description + the tutorial-only merge action for steps 1/5).
-- Stale Risks reference — swept the whole file for leftover references to discarded mechanisms (found three: task 6's "await before unwinding" body text, the Key Decisions step-5 blurb still describing "watch drops lock it," and the profile-race Risks bullet still describing the round-1 "sequence after cubit loads" mitigation). All rewritten to match the final design. Added the requested test: concurrent prize-check + tutorial-completion commits through the shared queue, asserting neither write is lost and a prize-check error doesn't block the tutorial's write.
+5. **Placeholder ordering remains unspecified.** Setting `_loadingRewarded = true` before returning for `'null'` permanently blocks future loads.
+   Fix: Check initialized → placeholder → already-loading, then set `_loadingRewarded = true`.
 
-## Round 5 — Codex
+6. **The public debug setter reopens the state-mutation hole.** `@visibleForTesting` is advisory; production code can still call it.
+   Fix: Add initial busy state to `withSeams` and delete `debugSetShowing`.
 
-Round-four accessibility, semantics scoping, stale risk text, and shared serialization are addressed.
-
-New blockers:
-
-- Fire-and-forget persistence contradicts the core guarantee: after Skip the UI reports completion before `tutorialSeen` is durable, so an immediate app kill shows the tour again. Fix: await the queued local commit before dismissing; prize network calls occur before queue insertion, so this only waits on short storage writes.
-- A queued tutorial write can execute after account deletion wipes Hive, recreating an otherwise-deleted profile with `tutorialSeen: true`. Fix: finish the queued write before re-enabling navigation, preventing it from outliving onboarding.
-- Adding `@visibleForTesting` to `_serializedPrizeCommit` does not make a private method callable from `TierSelectScreen`. Fix: keep the queue private and expose one intent-specific `Future<bool> markTutorialSeen()` method.
-- The tests verify queue ordering but not the new durability boundary. Fix: assert the tour remains active until `markTutorialSeen` succeeds and no write remains after dismissal.
+7. **Repository planning requirements remain unmet.** This still is not a dated red → green → commit plan under `docs/superpowers/plans/`.
+   Fix: Convert it before implementation.
 
 VERDICT: REVISE
 
 ### Claude's response
 
-All four accepted — this was a tight, correct round with no overreach to push back on:
-- Fire-and-forget contradicted durability — round 4's over-correction went too far chasing round 3's "don't block on network" feedback. Restored awaiting the write, but specifically the *queued local commit* (normally fast, since it's local Hive I/O), not the raw network prize checks directly — the tour now stays visible until markTutorialSeen() resolves, then unwinds.
-- Account-deletion race — a genuinely sharp catch: fire-and-forget meant a queued write could land after Hive was wiped by account deletion, reviving a stale tutorialSeen: true into a fresh profile. Fixed by the same change as the durability fix above — navigation (including the path to Profile -> delete-my-data) doesn't re-enable until the write is confirmed done, so no write can outlive the tour.
-- @visibleForTesting doesn't grant cross-library access to a private method — correct Dart semantics catch on my own sloppy round-4 phrasing. Replaced with a single dedicated public method, EngagementCubit.markTutorialSeen(), which internally uses the existing private queue.
-- Missing durability test — added: tour blocks dismissal until markTutorialSeen() resolves, and no write remains outstanding once the tour has visually closed.
+Accepted and revised (point 1 was the most substantial change of any round):
+- Point 1: this was the correct call — changed `AdService.showRewarded`'s `onReward` parameter from `void Function()` to `Future<void> Function()`, tracked its returned Future as `_pendingReward`, and made `_showing` clear only after both dismissal/failure AND that Future resolving. This closes the gap at its source instead of compensating for it with a guard that discards a legitimate reward. Every existing call site already returns a `Future` from its `onReward` closure except the hint one, which needs a one-line `async` wrapper. Reframed step 3's guards, the Goal, and multiple decision-log entries to match — they're now true defense-in-depth (same-tick reentrancy only), not covering "second legitimate watch during persistence" since that gap no longer exists.
+- Point 2: added explicit `bool busy` constructor params to `RewardedDialog` and `_CosmeticTile` (same treatment as `StreakBanner`, not `AdBusyGate`, since both take a plain `VoidCallback?` already rather than a builder), threaded from their parent screens via `ValueListenableBuilder` on the existing `adService`/`widget.adService`.
+- Point 3: introduced `_handleLoadFailure()`/`_handleShowFailure()` as the single place each failure's side effects (analytics, `onUnavailable`, disposal, retry) happen, each starting with a guard-clause check so a second call from either the SDK callback or the future-error path is a true no-op.
+- Point 4: split the error test into two cases — a synchronously-throwing fake and a separate `Future<void>.error(...)`-returning fake — plus a test that calling the failure helper twice only logs once.
+- Point 5: specified the exact check order (`!_initialized` → placeholder → `_loadingRewarded`) and only setting `_loadingRewarded = true` after all three pass, with an explicit decision-log entry explaining why the wrong order permanently breaks iOS.
+- Point 6: removed `debugSetShowing` entirely; `AdService.withSeams` now takes `initialized`/`showing` as constructor params, seeding state at construction with no post-construction public mutator.
 
-## Round 6 — Codex (over MAX_ROUNDS=5 — process error, see Resolution)
+Rejected (logged reason, unchanged from Rounds 1-3):
+- Point 7 (plan location): fourth occurrence of this point across all four rounds; reaffirming the same rejection once more and consolidating it into a single "rejected across all four rounds" entry in the decision log rather than repeating the full reasoning each time.
 
-Round-five durability, account-deletion ordering, public API, and queue-ordering tests are addressed.
+## Round 5 — Codex (final round, MAX_ROUNDS=5)
 
-Remaining/new issues:
+Most prior findings are addressed, including legitimate reward completion, internal widget wiring, placeholder ordering, nullable eligibility, and asynchronous SDK errors.
 
-- `markTutorialSeen()` returns `bool`, but the `false` branch is undefined; the UI can remain permanently stuck in `_completing` with a spinner. Fix: on `false`, clear `_completing`, keep the tour open, show a retry message, and log completion only after `true`.
-- The plan says the queue may wait behind an in-flight network prize check, but network fetching happens before commits enter `_serializedPrizeCommit`; only local profile writes occupy that queue. Fix: correct the description and avoid designing timeout behavior for a nonexistent queue state.
-- The new failure and accessibility paths lack checks. Fix: test a failed-then-successful `markTutorialSeen()` retry and invoke the semantic merge action in Steps 1 and 5.
+Remaining material issues:
+
+1. **Critical — reward persistence failure permanently bricks rewarded ads.** `await _pendingReward` has no `try/finally`; any storage exception prevents clearing `_pendingReward`/`_showing` and preloading the next ad.
+   Fix: Await reward work inside `try/catch/finally`, report the error, and always clear/preload in `finally`.
+
+2. **The planned show/reward tests are impossible with the proposed seams.** Injecting `loadRewarded` cannot produce a `RewardedAd`, so tests cannot simulate dismissal, failed-to-show, or `onUserEarnedReward`.
+   Fix: Add a show-lifecycle seam that exposes reward/dismiss/failure callbacks, or extract the lifecycle coordinator into a directly testable class.
+
+3. **`_showing` is not a valid exact-once failure sentinel.** It intentionally remains true after dismissal while reward persistence runs, so a late `show()` Future error can enter `_handleShowFailure`, clear busy early, and duplicate cleanup.
+   Fix: Use a separate per-show terminal/failure-handled flag rather than overloading `_showing`.
+
+4. **The design assumes reward always precedes dismissal.** Google ads guarantee that ordering, but mediated networks may choose another order; dismissal could see `_pendingReward == null`, clear busy, then receive a late reward.
+   Fix: Explicitly scope this to non-mediated Google ads or design the per-show coordinator to tolerate reward-after-dismissal.
+
+5. **Repository instructions still outrank the grill skill.** Keeping root `PLAN.md` is fine for the review protocol, but implementation still requires the dated red → green → commit plan mandated by `AGENTS.md`.
+   Fix: Preserve `PLAN.md` and additionally publish the final implementation plan under `docs/superpowers/plans/`.
 
 VERDICT: REVISE
 
-### Claude's response
+### Claude's response — MAX_ROUNDS reached, moving to Resolution
 
-Process note: this round should not have fired — MAX_ROUNDS=5 was set at the start and round 5 (the fourth resume) already consumed the budget. Firing this resume was a bookkeeping error. All three findings were nonetheless legitimate (verified finding #2 directly against checkDailyPrizes/etc. in engagement_cubit.dart: the network fetchRanks call is awaited *before* the loop that enters _serializedPrizeCommit, so only local writes ever occupy that queue — my round 5 "narrow wait behind network" framing was factually wrong), so all three are folded into PLAN.md as Claude's own final-arbiter judgment rather than firing a seventh Codex call:
-- markTutorialSeen() false branch was undefined — fixed: clear _completing, keep the tour open with a retry affordance, only log completion on true.
-- "wait behind network" claim was wrong — corrected the description to state plainly that the queue only ever contains local Hive writes, verified against the real prize-checker implementations.
-- Added the two requested tests (failed-then-successful retry; invoking the semantic merge action directly).
+Accepted and revised (points 1-3, all correct and cheap):
+- Point 1: wrapped `await _pendingReward` in `try`/`finally` in the dismissal handler — `finally` always clears `_pendingReward`/`_showing` and calls `_preloadRewarded()` regardless of whether the reward's own persistence throws. Added a decision-log entry marking this load-bearing, not defensive boilerplate.
+- Point 2: this was a real overclaim in Step 5's Tests — the `loadRewarded` seam only fakes the *load* path, not the *show* path, so `ad_show_failed` telemetry, the awaitable-`onReward` gating behavior, and `_showTerminalHandled` genuinely can't be unit-tested with the seams this plan designs. Removed those three test bullets from Step 5 and moved them to Risks as an honest, acknowledged gap (same shape as the pre-existing `onAdLoaded` success-path gap), noting Codex's suggested fix (extract a testable show-lifecycle coordinator) as legitimate future work beyond this plan's scope rather than doing that larger refactor now.
+- Point 3: replaced `_handleShowFailure()`'s guard from `_showing.value` (which is deliberately still `true` during in-flight reward persistence after dismissal, per point 1's own fix) to a new dedicated per-show `_showTerminalHandled` flag — closes the specific scenario Codex traced (a stale `ad.show()` future-error arriving after normal dismissal misreading "reward still persisting" as "still the live failure path" and clearing busy early).
 
-Per the skill's deadlock-resolution rule ("do NOT fake convergence... hand it to the user"): this closes as a **process deadlock at round 6/MAX_ROUNDS=5**, not a clean APPROVED. The plan itself converged in substance (round 6's findings were narrow refinements of round 5's design, not new categories of problems), but round 6 was never independently re-reviewed by Codex after these fixes because the round budget was already spent. Flagged to the user for sign-off with that caveat.
+Flagged to the user rather than decided unilaterally (both genuinely depend on information/tradeoffs outside what the code can settle):
+- Point 4 (mediation ordering): `pubspec.yaml` shows only `google_mobile_ads`, no separate mediation-adapter package — evidence, not proof, that this integration runs Google-only demand (mediation can be configured server-side in the AdMob console with no additional Flutter dependency). Whether that's actually the case is something only the user/project owner knows from their AdMob console config.
+- Point 5 (plan location): Codex's ask softened this round from "move it" to "also publish under docs/superpowers/plans/" — a smaller, more reasonable ask than rounds 1-4's version. Bringing to the user rather than rejecting a 5th time outright.
 
-## Round 7 — Codex (extra round, outside original MAX_ROUNDS=5 budget, requested by user to clear the round-6 process error)
+MAX_ROUNDS (5) reached without full APPROVED. Moving to Resolution — presenting the final plan with these two flagged points for the user to decide, not faking convergence.
 
-All round-six findings are addressed. The persistence queue is correctly scoped and awaited, failure is retryable, semantics are implementable, and the new durability/accessibility tests cover the critical paths. No new material blockers found.
+## Resolution
 
-VERDICT: APPROVED
+MAX_ROUNDS (5) reached. Rounds 1-4 fully converged (each REVISE was resolved by either a plan fix or a logged rejection); Round 5 left 2 points that genuinely depended on information outside the code, brought to the user directly rather than decided unilaterally:
 
-### Resolution
+1. **AdMob mediation** — user confirmed this ad unit runs Google-only demand, no mediation configured. The reward-before-dismissal ordering assumption holds; plan ships as designed. Revisit the more defensive coordinator design if mediation is added later.
+2. **Plan doc location** — user confirmed root `PLAN.md` only, no duplicate under `docs/superpowers/plans/`.
 
-Converged. 7 rounds total (5 planned + 1 process-error round + 1 user-requested extra round to clear it). PLAN.md is final.
+Both points resolved. Plan is locked for implementation.
