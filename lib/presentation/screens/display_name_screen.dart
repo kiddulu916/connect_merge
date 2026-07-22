@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../infrastructure/analytics_service.dart';
@@ -15,7 +17,7 @@ class DisplayNameScreen extends StatefulWidget {
   final AnalyticsService? analytics;
 
   /// Called after a successful save (e.g. to pop back / continue onboarding).
-  final VoidCallback? onSaved;
+  final FutureOr<void> Function()? onSaved;
 
   const DisplayNameScreen(
       {super.key, required this.auth, this.analytics, this.onSaved});
@@ -53,9 +55,9 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
     });
     try {
       await widget.auth.setDisplayName(name, avatar: _avatar);
+      await widget.onSaved?.call();
       if (!mounted) return;
       widget.analytics?.logEvent('onboarding_completed');
-      widget.onSaved?.call();
     } on DisplayNameTakenException {
       if (!mounted) return;
       setState(() {
@@ -142,8 +144,8 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
                 Text(_error!,
                     key: const Key('display-name-error'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.redAccent, fontSize: 13)),
+                    style:
+                        const TextStyle(color: Colors.redAccent, fontSize: 13)),
               ],
               const Spacer(),
               FilledButton(

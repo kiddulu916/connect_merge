@@ -22,8 +22,7 @@ void main() {
       ),
     ));
 
-    await tester.enterText(
-        find.byKey(const Key('display-name-field')), 'Ann');
+    await tester.enterText(find.byKey(const Key('display-name-field')), 'Ann');
     await tester.tap(find.byKey(const Key('display-name-save')));
     // Not pumpAndSettle(): the Save button shows an indeterminate
     // CircularProgressIndicator while _saving == true, and _saving is never
@@ -47,7 +46,8 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: DisplayNameScreen(
-        auth: _FakeAuthService(setDisplayNameError: DisplayNameTakenException()),
+        auth:
+            _FakeAuthService(setDisplayNameError: DisplayNameTakenException()),
         onSaved: () => saved = true,
       ),
     ));
@@ -97,4 +97,19 @@ class _FakeAuthService implements AuthService {
 
   @override
   bool get isSignedIn => true;
+
+  @override
+  bool get hasGoogleIdentity => false;
+
+  @override
+  Future<GoogleAuthResult> signInWithGoogle() async => GoogleAuthResult.linked;
+
+  @override
+  Future<GoogleAuthResult> confirmAdopt() async => GoogleAuthResult.adopted;
+
+  @override
+  void cancelGoogleAdoption() {}
+
+  @override
+  Future<void> signOut() async {}
 }

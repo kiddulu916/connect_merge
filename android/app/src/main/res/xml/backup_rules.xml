@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Legacy equivalent of data_extraction_rules.xml: do not restore stale
+         Hive profile/device state or Supabase's SharedPreferences session. -->
+    <exclude domain="root" path="app_flutter/connect_merge.hive" />
+    <exclude domain="root" path="app_flutter/connect_merge.hivec" />
+    <exclude domain="root" path="app_flutter/connect_merge.lock" />
+    <exclude domain="sharedpref" path="FlutterSharedPreferences.xml" />
+</full-backup-content>

@@ -13,7 +13,8 @@ import 'package:connect_merge/infrastructure/storage_service.dart';
 void main() {
   setUp(() {
     // Use a unique temp dir so each test run is isolated.
-    Hive.init('${Directory.systemTemp.path}/merge_count_test_${DateTime.now().microsecondsSinceEpoch}');
+    Hive.init(
+        '${Directory.systemTemp.path}/merge_count_test_${DateTime.now().microsecondsSinceEpoch}');
   });
 
   tearDown(() async {
@@ -65,8 +66,13 @@ void main() {
   });
 
   test('json encoding is stable', () {
-    const stats = LifetimeStats(streak: 1, lastCompletedDate: '2026-06-06', bestScore: 10, bestTier: 3);
-    expect(LifetimeStats.fromJson(jsonDecode(jsonEncode(stats.toJson())) as Map<String, dynamic>).bestScore, 10);
+    const stats = LifetimeStats(
+        streak: 1, lastCompletedDate: '2026-06-06', bestScore: 10, bestTier: 3);
+    expect(
+        LifetimeStats.fromJson(
+                jsonDecode(jsonEncode(stats.toJson())) as Map<String, dynamic>)
+            .bestScore,
+        10);
   });
 
   test('PlayerProfile persists and reloads via Hive (Phase 4)', () async {
@@ -121,5 +127,68 @@ void main() {
     expect(loaded.cosmetics.purchasedCosmetics, {'forest'});
     expect(loaded.progression.lifetimeXp, 1234);
     expect(loaded.progression.almanacCounts, {'9': 2, '11': 1});
+  });
+
+  test('owner, device and dirty revision survive reopen atomically', () async {
+    var sessionUid = 'account-a';
+    final first = HiveStorageService(currentUserId: () => sessionUid);
+    await first.init();
+    await first.rebindOwner('account-a', snapshotRevision: 7);
+    final deviceId = first.deviceId;
+
+    await first.saveProfile(
+      const PlayerProfile(wallet: Wallet(coins: 12)),
+    );
+    expect(first.localRevision, 1);
+    expect(first.isDirty, isTrue);
+
+    final reopened = HiveStorageService(currentUserId: () => sessionUid);
+    await reopened.init();
+    expect(reopened.deviceId, deviceId);
+    expect(reopened.owner!.uid, 'account-a');
+    expect(reopened.localRevision, 1);
+    expect(reopened.loadProfile().wallet.coins, 12);
+
+    sessionUid = 'account-b';
+    await expectLater(
+      reopened.saveProfile(const PlayerProfile(wallet: Wallet(coins: 99))),
+      throwsA(isA<StorageWriteBlockedException>()),
+    );
+    expect(reopened.loadProfile().wallet.coins, 12);
+  });
+
+  test('wipeAccountData preserves install claim state and device id', () async {
+    final storage = HiveStorageService(currentUserId: () => 'account-a');
+    await storage.init();
+    await storage.rebindOwner('account-a', snapshotRevision: 2);
+    final deviceId = storage.deviceId;
+    await storage.saveProfile(
+      const PlayerProfile(wallet: Wallet(coins: 8)),
+    );
+    await storage.saveStats(Difficulty.challenge, LifetimeStats.empty);
+
+    await storage.wipeAccountData();
+
+    expect(storage.deviceId, deviceId);
+    expect(storage.owner!.uid, 'account-a');
+    expect(storage.localRevision, 2);
+    expect(storage.loadProfile(), PlayerProfile.empty);
+    expect(storage.loadStats(Difficulty.challenge), LifetimeStats.empty);
+  });
+
+  test('interrupted restore remains incomplete after reopen', () async {
+    final first = HiveStorageService(currentUserId: () => 'account-a');
+    await first.init();
+    await first.rebindOwner('account-a');
+    await first.startRestore('account-a', snapshotRevision: 4);
+
+    final reopened = HiveStorageService(currentUserId: () => 'account-a');
+    await reopened.init();
+
+    expect(reopened.owner!.restoreComplete, isFalse);
+    await expectLater(
+      reopened.saveProfile(const PlayerProfile(wallet: Wallet(coins: 1))),
+      throwsA(isA<StorageWriteBlockedException>()),
+    );
   });
 }

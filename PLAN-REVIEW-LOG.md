@@ -255,3 +255,82 @@ Rejected across all six rounds, both with recorded reasons, neither re-raised:
 2. Supabase integration concurrency tests as a merge gate (R1 #14).
 
 Plan is locked and ready to implement.
+
+## Act 3 — Build
+
+Builder: Codex (`gpt-5.6-sol`, codex-cli 0.144.4), thread `019f879c-cf1a-77a3-8f8f-4ee08f64e614`.
+Reviewer: Claude. Branch `feat/google-signin-profile-sync`.
+PROOF_CMD = `flutter analyze && flutter test`.
+
+### Round 1 — Codex build
+
+Stopped partway, reporting that "another active session" was overwriting
+`storage_service.dart`. No other session existed; the JSONL stream showed
+`collab_tool_call` sub-agents, so it had raced itself. Infrastructure half was
+on disk and intact (storage + ownership + migration + backup rules + tests);
+auth/UI half unstarted. Resumed the same thread with the misdiagnosis
+corrected and an instruction to serialize its own edits.
+
+It then completed: migration `0011`, two atomic RPCs, `ProfileSyncService`,
+`AuthService` Google flow, `AccountFlowController`, `AuthGateScreen`, main.dart
+bootstrap wiring, ProfileScreen controls, Android backup rules, and 6 new test
+files. Reported `flutter analyze` clean, 632 tests passing.
+
+### Claude's verdict — one serious defect
+
+Independently re-ran the proof (clean, 632 passing) and read the full diff.
+Scope guard held: no diff in `lib/domain/engine/**`, `supabase/functions/**`,
+golden vectors, or `kLeaderboardSeason`. Migration mirrors `0010`'s conventions
+exactly. The `AuthService` credential binding, staged restore ordering, and the
+double-flush-around-the-drain sign-out path are all faithful, and the sign-out
+choreography is better than the spec required.
+
+**Defect: the entire pre-existing user base would have been bricked for sync.**
+Proven with a throwaway probe against `ProfileSyncService.withSeams`, not by
+inference. An install that onboarded before this feature has a display_name, so
+it never reaches the auth gate — and `claim_profile` was only ever called from
+the gate flows. Observed:
+
+  Launch 1: bootstrap -> owner==null -> bare rebindOwner -> ready
+            armed=false, RPC calls=[]        (never claims, never syncs)
+  Launch 2: owner matches uid -> arm() -> push against a NULL
+            active_device_id -> guard matches 0 rows
+            push=superseded, superseded=true (on a device nothing superseded)
+
+### Round 2 — Codex fix attempt
+
+Stalled again on the same self-inflicted write race, this time delivering **zero
+implementation changes** — though it had written the test cases for the fix
+first. Per the skill's `MAX_FIX_ROUNDS` rule, Claude took over rather than
+ping-pong a third time.
+
+### Claude's takeover
+
+Added a `claimed` flag to `LocalOwner` (defaults false, so records written by
+older builds re-claim rather than being trusted), threaded through both storage
+implementations, and:
+- `arm()` and `_pushOnce` now gate on a held claim, never a bare uid match.
+- Bootstrap claims when binding an owner that has never claimed — covering both
+  the upgrade cohort and any bind whose claim failed offline — via
+  `claimAndPushLocal`, never the destructive adoption path.
+- A failed claim binds unclaimed, stays disarmed, and retries next bootstrap.
+- `missingPlayerRow` still routes to name creation rather than blocking.
+
+Caught one bug in my own change while fixing it: `claimAndRestore`'s
+empty-snapshot branch rebound *after* a successful claim but dropped the flag,
+which would have left those accounts permanently unable to push.
+
+**Note on the write race:** Codex's background processes were still alive during
+the takeover and were still writing files. Its complaint was wrong for round 1
+but arguably right for round 2 — the competing writer was me. Processes were
+killed and the entire proof re-run from a settled tree.
+
+Codex's own pre-written tests for this fix passed against the implementation, so
+my duplicate test file was deleted in favor of its versions (they assert the
+exact RPC sequence and device-id threading).
+
+### Final verification — Claude, settled tree, no writers
+
+- `flutter analyze` — No issues found!
+- `flutter test` — **All tests passed (635)**, up from 570 pre-feature.
+- Scope guard clean; no migration or function deployed anywhere.
