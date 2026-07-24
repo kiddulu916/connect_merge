@@ -7,6 +7,8 @@
 *.log
 *.pyc
 *.swp
+.firebaserc
+.flutter-plugin-dependencies
 .DS_Store
 .atom/
 .buildlog/
@@ -67,3 +69,31 @@ node_modules/
 supabase/.temp/
 supabase/.branches/
 env/supabase.json
+.mcp.json
+.agents/
+.claude/
+.codex/
+.dart_tool/
+.idea/
+.superpowers/
+.vscode/
+skills-lock.json
+
+# Android signing & machine-specific config (NEVER commit — hold secrets/paths)
+# key.properties holds keystore passwords; local.properties holds this machine's
+# SDK path (its own header says it must not be version-controlled).
+local.properties
+**/local.properties
+key.properties
+**/key.properties
+*.keystore
+
+# Flutter/Android generated build & test artifacts
+coverage/
+**/captures/
+.cxx/
+**/.cxx/
+.fvm/
+
+# Firebase CLI cache / emulator / deploy artifacts (debug logs covered by *.log)
+.firebase/
