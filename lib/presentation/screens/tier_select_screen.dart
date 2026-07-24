@@ -73,7 +73,10 @@ class TierSelectScreen extends StatefulWidget {
 
   /// Called after the player deletes their account in the Profile screen (all
   /// routes already popped). The app shell re-onboards.
-  final VoidCallback? onAccountDeleted;
+  final Future<void> Function()? onAccountDeleted;
+  final Future<bool> Function()? onSignOut;
+  final Future<bool> Function()? onSaveProgress;
+  final VoidCallback? onChangeName;
 
   /// Phase 4 retention orchestration (streaks, achievements, cosmetics). When
   /// null (tests), a local cubit is created from [storage].
@@ -118,6 +121,9 @@ class TierSelectScreen extends StatefulWidget {
     this.friends,
     this.auth,
     this.onAccountDeleted,
+    this.onSignOut,
+    this.onSaveProgress,
+    this.onChangeName,
     this.engagement,
     this.loot,
     this.rivalry,
@@ -136,7 +142,10 @@ class TierSelectScreen extends StatefulWidget {
 }
 
 class _TierSelectScreenState extends State<TierSelectScreen> {
-  static const _tierTourSteps = [_TierTourStep.allTiers, _TierTourStep.practice];
+  static const _tierTourSteps = [
+    _TierTourStep.allTiers,
+    _TierTourStep.practice
+  ];
   Timer? _ticker;
   Duration _untilReset = Duration.zero;
   final _tourScrollController = ScrollController();
@@ -385,7 +394,8 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     );
   }
 
-  (String, String) get _tierTourCopy => switch (_tierTourSteps[_tierTourIndex]) {
+  (String, String) get _tierTourCopy =>
+      switch (_tierTourSteps[_tierTourIndex]) {
         _TierTourStep.allTiers => (
             'Choose your difficulty',
             'Easy (8×8) is the most forgiving board. Medium, Hard, and '
@@ -533,7 +543,10 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
         builder: (_) => ProfileScreen(
           auth: auth,
           storage: widget.storage,
-          onDeleted: widget.onAccountDeleted,
+          onDelete: widget.onAccountDeleted,
+          onSignOut: widget.onSignOut,
+          onSaveProgress: widget.onSaveProgress,
+          onChangeName: widget.onChangeName,
         ),
       ),
     );
