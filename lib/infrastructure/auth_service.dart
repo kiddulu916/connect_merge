@@ -43,7 +43,17 @@ typedef GoogleCredentialAction = Future<void> Function(
 /// rest of the app works in terms of account outcomes, so native credentials
 /// and provider sessions cannot leak across presentation or application code.
 class AuthService {
-  static const _webClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
+  // The Google Sign-In WEB OAuth client id (serverClientId). This is NOT a
+  // secret — the same value ships in the committed google-services.json and in
+  // every built APK's resources — so it defaults to this project's client id
+  // rather than hard-failing when a build forgets the dart-define (which broke
+  // Google sign-in on release/CI builds that didn't pass it). Override via
+  // --dart-define=GOOGLE_WEB_CLIENT_ID=... when building for another project.
+  static const _webClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue:
+        '306868850236-2a6hioe31bolikd0mf3jdopjgu0o925u.apps.googleusercontent.com',
+  );
   static final String _processNonce = _generateNonce();
   static Future<void>? _googleInitialization;
 
