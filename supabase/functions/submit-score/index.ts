@@ -101,7 +101,8 @@ Deno.serve(async (req) => {
     .eq("utc_date", date)
     .eq("difficulty", difficulty)
     .eq("season", kLeaderboardSeason)
-    .maybeSingle();
+    .maybeSingle()
+    .returns<{ score: number; highest_tier: number }>();
 
   // Keep the higher of the existing best vs this run.
   const keepExisting = existing != null && existing.score >= result.score;
