@@ -14,6 +14,7 @@
 
 import { Prng } from "./prng.ts";
 import {
+  type BoardState,
   CHALLENGE_RULES,
   type ChallengeRule,
   type Difficulty,
@@ -23,9 +24,9 @@ import {
   kMaxPlacementAttempts,
   kMovesPerDay,
   STARTING_FILL,
+  type Tile,
   WALL_COUNT,
 } from "./constants.ts";
-import type { BoardState, Tile } from "./engine.ts";
 
 /** Everything the day needs, derived deterministically from the date. */
 export interface DailyStart {
