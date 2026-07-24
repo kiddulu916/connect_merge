@@ -120,10 +120,9 @@ class EngagementCubit extends Cubit<EngagementState> {
   /// Stored as a private field (`_onError`) rather than `this.onError`
   /// because `Cubit`/`BlocBase` already declares an inherited instance
   /// method named `onError` (its internal stream-error hook) — a field of
-  /// the same name is not a compatible override and fails to compile (this
-  /// was discovered and fixed the same way in `GameCubit`, Task 5). The
-  /// public constructor parameter is still named `onError` so callers are
-  /// unaffected.
+  /// the same name is not a compatible override and fails to compile (same
+  /// pattern as `GameCubit`). The public constructor parameter is still
+  /// named `onError` so callers are unaffected.
   final void Function(Object error, StackTrace? stack, {bool fatal})? _onError;
 
   /// Optional analytics hook (observability). Signature matches
