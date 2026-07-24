@@ -16,6 +16,7 @@ import {
   comboMultiplier,
   comboRushMultiplier,
   type Difficulty,
+  hasChainOfLength,
   isDifficulty,
   kAdMoveReward,
   kChallengeDenseFill,
@@ -25,6 +26,7 @@ import {
   kMaxAdContinuesPerDay,
   kMaxTier,
   kMovesPerDay,
+  minChainLengthFor,
   pairMergeable,
   STARTING_FILL,
 } from "./constants.ts";
@@ -178,19 +180,22 @@ export function applyDrop(s: BoardState, tier: number, landing: Prng): BoardStat
 }
 
 /**
- * Fill to `targetFill` and guarantee a merge when space permits. Mirrors Dart
- * `GameEngine.refill`; Dart's golden-drop flag is deliberately absent because
- * cosmetic/economy state never affects authoritative replay.
+ * Fill to `targetFill` and guarantee a chain of `minChainLength` tiles when
+ * space permits (default 2, the pre-existing baseline for every rule besides
+ * `longChainsOnly`, which raises it to 3). Mirrors Dart `GameEngine.refill`;
+ * Dart's golden-drop flag is deliberately absent because cosmetic/economy
+ * state never affects authoritative replay.
  */
 export function refillBoard(
   board: BoardState,
   targetFill: number,
   tierAt: (dropIndex: number) => number,
   landing: Prng,
+  minChainLength = 2,
 ): BoardState {
   while (emptyIndices(board).length > 0) {
     const needsFill = filledCount(board) < targetFill;
-    const needsMerge = !hasMergeAvailable(board);
+    const needsMerge = !hasChainOfLength(board.cells, board.gridSize, minChainLength);
     if (!needsFill && !needsMerge) break;
     const tier = tierAt(board.dropIndex);
     board = applyDrop(board, tier, landing);
@@ -222,11 +227,17 @@ export function hasMergeAvailable(s: BoardState): boolean {
   return false;
 }
 
-export function evaluateStatus(s: BoardState): BoardState {
+/**
+ * Resolve end-of-day status: out of moves first, then deadlock, else playing.
+ * `minChainLength` defaults to 2 (the pre-existing baseline); `longChainsOnly`
+ * passes 3 so a run only deadlocks once no chain of the rule's required
+ * length remains, not merely no 2-chain.
+ */
+export function evaluateStatus(s: BoardState, minChainLength = 2): BoardState {
   if (s.movesRemaining <= 0) {
     return { ...s, status: "outOfMoves" };
   }
-  if (!hasMergeAvailable(s)) {
+  if (!hasChainOfLength(s.cells, s.gridSize, minChainLength)) {
     return { ...s, status: "deadlocked" };
   }
   return { ...s, status: "playing" };
@@ -337,7 +348,10 @@ export async function verifyRun(
  * the challenge board with rule-specific overrides, and replays the move log
  * applying rule constraints:
  *   - budgetCut:      board starts with kChallengeMoves (15) moves.
- *   - longChainsOnly: reject ChainEvent paths with length < 3.
+ *   - longChainsOnly: reject ChainEvent paths shorter than minChainLengthFor
+ *                     (3); board also starts denser (kChallengeDenseFill) and
+ *                     refill/re-roll/deadlock-detection all require a chain
+ *                     of that length, not just any 2-chain.
  *   - denseStart:     board seeded with kChallengeDenseFill tiles.
  *   - sparseStart:    board seeded with kChallengeSparseFill tiles.
  *   - wallMaze:       board seeded with kChallengeWallMazeCount walls.
@@ -350,26 +364,31 @@ export async function verifyRunChallenge(
   if (!Array.isArray(log)) return REJECT;
 
   const rule = await challengeRule(date);
+  // Denser than the default 8 for longChainsOnly: raising the minimum chain
+  // length to 3 means the board needs more raw material to keep producing
+  // legal moves, on top of the rule-aware refill/re-roll (below).
   const startingFillOverride = rule === "denseStart" ? kChallengeDenseFill
     : rule === "sparseStart" ? kChallengeSparseFill
+    : rule === "longChainsOnly" ? kChallengeDenseFill
     : STARTING_FILL["challenge"]; // 8 for other rules
   const wallCountOverride = rule === "wallMaze" ? kChallengeWallMazeCount : 0;
   // budgetCut gets kChallengeMoves (15); all other rules get kMovesPerDay (30).
   const movesOverride = rule === "budgetCut" ? kChallengeMoves : kMovesPerDay;
   const multiplierFn = rule === "comboRush" ? comboRushMultiplier : comboMultiplier;
+  const minChainLength = minChainLengthFor(rule);
 
   const seeder = new DailySeeder(date, "challenge");
   const start = await seeder.generate({
     startingFillOverride,
     wallCountOverride,
     movesOverride,
+    minChainLength,
   });
   const dropPrng = await seeder.dropTierPrng();
   const landing = await seeder.landingPrng();
   const startingFill = startingFillOverride;
 
   let board = start.board;
-  let continues = 0;
 
   for (const raw of log) {
     const ev = parseEvent(raw);
@@ -377,8 +396,8 @@ export async function verifyRunChallenge(
 
     if (ev.type === "chain") {
       if (board.status !== "playing") return REJECT;
-      // longChainsOnly: reject paths shorter than 3.
-      if (rule === "longChainsOnly" && ev.path.length < 3) return REJECT;
+      // Reject paths shorter than the active rule's minimum.
+      if (ev.path.length < minChainLength) return REJECT;
       if (!isValidChain(board, ev.path)) return REJECT;
       board = collapseChain(board, ev.path, multiplierFn);
       board = refillBoard(
@@ -386,8 +405,9 @@ export async function verifyRunChallenge(
         startingFill,
         (dropIndex) => seeder.dropTierAt(dropPrng, dropIndex),
         landing,
+        minChainLength,
       );
-      board = evaluateStatus(board);
+      board = evaluateStatus(board, minChainLength);
     } else {
       // Challenge mode has no ad-continues; treat any continue as illegal.
       return REJECT;

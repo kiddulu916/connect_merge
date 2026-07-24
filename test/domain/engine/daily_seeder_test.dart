@@ -243,6 +243,28 @@ void main() {
       }
     });
 
+    test(
+        'no born-dead boards under minChainLength 3 (Long Chains Only) across 2026-06',
+        () {
+      // Mirrors the actual longChainsOnly call site: dense starting fill +
+      // minChainLength 3, so the re-roll must find a board that already
+      // satisfies the rule's stricter minimum, not just any 2-chain.
+      for (var day = 1; day <= 28; day++) {
+        final date = '2026-06-${day.toString().padLeft(2, '0')}';
+        final board = DailySeeder(date, Difficulty.challenge)
+            .generate(
+              startingFillOverride: kChallengeDenseFill,
+              minChainLength: 3,
+            )
+            .board;
+        expect(
+          GameEngine.hasChainOfLength(board, 3),
+          isTrue,
+          reason: 'Born-short board (no 3-chain): $date challenge',
+        );
+      }
+    });
+
     test('determinism still holds after re-roll logic', () {
       // Same date+difficulty must always produce bit-identical cells.
       for (final d in Difficulty.values) {

@@ -121,6 +121,106 @@ export const CHALLENGE_RULES = [
 export type ChallengeRule = (typeof CHALLENGE_RULES)[number];
 
 /**
+ * Minimum legal Connect-Merge chain length under a rule. Every rule besides
+ * `longChainsOnly` uses the baseline of 2 (any legal merge counts);
+ * `longChainsOnly` raises it to 3. Single source for `verifyRunChallenge`'s
+ * reject-guard and every rule-aware deadlock/refill/seeder check. Must stay
+ * in lockstep with Dart `ChallengeRuleMinChainLength.minChainLength`.
+ */
+export function minChainLengthFor(rule: ChallengeRule): number {
+  return rule === "longChainsOnly" ? 3 : 2;
+}
+
+/**
+ * True if any two orthogonally-adjacent live tiles could legally merge in
+ * SOME direction (spatial deadlock check — non-adjacent mergeable tiles do
+ * NOT count). Structurally typed on cells so this zero-import leaf module
+ * doesn't need to import engine.ts's `Tile`/`BoardState` types. Duplicated
+ * (deliberately, matching this file's existing `pairMergeable`-based
+ * pattern) rather than imported, since `engine.ts` already imports this file
+ * and `seeder.ts` needs the same check without creating a cycle.
+ */
+function hasAnyMergeablePair(
+  cells: ({ tier: number } | null)[],
+  gridSize: number,
+): boolean {
+  for (let i = 0; i < cells.length; i++) {
+    const t = cells[i];
+    if (t === null) continue;
+    const row = Math.floor(i / gridSize);
+    const col = i % gridSize;
+    if (col + 1 < gridSize) {
+      const e = cells[i + 1];
+      if (e !== null && pairMergeable(t.tier, e.tier)) return true;
+    }
+    if (row + 1 < gridSize) {
+      const so = cells[i + gridSize];
+      if (so !== null && pairMergeable(t.tier, so.tier)) return true;
+    }
+  }
+  return false;
+}
+
+function searchChain(
+  cells: ({ tier: number } | null)[],
+  gridSize: number,
+  idx: number,
+  visited: Set<number>,
+  tier: number,
+  length: number,
+  minLength: number,
+): boolean {
+  if (length === minLength) return tier < kMaxTier;
+  const row = Math.floor(idx / gridSize);
+  const col = idx % gridSize;
+  const neighbours: number[] = [];
+  if (col + 1 < gridSize) neighbours.push(idx + 1);
+  if (col - 1 >= 0) neighbours.push(idx - 1);
+  if (row + 1 < gridSize) neighbours.push(idx + gridSize);
+  if (row - 1 >= 0) neighbours.push(idx - gridSize);
+  for (const n of neighbours) {
+    if (visited.has(n)) continue;
+    const t = cells[n];
+    if (t === null) continue;
+    if (!canFollow(tier, t.tier)) continue;
+    visited.add(n);
+    if (searchChain(cells, gridSize, n, visited, t.tier, length + 1, minLength)) {
+      return true;
+    }
+    visited.delete(n);
+  }
+  return false;
+}
+
+/**
+ * True if a legal Connect-Merge chain of at least `minLength` tiles exists
+ * anywhere on the board (see `engine.ts` `isValidChain` for what "legal"
+ * means). For the pre-existing baseline (`minLength <= 2`) this is exactly
+ * `hasAnyMergeablePair`/`hasMergeAvailable`. For a stricter rule
+ * (`longChainsOnly`'s 3), this searches every tile as a chain start via DFS
+ * along `canFollow`-adjacent, unvisited neighbours. Since chain tiers are
+ * non-decreasing, any legal chain of length >= `minLength` has a legal
+ * length-exactly-`minLength` prefix, so it suffices to search for one chain
+ * of exactly `minLength` tiles rather than every longer one. Must stay in
+ * lockstep with Dart `GameEngine.hasChainOfLength`.
+ */
+export function hasChainOfLength(
+  cells: ({ tier: number } | null)[],
+  gridSize: number,
+  minLength: number,
+): boolean {
+  if (minLength <= 2) return hasAnyMergeablePair(cells, gridSize);
+  for (let i = 0; i < cells.length; i++) {
+    const t = cells[i];
+    if (t === null) continue;
+    if (searchChain(cells, gridSize, i, new Set([i]), t.tier, 1, minLength)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Combo Rush multiplier: doubles comboMultiplier for N≥3; N=2 stays at 1.
  * Must stay in lockstep with Dart `comboRushMultiplier`.
  */
@@ -133,9 +233,10 @@ export function comboRushMultiplier(n: number): number {
  * Leaderboard season (port of Dart `kLeaderboardSeason`). Reset to 1 for
  * launch after the pre-launch database wipe (2026-07-11), so scores from a
  * prior rule set never mix with the current season's. The server uses its OWN
- * constant when writing — it never trusts a client-supplied season.
+ * constant when writing — it never trusts a client-supplied season. Bumped to
+ * 2 for the Long Chains Only deadlock-detection + starting-density change.
  */
-export const kLeaderboardSeason = 1;
+export const kLeaderboardSeason = 2;
 
 /**
  * Cap on placement re-roll attempts in the seeder before throwing (port of the

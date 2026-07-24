@@ -22,3 +22,14 @@ extension ChallengeRuleLabel on ChallengeRule {
         ChallengeRule.comboRush => 'Combo Rush',
       };
 }
+
+extension ChallengeRuleMinChainLength on ChallengeRule {
+  /// Minimum legal Connect-Merge chain length under this rule. Every rule
+  /// besides [ChallengeRule.longChainsOnly] uses the baseline of 2 (any legal
+  /// merge counts); `longChainsOnly` raises it to 3. Single source for the
+  /// reject-guard in `GameCubit.playChain` and every rule-aware deadlock/refill
+  /// check in `GameEngine`/`DailySeeder`. Must stay in lockstep with the
+  /// TypeScript `minChainLengthFor` in `constants.ts`.
+  int get minChainLength =>
+      this == ChallengeRule.longChainsOnly ? 3 : 2;
+}

@@ -19,9 +19,9 @@ import {
   type Difficulty,
   dropCap,
   GRID_SIZE,
+  hasChainOfLength,
   kMaxPlacementAttempts,
   kMovesPerDay,
-  pairMergeable,
   STARTING_FILL,
   WALL_COUNT,
 } from "./constants.ts";
@@ -42,32 +42,6 @@ export async function seedForKey(key: string): Promise<number> {
   const digest = await crypto.subtle.digest("SHA-256", data);
   const b = new Uint8Array(digest);
   return (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)) >>> 0;
-}
-
-/**
- * Spatial deadlock check used during placement re-roll. Scans east+south
- * neighbours once each and shares `pairMergeable` with the replay engine.
- */
-function hasAdjacentMergeablePair(
-  cells: (Tile | null)[],
-  gridSize: number,
-): boolean {
-  const cellCount = cells.length;
-  for (let i = 0; i < cellCount; i++) {
-    const t = cells[i];
-    if (t === null) continue;
-    const row = Math.floor(i / gridSize);
-    const col = i % gridSize;
-    if (col + 1 < gridSize) {
-      const e = cells[i + 1];
-      if (e !== null && pairMergeable(t.tier, e.tier)) return true;
-    }
-    if (row + 1 < gridSize) {
-      const s = cells[i + gridSize];
-      if (s !== null && pairMergeable(t.tier, s.tier)) return true;
-    }
-  }
-  return false;
 }
 
 export class DailySeeder {
@@ -113,18 +87,21 @@ export class DailySeeder {
     startingFillOverride?: number;
     wallCountOverride?: number;
     movesOverride?: number;
+    minChainLength?: number;
   }): Promise<DailyStart> {
     const a = new Prng(await this.seedA());
     const wallCount = opts?.wallCountOverride ?? WALL_COUNT[this.difficulty];
     const walls = await this.wallIndicesWithCount(wallCount);
     const startingFill = opts?.startingFillOverride ?? STARTING_FILL[this.difficulty];
     const movesRemaining = opts?.movesOverride ?? kMovesPerDay;
+    const minChainLength = opts?.minChainLength ?? 2;
     const gridSize = GRID_SIZE[this.difficulty];
     const cellCount = gridSize * gridSize;
 
-    // Re-roll placement until the board has at least one adjacent mergeable pair
-    // (avoids a born-deadlocked, unplayable day under the spatial deadlock rule).
-    // Deterministic: same seed -> same attempt sequence -> same first valid board.
+    // Re-roll placement until the board has a legal Connect-Merge chain of at
+    // least `minChainLength` tiles (avoids a born-deadlocked, or already
+    // rule-unsatisfiable, unplayable day). Deterministic: same seed -> same
+    // attempt sequence -> same first valid board.
     let cells: (Tile | null)[] = [];
     let nextId = 0;
     let attempts = 0;
@@ -145,7 +122,7 @@ export class DailySeeder {
         cells[idx] = { id: nextId++, tier: 1 + a.nextInt(2) };
         placed += 1;
       }
-      if (hasAdjacentMergeablePair(cells, gridSize)) break;
+      if (hasChainOfLength(cells, gridSize, minChainLength)) break;
     }
 
     const board: BoardState = {

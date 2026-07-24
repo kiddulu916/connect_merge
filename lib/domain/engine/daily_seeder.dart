@@ -57,6 +57,12 @@ class DailySeeder {
   /// Golden is a purely visual/economy property carried on the dropped [Tile];
   /// it never affects `score` or the move log, so it cannot be forged for
   /// leaderboard gain (Phase 2 replay only sees tiers + moves).
+  ///
+  // ponytail: precomputed only for drop indices 0..kMaxDrops-1. A rule-aware
+  // refill chasing a long chain (`longChainsOnly`) can push dropIndex past
+  // that on a long run; those late drops simply never flash golden. Cosmetic
+  // only (never affects score/replay) — upgrade to an on-demand per-index
+  // draw only if that ceiling starts mattering to players.
   Set<int> goldenDropIndices() {
     final g = Prng(seedForKey('$_key:gold'));
     final out = <int>{};
@@ -85,6 +91,7 @@ class DailySeeder {
     int? startingFillOverride,
     int? wallCountOverride,
     int? movesOverride,
+    int minChainLength = 2,
   }) {
     final a = Prng(_seedA);
     final walls = _wallIndicesWithCount(wallCountOverride ?? wallCountFor(difficulty));
@@ -93,10 +100,11 @@ class DailySeeder {
     final movesRemaining = movesOverride ?? kMovesPerDay;
 
     // Re-roll loop: keep drawing placements from stream A until the resulting
-    // board has at least one orthogonally-adjacent mergeable pair (same tier or
-    // ascend-by-one — GameEngine.hasMergeAvailable) so no player ever starts on
-    // a born-deadlocked board. Mirrored in supabase/functions/_shared/seeder.ts
-    // (hasAdjacentMergeablePair).
+    // board has a legal Connect-Merge chain of at least [minChainLength] tiles
+    // (GameEngine.hasChainOfLength; the pre-existing baseline is 2, same tier or
+    // ascend-by-one — `longChainsOnly` raises it to 3) so no player ever starts
+    // on a board already unable to satisfy the active rule. Mirrored in
+    // supabase/functions/_shared/seeder.ts (hasChainOfLength).
     //
     // Determinism is preserved: same (date, difficulty) → same sequence of
     // re-roll attempts → same first valid board for every player.
@@ -147,7 +155,7 @@ class DailySeeder {
         walls: walls,
         gridSize: difficulty.gridSize,
       );
-      if (GameEngine.hasMergeAvailable(candidate)) break;
+      if (GameEngine.hasChainOfLength(candidate, minChainLength)) break;
       // Otherwise continue — stream A is already advanced; next loop attempt
       // picks up exactly where it left off (deterministic re-roll).
     }

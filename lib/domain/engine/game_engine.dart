@@ -63,19 +63,22 @@ class GameEngine {
     );
   }
 
-  /// Fill to [targetFill] and guarantee a merge when space permits. Mirrors
-  /// TypeScript `refillBoard`; [goldenDrops] is deliberately Dart-only because
-  /// golden tiles never affect authoritative score or replay.
+  /// Fill to [targetFill] and guarantee a chain of [minChainLength] tiles when
+  /// space permits (default 2, the pre-existing baseline for every Challenge
+  /// rule except `longChainsOnly`, which raises it to 3).
+  /// Mirrors TypeScript `refillBoard`; [goldenDrops] is deliberately Dart-only
+  /// because golden tiles never affect authoritative score or replay.
   static BoardState refill(
     BoardState board, {
     required int targetFill,
     required int Function(int dropIndex) tierAt,
     required Prng landing,
     Set<int> goldenDrops = const {},
+    int minChainLength = 2,
   }) {
     while (board.emptyIndices.isNotEmpty) {
       final needsFill = board.filledCount < targetFill;
-      final needsMerge = !GameEngine.hasMergeAvailable(board);
+      final needsMerge = !GameEngine.hasChainOfLength(board, minChainLength);
       if (!needsFill && !needsMerge) break;
       final tier = tierAt(board.dropIndex);
       board = GameEngine.applyDrop(
@@ -121,12 +124,62 @@ class GameEngine {
     return canFollow(lower, higher) && higher < kMaxTier;
   }
 
-  /// Resolve end-of-day status: out of moves first, then deadlock, else playing.
-  static BoardState evaluateStatus(BoardState s) {
+  /// True if a legal Connect-Merge chain of at least [minLength] tiles exists
+  /// anywhere on the board (see [isValidChain] for what "legal" means). For
+  /// the pre-existing baseline ([minLength] <= 2) this is exactly
+  /// [hasMergeAvailable]. For a stricter rule (`longChainsOnly`'s 3), this
+  /// searches every tile as a chain start via DFS along [canFollow]-adjacent,
+  /// unvisited neighbours. Since chain tiers are non-decreasing, any legal
+  /// chain of length >= [minLength] has a legal length-exactly-[minLength]
+  /// prefix (an earlier cap-check on a lower-or-equal tier still holds), so it
+  /// suffices to search for one chain of exactly [minLength] tiles rather than
+  /// every longer one. Must stay in lockstep with TypeScript `hasChainOfLength`
+  /// in `constants.ts`.
+  static bool hasChainOfLength(BoardState s, int minLength) {
+    assert(minLength >= 2, 'a chain shorter than 2 tiles is never a legal move');
+    if (minLength <= 2) return hasMergeAvailable(s);
+    for (var i = 0; i < s.cells.length; i++) {
+      final t = s.cells[i];
+      if (t == null) continue;
+      if (_searchChain(s, i, {i}, t.tier, 1, minLength)) return true;
+    }
+    return false;
+  }
+
+  static bool _searchChain(BoardState s, int idx, Set<int> visited, int tier,
+      int length, int minLength) {
+    if (length == minLength) return tier < kMaxTier;
+    final gs = s.gridSize;
+    final row = idx ~/ gs, col = idx % gs;
+    final neighbours = <int>[
+      if (col + 1 < gs) idx + 1,
+      if (col - 1 >= 0) idx - 1,
+      if (row + 1 < gs) idx + gs,
+      if (row - 1 >= 0) idx - gs,
+    ];
+    for (final n in neighbours) {
+      if (visited.contains(n)) continue;
+      final t = s.cells[n];
+      if (t == null) continue;
+      if (!canFollow(tier, t.tier)) continue;
+      visited.add(n);
+      if (_searchChain(s, n, visited, t.tier, length + 1, minLength)) {
+        return true;
+      }
+      visited.remove(n);
+    }
+    return false;
+  }
+
+  /// Resolve end-of-day status: out of moves first, then deadlock, else
+  /// playing. [minChainLength] defaults to 2 (the pre-existing baseline);
+  /// `longChainsOnly` passes 3 so a run only deadlocks once no chain of the
+  /// rule's required length remains, not merely no 2-chain.
+  static BoardState evaluateStatus(BoardState s, {int minChainLength = 2}) {
     if (s.movesRemaining <= 0) {
       return s.copyWith(status: GameStatus.outOfMoves);
     }
-    if (!hasMergeAvailable(s)) {
+    if (!hasChainOfLength(s, minChainLength)) {
       return s.copyWith(status: GameStatus.deadlocked);
     }
     return s.copyWith(status: GameStatus.playing);

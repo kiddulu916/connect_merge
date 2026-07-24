@@ -135,14 +135,20 @@ const int kDropQueueVisible = 3;
 /// only — never touches score). Tuning knob.
 const int kObjectiveRewardCoins = 25;
 
-/// Bumped when the persisted snapshot schema changes. An in-progress snapshot
-/// whose version != this is discarded on load (a daily resets anyway).
-const int kSnapshotVersion = 3;
+/// Bumped when the persisted snapshot schema changes, OR when a difficulty's
+/// per-rule generation inputs (starting fill, wall count, moves) change in a
+/// way that could leave an in-progress snapshot's board inconsistent with a
+/// freshly-recomputed `_targetFill`/rule config (`GameCubit.init` recomputes
+/// these on every load even when the snapshot's board is reused as-is). An
+/// in-progress snapshot whose version != this is discarded on load (a daily
+/// resets anyway). Bumped for the Long Chains Only starting-density change.
+const int kSnapshotVersion = 4;
 
 /// Reset to 1 for launch after the pre-launch database wipe (2026-07-11).
 /// Submitted with every score and used to filter leaderboard reads, so scores
-/// from a prior rule set never mix with the current season's.
-const int kLeaderboardSeason = 1;
+/// from a prior rule set never mix with the current season's. Bumped for the
+/// Long Chains Only deadlock-detection + starting-density change.
+const int kLeaderboardSeason = 2;
 
 /// Seed-placed wall cells per difficulty (block tiles, break paths). Scales up with difficulty. Tuning knob.
 int wallCountFor(Difficulty d) => switch (d) {

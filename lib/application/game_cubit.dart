@@ -219,6 +219,10 @@ class GameCubit extends Cubit<GameState> {
       final fill = switch (rule) {
         ChallengeRule.denseStart => kChallengeDenseFill,
         ChallengeRule.sparseStart => kChallengeSparseFill,
+        // Denser than the default 8: raising the minimum chain length to 3
+        // means the board needs more raw material to keep producing legal
+        // moves, on top of the rule-aware refill/re-roll (below).
+        ChallengeRule.longChainsOnly => kChallengeDenseFill,
         _ => difficulty.startingFill,
       };
       final wallCount =
@@ -229,6 +233,7 @@ class GameCubit extends Cubit<GameState> {
         startingFillOverride: fill,
         wallCountOverride: wallCount,
         movesOverride: moves,
+        minChainLength: rule.minChainLength,
       );
     } else {
       _activeRule = null;
@@ -273,8 +278,9 @@ class GameCubit extends Cubit<GameState> {
   Future<void> playChain(List<int> path) async {
     final s = state;
     if (s is! GamePlaying) return;
-    // Long Chains Only rule: reject chains shorter than 3 tiles.
-    if (_activeRule == ChallengeRule.longChainsOnly && path.length < 3) return;
+    // Reject chains shorter than the active rule's minimum (baseline 2; Long
+    // Chains Only raises it to 3 — single-sourced on ChallengeRule).
+    if (path.length < (_activeRule?.minChainLength ?? 2)) return;
     if (!GameEngine.isValidChain(s.board, path)) return;
 
     // Golden bonus: every golden tile consumed anywhere in the path pays out.
@@ -308,6 +314,7 @@ class GameCubit extends Cubit<GameState> {
       tierAt: (i) => _seeder.dropTierAt(_dropTier, i),
       landing: _landing,
       goldenDrops: _goldenDrops,
+      minChainLength: _activeRule?.minChainLength ?? 2,
     );
 
     // Track the daily objective (monotonic; recomputable on replay).
@@ -321,7 +328,8 @@ class GameCubit extends Cubit<GameState> {
         _objective.isMet(newProgress);
     board = board.copyWith(objectiveProgress: newProgress);
 
-    board = GameEngine.evaluateStatus(board);
+    board = GameEngine.evaluateStatus(board,
+        minChainLength: _activeRule?.minChainLength ?? 2);
 
     // Push the undo frame now that we know the full economic effect of this
     // move. The frame carries both the golden bonus and the objective reward
@@ -401,9 +409,13 @@ class GameCubit extends Cubit<GameState> {
     // with no remaining ad-continue offer. This avoids submitting — and
     // double-counting analytics — before the player takes an available ad
     // continue; _finishRun can otherwise run once per ad continue taken.
-    final terminal = board.status == GameStatus.deadlocked ||
+    // Challenge mode has no ad-continue path at all (canOfferAd is hard-false
+    // for it, matching the server's blanket ContinueEvent rejection), so any
+    // non-playing Challenge board is terminal by construction.
+    final terminal = _difficulty == Difficulty.challenge ||
+        board.status == GameStatus.deadlocked ||
         board.adContinuesUsed >= kMaxAdContinuesPerDay ||
-        !GameEngine.hasMergeAvailable(board);
+        !GameEngine.hasChainOfLength(board, _activeRule?.minChainLength ?? 2);
     if (terminal) {
       onAnalyticsEvent?.call('run_completed', {
         'difficulty': _difficulty.name,
@@ -571,9 +583,14 @@ class GameCubit extends Cubit<GameState> {
 
   /// True when the player ran out of moves, a merge still exists, and the daily
   /// ad-continue allowance is not exhausted. Deadlock is never ad-revivable.
+  /// Challenge mode never offers a continue: the server's replay verifier
+  /// (`verifyRunChallenge`) rejects every `ContinueEvent` for Challenge
+  /// unconditionally, so allowing one client-side would silently doom that
+  /// run's submission.
   bool get canOfferAd {
     final s = state;
     return s is GameOverShowScore &&
+        s.difficulty != Difficulty.challenge &&
         s.board.status == GameStatus.outOfMoves &&
         s.board.adContinuesUsed < kMaxAdContinuesPerDay &&
         GameEngine.hasMergeAvailable(s.board);

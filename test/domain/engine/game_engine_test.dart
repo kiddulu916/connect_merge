@@ -219,12 +219,146 @@ void main() {
     expect(GameEngine.hasMergeAvailable(b), isFalse);
   });
 
+  group('hasChainOfLength (Long Chains Only deadlock fix)', () {
+    test('minLength <= 2 is byte-identical to hasMergeAvailable', () {
+      final apart = boardWith({
+        0: const Tile(id: 1, tier: 1),
+        2: const Tile(id: 2, tier: 1),
+      });
+      final together = boardWith({
+        0: const Tile(id: 1, tier: 1),
+        1: const Tile(id: 2, tier: 1),
+      });
+      expect(GameEngine.hasChainOfLength(apart, 2),
+          GameEngine.hasMergeAvailable(apart));
+      expect(GameEngine.hasChainOfLength(together, 2),
+          GameEngine.hasMergeAvailable(together));
+      expect(GameEngine.hasChainOfLength(together, 2), isTrue);
+    });
+
+    test('only a 2-chain exists => no chain of length 3', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 1),
+        1: const Tile(id: 2, tier: 1),
+        // Every other neighbour of 0/1 is empty or too far a tier gap.
+        6: const Tile(id: 3, tier: 5),
+      });
+      expect(GameEngine.hasChainOfLength(b, 3), isFalse);
+    });
+
+    test('a real 3-chain (straight line) satisfies length 3', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 1),
+        1: const Tile(id: 2, tier: 1),
+        2: const Tile(id: 3, tier: 2), // ascend from tier 1
+      });
+      expect(GameEngine.hasChainOfLength(b, 3), isTrue);
+      expect(GameEngine.isValidChain(b, [0, 1, 2]), isTrue);
+    });
+
+    test('a real 3-chain (L-shape) satisfies length 3', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 2),
+        1: const Tile(id: 2, tier: 2),
+        6: const Tile(id: 3, tier: 2), // adjacent to index 1 (row1,col1)
+      });
+      expect(GameEngine.hasChainOfLength(b, 3), isTrue);
+      expect(GameEngine.isValidChain(b, [0, 1, 6]), isTrue);
+    });
+
+    test('a 3-in-a-row whose peak sits at the tier cap does NOT count', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: kMaxTier - 2),
+        1: const Tile(id: 2, tier: kMaxTier - 1),
+        2: const Tile(id: 3, tier: kMaxTier),
+      });
+      expect(GameEngine.hasChainOfLength(b, 3), isFalse);
+    });
+
+    test('does not falsely find a chain across a repeated/non-adjacent path',
+        () {
+      // Two isolated 2-chains, neither reachable as one connected 3-chain.
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 1),
+        1: const Tile(id: 2, tier: 1),
+        20: const Tile(id: 3, tier: 1),
+        21: const Tile(id: 4, tier: 1),
+      });
+      expect(GameEngine.hasChainOfLength(b, 3), isFalse);
+    });
+  });
+
+  group('refill (rule-aware minChainLength)', () {
+    test('keeps dropping past a 2-chain-satisfied state when minLength is 3',
+        () {
+      // Only a 2-chain exists at tiles 0/1; tierAt always supplies a tier
+      // that can extend a chain from the newly-dropped tile so a legal
+      // 3-chain becomes reachable once enough tiles land.
+      final board = smallBoard([
+        const Tile(id: 1, tier: 1),
+        const Tile(id: 2, tier: 1),
+        null,
+        null,
+      ]);
+      final result = GameEngine.refill(
+        board,
+        targetFill: 2, // already met — only minChainLength should keep it going
+        tierAt: (_) => 1,
+        landing: Prng(1),
+        minChainLength: 3,
+      );
+      expect(GameEngine.hasChainOfLength(result, 3), isTrue);
+    });
+
+    test('stops at a full board even if minChainLength is never satisfied',
+        () {
+      // Starting tile is tier 1; every subsequent drop sits at the tier cap,
+      // far enough above tier 1 (and equal-to-itself-but-capped) that no
+      // chain of any length ever becomes legal. Confirms refill fills the
+      // whole board and terminates rather than looping forever chasing an
+      // unreachable chain.
+      final board = smallBoard([const Tile(id: 1, tier: 1), null, null, null]);
+      final result = GameEngine.refill(
+        board,
+        targetFill: 1, // already met by the single starting tile
+        tierAt: (_) => kMaxTier,
+        landing: Prng(1),
+        minChainLength: 3,
+      );
+      expect(result.emptyIndices, isEmpty);
+      expect(GameEngine.hasChainOfLength(result, 3), isFalse);
+    });
+  });
+
   test('evaluateStatus: zero moves => outOfMoves even if a merge exists', () {
     final b = boardWith({
       0: const Tile(id: 1, tier: 1),
       1: const Tile(id: 2, tier: 1),
     }, moves: 0);
     expect(GameEngine.evaluateStatus(b).status, GameStatus.outOfMoves);
+  });
+
+  test(
+      'evaluateStatus: minChainLength 3 deadlocks on a bare 2-chain (Long Chains Only soft-lock fix)',
+      () {
+    final onlyTwoChain = boardWith({
+      0: const Tile(id: 1, tier: 1),
+      1: const Tile(id: 2, tier: 1),
+    });
+    expect(
+        GameEngine.evaluateStatus(onlyTwoChain, minChainLength: 3).status,
+        GameStatus.deadlocked);
+    // Same board is still "playing" under the default (2) baseline.
+    expect(GameEngine.evaluateStatus(onlyTwoChain).status, GameStatus.playing);
+
+    final realThreeChain = boardWith({
+      0: const Tile(id: 1, tier: 1),
+      1: const Tile(id: 2, tier: 1),
+      2: const Tile(id: 3, tier: 2),
+    });
+    expect(
+        GameEngine.evaluateStatus(realThreeChain, minChainLength: 3).status,
+        GameStatus.playing);
   });
 
   group('golden tiles (Phase 1) — economy only, never scoring', () {

@@ -16,6 +16,7 @@ import {
   type BoardState,
   collapseChain,
   comboScore,
+  evaluateStatus,
   hasMergeAvailable,
   isValidChain,
   type MoveEvent,
@@ -28,7 +29,9 @@ import {
   canFollow,
   comboRushMultiplier,
   comboMultiplier,
+  hasChainOfLength,
   kCellCount,
+  kChallengeDenseFill,
   kMaxTier,
   pairMergeable,
 } from "./constants.ts";
@@ -211,6 +214,27 @@ Deno.test("easy board for 2026-06-07 matches Dart (walls + placement)", async ()
   assertEquals(start.board.nextTileId, DART_EASY_NEXT_TILE_ID);
   assertEquals([...start.board.walls].sort((a, b) => a - b), [25, 42]);
 });
+
+Deno.test(
+  "no born-short boards under minChainLength 3 (Long Chains Only) across 2026-06",
+  async () => {
+    // Mirrors the actual verifyRunChallenge call site: dense starting fill +
+    // minChainLength 3, so the re-roll must find a board that already
+    // satisfies the rule's stricter minimum, not just any 2-chain.
+    for (let day = 1; day <= 28; day++) {
+      const date = `2026-06-${String(day).padStart(2, "0")}`;
+      const start = await new DailySeeder(date, "challenge").generate({
+        startingFillOverride: kChallengeDenseFill,
+        minChainLength: 3,
+      });
+      assertEquals(
+        hasChainOfLength(start.board.cells, start.board.gridSize, 3),
+        true,
+        `Born-short board (no 3-chain): ${date} challenge`,
+      );
+    }
+  },
+);
 
 // ---- Replay parity ----
 
@@ -499,6 +523,119 @@ Deno.test("hasMergeAvailable: a 2-tier gap is NOT available", () => {
   const b = boardWith({ 0: { id: 1, tier: 2 }, 1: { id: 2, tier: 4 } });
   assertFalse(hasMergeAvailable(b));
 });
+
+// ---- hasChainOfLength tests (Long Chains Only deadlock fix) ----
+
+Deno.test("hasChainOfLength: minLength <= 2 is byte-identical to hasMergeAvailable", () => {
+  const apart = boardWith({ 0: { id: 1, tier: 1 }, 2: { id: 2, tier: 1 } });
+  const together = boardWith({ 0: { id: 1, tier: 1 }, 1: { id: 2, tier: 1 } });
+  assertEquals(
+    hasChainOfLength(apart.cells, apart.gridSize, 2),
+    hasMergeAvailable(apart),
+  );
+  assertEquals(
+    hasChainOfLength(together.cells, together.gridSize, 2),
+    hasMergeAvailable(together),
+  );
+  assertEquals(hasChainOfLength(together.cells, together.gridSize, 2), true);
+});
+
+Deno.test("hasChainOfLength: only a 2-chain exists => no chain of length 3", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 1 },
+    1: { id: 2, tier: 1 },
+    6: { id: 3, tier: 5 },
+  });
+  assertFalse(hasChainOfLength(b.cells, b.gridSize, 3));
+});
+
+Deno.test("hasChainOfLength: a real 3-chain (straight line) satisfies length 3", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 1 },
+    1: { id: 2, tier: 1 },
+    2: { id: 3, tier: 2 },
+  });
+  assertEquals(hasChainOfLength(b.cells, b.gridSize, 3), true);
+  assertEquals(isValidChain(b, [0, 1, 2]), true);
+});
+
+Deno.test("hasChainOfLength: a real 3-chain (L-shape) satisfies length 3", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 2 },
+    1: { id: 2, tier: 2 },
+    6: { id: 3, tier: 2 },
+  });
+  assertEquals(hasChainOfLength(b.cells, b.gridSize, 3), true);
+  assertEquals(isValidChain(b, [0, 1, 6]), true);
+});
+
+Deno.test(
+  "hasChainOfLength: a 3-in-a-row whose peak sits at the tier cap does NOT count",
+  () => {
+    const b = boardWith({
+      0: { id: 1, tier: kMaxTier - 2 },
+      1: { id: 2, tier: kMaxTier - 1 },
+      2: { id: 3, tier: kMaxTier },
+    });
+    assertFalse(hasChainOfLength(b.cells, b.gridSize, 3));
+  },
+);
+
+Deno.test(
+  "hasChainOfLength: does not falsely find a chain across a non-adjacent path",
+  () => {
+    const b = boardWith({
+      0: { id: 1, tier: 1 },
+      1: { id: 2, tier: 1 },
+      20: { id: 3, tier: 1 },
+      21: { id: 4, tier: 1 },
+    });
+    assertFalse(hasChainOfLength(b.cells, b.gridSize, 3));
+  },
+);
+
+Deno.test(
+  "refillBoard: keeps dropping past a 2-chain-satisfied state when minLength is 3",
+  () => {
+    const board = smallBoard([
+      { id: 1, tier: 1 },
+      { id: 2, tier: 1 },
+      null,
+      null,
+    ]);
+    const result = refillBoard(board, 2, () => 1, new Prng(1), 3);
+    assertEquals(hasChainOfLength(result.cells, result.gridSize, 3), true);
+  },
+);
+
+Deno.test(
+  "refillBoard: stops at a full board even if minChainLength is never satisfied",
+  () => {
+    const board = smallBoard([{ id: 1, tier: 1 }, null, null, null]);
+    const result = refillBoard(board, 1, () => kMaxTier, new Prng(1), 3);
+    assertEquals(result.cells.every((c) => c !== null), true);
+    assertFalse(hasChainOfLength(result.cells, result.gridSize, 3));
+  },
+);
+
+Deno.test(
+  "evaluateStatus: minChainLength 3 deadlocks on a bare 2-chain (Long Chains Only soft-lock fix)",
+  () => {
+    const onlyTwoChain = boardWith({
+      0: { id: 1, tier: 1 },
+      1: { id: 2, tier: 1 },
+    });
+    assertEquals(evaluateStatus(onlyTwoChain, 3).status, "deadlocked");
+    assertEquals(evaluateStatus(onlyTwoChain).status, "playing");
+
+    const realThreeChain = boardWith({
+      0: { id: 1, tier: 1 },
+      1: { id: 2, tier: 1 },
+      2: { id: 3, tier: 2 },
+    });
+    assertEquals(evaluateStatus(realThreeChain, 3).status, "playing");
+  },
+);
 
 // ---- comboRushMultiplier tests ----
 
