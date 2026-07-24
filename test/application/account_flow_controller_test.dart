@@ -6,6 +6,7 @@ import 'package:connect_merge/domain/models/difficulty.dart';
 import 'package:connect_merge/infrastructure/auth_service.dart';
 import 'package:connect_merge/infrastructure/profile_sync_service.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
+import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

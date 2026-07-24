@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/models/day_result.dart';
@@ -511,5 +512,3 @@ class ProfileSyncService {
     _disarm();
   }
 }
-
-typedef VoidCallback = void Function();
