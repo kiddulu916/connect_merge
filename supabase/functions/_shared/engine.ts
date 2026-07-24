@@ -12,10 +12,12 @@ import { Prng } from "./prng.ts";
 import { challengeRule, DailySeeder } from "./seeder.ts";
 import {
   ascendBonus,
+  type BoardState,
   canFollow,
   comboMultiplier,
   comboRushMultiplier,
   type Difficulty,
+  type GameStatus,
   hasChainOfLength,
   isDifficulty,
   kAdMoveReward,
@@ -29,27 +31,13 @@ import {
   minChainLengthFor,
   pairMergeable,
   STARTING_FILL,
+  type Tile,
 } from "./constants.ts";
 
-export interface Tile {
-  id: number;
-  tier: number;
-}
-
-export type GameStatus = "playing" | "outOfMoves" | "deadlocked";
-
-export interface BoardState {
-  cells: (Tile | null)[];
-  walls: Set<number>;
-  movesRemaining: number;
-  score: number;
-  nextTileId: number;
-  dropIndex: number;
-  adContinuesUsed: number;
-  movesMade: number;
-  status: GameStatus;
-  gridSize: number;
-}
+// `Tile`/`GameStatus`/`BoardState` are defined in constants.ts (see the
+// comment there) and re-exported here so existing `import { BoardState, ... }
+// from "./engine.ts"` call sites keep working unchanged.
+export type { BoardState, GameStatus, Tile };
 
 // Move events (mirror lib/domain/models/move.dart). Accept both the spec's
 // short form ({t:"chain"}) and Dart's toJson form ({type:"chain"}).
