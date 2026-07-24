@@ -245,15 +245,15 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
   void _launchMechanics() {
     if (!mounted || _tourPhase != _TourPhase.mechanics) return;
     Navigator.of(context)
-        .push<TutorialTourResult>(
-      MaterialPageRoute<TutorialTourResult>(
+        .push<TutorialResult>(
+      MaterialPageRoute<TutorialResult>(
         builder: (_) => TutorialTourScreen(
           onSkip: (step) => _completeTour(skipped: true, step: step),
         ),
       ),
     )
         .then((result) {
-      if (mounted && result == TutorialTourResult.completed) _startTierTour();
+      if (mounted && result == TutorialResult.completed) _startTierTour();
     });
   }
 
@@ -334,8 +334,8 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     final service = widget.leaderboard;
     if (service == null) return;
     Navigator.of(context)
-        .push<TutorialLeaderboardResult>(
-            MaterialPageRoute<TutorialLeaderboardResult>(
+        .push<TutorialResult>(
+            MaterialPageRoute<TutorialResult>(
       builder: (_) => LeaderboardScreen(
         service: service,
         friendsService: widget.friends,
@@ -348,7 +348,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
         .then((result) {
       if (!mounted) return;
       _completeTour(
-        skipped: result != TutorialLeaderboardResult.completed,
+        skipped: result != TutorialResult.completed,
         step: 7,
       );
     });

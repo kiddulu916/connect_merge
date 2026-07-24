@@ -17,8 +17,6 @@ enum LeaderboardScope { global, friends }
 /// read-only period aggregation (sum of daily bests).
 enum LeaderboardPeriod { daily, weekly, monthly, allTime }
 
-enum TutorialLeaderboardResult { completed, skipped }
-
 enum _TutorialTarget { scope, period, row }
 
 extension LeaderboardPeriodX on LeaderboardPeriod {
@@ -170,7 +168,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   void _nextTutorialTarget() {
     if (_tutorialAdvancing || _allowPop) return;
     if (_tutorialTargetIndex == _tutorialTargets.length - 1) {
-      _finishTutorial(TutorialLeaderboardResult.completed);
+      _finishTutorial(TutorialResult.completed);
       return;
     }
     setState(() {
@@ -185,7 +183,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     _measureTutorialTarget();
   }
 
-  void _finishTutorial(TutorialLeaderboardResult result) {
+  void _finishTutorial(TutorialResult result) {
     if (_allowPop) return;
     setState(() => _allowPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -340,7 +338,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return PopScope(
       canPop: _allowPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _finishTutorial(TutorialLeaderboardResult.skipped);
+        if (!didPop) _finishTutorial(TutorialResult.skipped);
       },
       child: Stack(
         children: [
@@ -354,7 +352,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 title: copy.$1,
                 body: copy.$2,
                 onSkip: () =>
-                    _finishTutorial(TutorialLeaderboardResult.skipped),
+                    _finishTutorial(TutorialResult.skipped),
                 onNext: _tutorialAdvancing ? null : _nextTutorialTarget,
                 nextLabel: target == _TutorialTarget.row ? 'Finish' : 'Next',
               ),
