@@ -29,7 +29,11 @@ void main() {
       home: ProfileScreen(
         auth: auth,
         storage: storage,
-        onDeleted: () => deleted = true,
+        onDelete: () async {
+          await auth.deleteAccount();
+          await storage.wipeAccountData();
+          deleted = true;
+        },
       ),
     ));
     await tester.pump();
@@ -65,12 +69,60 @@ void main() {
 
     expect(auth.deleteCalls, 0);
   });
+
+  testWidgets('guest profile offers the shared Google save flow',
+      (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: ProfileScreen(
+        auth: _FakeAuthService(),
+        storage: InMemoryStorageService(),
+        onSaveProgress: () async {
+          calls++;
+          return true;
+        },
+      ),
+    ));
+    await tester.pump();
+
+    expect(
+        find.text('Save your progress — Sign in with Google'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('profile-save-progress')));
+    await tester.pump();
+    expect(calls, 1);
+  });
+
+  testWidgets('Google profile offers sign out and change name', (tester) async {
+    var signOutCalls = 0;
+    var changeNameCalls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: ProfileScreen(
+        auth: _FakeAuthService(googleIdentity: true),
+        storage: InMemoryStorageService(),
+        onSignOut: () async {
+          signOutCalls++;
+          return true;
+        },
+        onChangeName: () => changeNameCalls++,
+      ),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('profile-change-name')));
+    expect(changeNameCalls, 1);
+    await tester.tap(find.byKey(const Key('profile-sign-out')));
+    await tester.pump();
+    expect(signOutCalls, 1);
+  });
 }
 
 /// Minimal fake mirroring display_name_screen_test's: the real [AuthService]
 /// needs a live SupabaseClient.
 class _FakeAuthService implements AuthService {
   int deleteCalls = 0;
+  final bool googleIdentity;
+
+  _FakeAuthService({this.googleIdentity = false});
 
   @override
   Future<void> setDisplayName(String name, {String? avatar}) async {}
@@ -98,4 +150,19 @@ class _FakeAuthService implements AuthService {
 
   @override
   bool get isSignedIn => true;
+
+  @override
+  bool get hasGoogleIdentity => googleIdentity;
+
+  @override
+  Future<GoogleAuthResult> signInWithGoogle() async => GoogleAuthResult.linked;
+
+  @override
+  Future<GoogleAuthResult> confirmAdopt() async => GoogleAuthResult.adopted;
+
+  @override
+  void cancelGoogleAdoption() {}
+
+  @override
+  Future<void> signOut() async {}
 }

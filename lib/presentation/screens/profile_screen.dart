@@ -5,26 +5,33 @@ import '../../infrastructure/auth_service.dart';
 import '../../infrastructure/storage_service.dart';
 import '../theme/tokens.dart';
 
-/// Player profile: avatar, display name, Player ID, and the delete-my-data
-/// entry point.
+/// Player profile: avatar, display name, account actions, and delete-my-data.
 ///
 /// The Player ID is the auth UUID — the credential accepted by the web form at
 /// connectmerge.app/delete-my-data.html, so it's shown ONLY here (never on
 /// shareable surfaces like the friends screen). Tap to copy.
 ///
-/// "Delete my data" performs REAL in-app deletion (Play policy requires an
-/// in-app path, not just a web link): confirm dialog -> delete-account Edge
-/// Function with the player's own JWT -> wipe local Hive data -> onDeleted
-/// (the app shell re-onboards with a fresh anonymous account).
+/// Identity-changing callbacks are owned by the app shell, where retained
+/// prize jobs, profile sync, auth, the local wipe, and owner rebind can be
+/// serialized. A boolean account callback returns false only when the player
+/// cancelled a warning, keeping this route open and interactive.
 class ProfileScreen extends StatefulWidget {
   final AuthService auth;
   final StorageService storage;
+  final Future<void> Function()? onDelete;
+  final Future<bool> Function()? onSignOut;
+  final Future<bool> Function()? onSaveProgress;
+  final VoidCallback? onChangeName;
 
-  /// Called after a successful deletion, with all routes already popped.
-  final VoidCallback? onDeleted;
-
-  const ProfileScreen(
-      {super.key, required this.auth, required this.storage, this.onDeleted});
+  const ProfileScreen({
+    super.key,
+    required this.auth,
+    required this.storage,
+    this.onDelete,
+    this.onSignOut,
+    this.onSaveProgress,
+    this.onChangeName,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -33,7 +40,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String? _name;
   String? _avatar;
-  bool _deleting = false;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -81,29 +88,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             key: const Key('delete-confirm'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(color: Colors.redAccent)),
+            child:
+                const Text('Delete', style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
     );
     if (confirmed != true || !mounted) return;
 
-    setState(() => _deleting = true);
+    setState(() => _busy = true);
     try {
-      await widget.auth.deleteAccount();
-      await widget.storage.wipeAll();
+      await widget.onDelete?.call();
       if (!mounted) return;
-      // Pop everything so the app shell's home (onboarding) is what remains.
       Navigator.of(context).popUntil((r) => r.isFirst);
-      widget.onDeleted?.call();
     } catch (_) {
       if (!mounted) return;
-      setState(() => _deleting = false);
+      setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Could not delete your data. '
                 'Check your connection and try again.')),
+      );
+    }
+  }
+
+  Future<void> _runAccountAction(Future<bool> Function()? action) async {
+    if (action == null) return;
+    setState(() => _busy = true);
+    try {
+      final completed = await action();
+      if (!mounted) return;
+      if (!completed) {
+        setState(() => _busy = false);
+        return;
+      }
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not update your account. Try again.'),
+        ),
       );
     }
   }
@@ -176,11 +202,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 24),
           ListTile(
+            key: const Key('profile-change-name'),
+            tileColor: AppColors.surface,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            leading: const Icon(Icons.edit, color: Colors.white70),
+            title: const Text('Change name'),
+            onTap: _busy ? null : widget.onChangeName,
+          ),
+          const SizedBox(height: 12),
+          ListTile(
+            key: Key(widget.auth.hasGoogleIdentity
+                ? 'profile-sign-out'
+                : 'profile-save-progress'),
+            tileColor: AppColors.surface,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            leading: _busy
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(widget.auth.hasGoogleIdentity
+                    ? Icons.logout
+                    : Icons.cloud_upload),
+            title: Text(widget.auth.hasGoogleIdentity
+                ? 'Sign out'
+                : 'Save your progress — Sign in with Google'),
+            onTap: _busy
+                ? null
+                : () => _runAccountAction(widget.auth.hasGoogleIdentity
+                    ? widget.onSignOut
+                    : widget.onSaveProgress),
+          ),
+          const SizedBox(height: 12),
+          ListTile(
             key: const Key('profile-delete'),
             tileColor: AppColors.surface,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            leading: _deleting
+            leading: _busy
                 ? const SizedBox(
                     width: 22,
                     height: 22,
@@ -192,7 +254,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: const Text(
                 'Permanently erase your account and all progress.',
                 style: TextStyle(color: Colors.white38, fontSize: 12)),
-            onTap: _deleting ? null : _confirmDelete,
+            onTap: _busy ? null : _confirmDelete,
           ),
         ],
       ),

@@ -12,7 +12,36 @@
           "package_name": "com.kidd.connect_merge"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "306868850236-5vrp8ka7d67q4s6fdlf9tnopocrijse7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kidd.connect_merge",
+            "certificate_hash": "f462ccac7cc5ffb7db99a9a9dc38c9b29411c55e"
+          }
+        },
+        {
+          "client_id": "306868850236-e05dimt3a18aiuhrcjjka1cj9lcfl14g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kidd.connect_merge",
+            "certificate_hash": "fcb5cd12eaba90a671f81846794f17b0d9e1e30f"
+          }
+        },
+        {
+          "client_id": "306868850236-onoe9n9bp9lsoe3fdbsblufmhon6kfhg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kidd.connect_merge",
+            "certificate_hash": "a0e6931d2024c1dd7bd5ef2654d57667285afe93"
+          }
+        },
+        {
+          "client_id": "306868850236-2a6hioe31bolikd0mf3jdopjgu0o925u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC84eoc68kF7zqckRvPkQ8IWqXZ0jvG4SA"
@@ -20,26 +49,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:306868850236:android:885994022c90f014d2fd39",
-        "android_client_info": {
-          "package_name": "com.kidd.connect_merge"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyC84eoc68kF7zqckRvPkQ8IWqXZ0jvG4SA"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "306868850236-2a6hioe31bolikd0mf3jdopjgu0o925u.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "306868850236-hgalhprgjlred8t0mpt97orbs4flbirq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kiddulu.connectMerge"
+              }
+            }
+          ]
         }
       }
     }
