@@ -43,6 +43,17 @@ android {
         // Ads SDK comes transitively from the google_mobile_ads Flutter plugin
         // (play-services-ads); do not add it directly — duplicate classes.
         coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+        
+        // Import the BoM for the Firebase platform
+        implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
+
+        // Add the dependency for the Firebase Authentication library
+        // When using the BoM, you don't specify versions in Firebase library dependencies
+        implementation("com.google.firebase:firebase-auth")
+
+        // Also add the dependency for the Google Play services library and specify its version
+        implementation("com.google.android.gms:play-services-auth:21.6.0")
+        implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     }
 
     signingConfigs {

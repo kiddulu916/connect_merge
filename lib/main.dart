@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
+import 'firebase_options.dart';
 
 import 'application/duel_cubit.dart';
 import 'application/account_flow_controller.dart';
@@ -41,7 +42,8 @@ Future<void> main() async {
     WidgetsFlutterBinding.ensureInitialized();
 
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform);
       crashReporting = CrashReportingService();
       analytics = AnalyticsService();
       FlutterError.onError = (details) {

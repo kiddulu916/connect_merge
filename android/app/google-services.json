@@ -14,22 +14,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "306868850236-5vrp8ka7d67q4s6fdlf9tnopocrijse7.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.kidd.connect_merge",
-            "certificate_hash": "f462ccac7cc5ffb7db99a9a9dc38c9b29411c55e"
-          }
-        },
-        {
-          "client_id": "306868850236-e05dimt3a18aiuhrcjjka1cj9lcfl14g.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.kidd.connect_merge",
-            "certificate_hash": "fcb5cd12eaba90a671f81846794f17b0d9e1e30f"
-          }
-        },
-        {
           "client_id": "306868850236-onoe9n9bp9lsoe3fdbsblufmhon6kfhg.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
