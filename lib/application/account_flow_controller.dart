@@ -44,11 +44,19 @@ InitialAccountRoute initialAccountRoute({
       bootstrap == BootstrapOutcome.blockedInterruptedRestore) {
     return InitialAccountRoute.recovery;
   }
-  if (bootstrap == BootstrapOutcome.missingPlayerRow ||
-      (needsDisplayName && hasGoogleIdentity)) {
+  // Drop straight into name creation ONLY when the player has already
+  // committed to Google but has no name yet (just linked, or crashed right
+  // after linking). A fresh guest also has no players row — bootstrap reports
+  // missingPlayerRow for both — so routing missingPlayerRow here would skip the
+  // provider gate on every first run and never let anyone choose "Play as
+  // guest" vs "Continue with Google". The gate is the entry point; only a
+  // committed Google identity bypasses it.
+  if (needsDisplayName && hasGoogleIdentity) {
     return InitialAccountRoute.displayName;
   }
-  if (bootstrap == BootstrapOutcome.needsAuthGate || needsDisplayName) {
+  if (bootstrap == BootstrapOutcome.needsAuthGate ||
+      bootstrap == BootstrapOutcome.missingPlayerRow ||
+      needsDisplayName) {
     return InitialAccountRoute.authGate;
   }
   return InitialAccountRoute.ready;

@@ -29,6 +29,31 @@ void main() {
     );
   });
 
+  test('fresh install (no players row, no Google) shows the provider gate', () {
+    // A first-run anonymous install has no players row, so bootstrap reports
+    // missingPlayerRow. It must reach the gate to choose guest vs Google —
+    // NOT be dropped straight into name creation. Regression: verified on a
+    // real device where a fresh install skipped the gate entirely.
+    expect(
+      initialAccountRoute(
+        bootstrap: BootstrapOutcome.missingPlayerRow,
+        needsDisplayName: true,
+        hasGoogleIdentity: false,
+      ),
+      InitialAccountRoute.authGate,
+    );
+    // But a player who linked Google and crashed before naming resumes name
+    // creation, never the gate (re-picking an account there is destructive).
+    expect(
+      initialAccountRoute(
+        bootstrap: BootstrapOutcome.missingPlayerRow,
+        needsDisplayName: true,
+        hasGoogleIdentity: true,
+      ),
+      InitialAccountRoute.displayName,
+    );
+  });
+
   test('account work drain blocks adoption until an old-uid write commits',
       () async {
     final tracker = AccountWorkTracker();
