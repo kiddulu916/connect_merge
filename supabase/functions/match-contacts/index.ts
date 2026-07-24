@@ -18,23 +18,16 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
 import { sanitizeHashes } from "./sanitize.ts";
+import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const CORS_HEADERS = corsHeaders("*");
 
 function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-  });
+  return jsonResponse(CORS_HEADERS, body, status);
 }
 
 Deno.serve(async (req) => {
@@ -46,17 +39,8 @@ Deno.serve(async (req) => {
   }
 
   // 1. Authenticate the caller (also the implicit rate-limit subject).
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "unauthorized" }, 401);
-
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData?.user) {
-    return json({ error: "unauthorized" }, 401);
-  }
-  const callerId = userData.user.id;
+  const callerId = await getAuthedUserId(req, SUPABASE_URL, ANON_KEY);
+  if (callerId == null) return json({ error: "unauthorized" }, 401);
 
   // 2. Parse + validate. Only a list of 64-hex SHA256 hashes is accepted.
   let payload: { hashes?: unknown };
@@ -83,7 +67,8 @@ Deno.serve(async (req) => {
   const { data: matchedRows, error: matchErr } = await admin
     .from("contact_hashes")
     .select("player_id")
-    .in("hash", hashes);
+    .in("hash", hashes)
+    .returns<{ player_id: string }[]>();
   if (matchErr) {
     return json({ error: "bad_request" }, 400);
   }
@@ -92,8 +77,8 @@ Deno.serve(async (req) => {
   const playerIds = [
     ...new Set(
       (matchedRows ?? [])
-        .map((r: { player_id: string }) => r.player_id)
-        .filter((id: string) => id !== callerId),
+        .map((r) => r.player_id)
+        .filter((id) => id !== callerId),
     ),
   ];
   if (playerIds.length === 0) {
@@ -104,17 +89,16 @@ Deno.serve(async (req) => {
   const { data: players, error: playersErr } = await admin
     .from("players")
     .select("id, display_name")
-    .in("id", playerIds);
+    .in("id", playerIds)
+    .returns<{ id: string; display_name: string }[]>();
   if (playersErr) {
     return json({ error: "bad_request" }, 400);
   }
 
-  const matches = (players ?? []).map(
-    (p: { id: string; display_name: string }) => ({
-      playerId: p.id,
-      displayName: p.display_name,
-    }),
-  );
+  const matches = (players ?? []).map((p) => ({
+    playerId: p.id,
+    displayName: p.display_name,
+  }));
 
   return json({ matches }, 200);
 });

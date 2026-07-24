@@ -24,6 +24,17 @@ class LeaderboardEntry {
         isMe: (j['is_me'] as bool?) ?? false,
       );
 
+  /// Maps a row from a period RPC (`leaderboard_period`,
+  /// `friends_leaderboard_period`). Same shape as [fromJson] except the summed
+  /// score column is named `total` rather than `score`.
+  static LeaderboardEntry fromPeriodJson(Map<String, dynamic> j) =>
+      LeaderboardEntry(
+        rank: (j['rank'] as num).toInt(),
+        displayName: j['display_name'] as String,
+        score: (j['total'] as num).toInt(),
+        isMe: (j['is_me'] as bool?) ?? false,
+      );
+
   @override
   bool operator ==(Object other) =>
       other is LeaderboardEntry &&

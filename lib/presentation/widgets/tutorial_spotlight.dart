@@ -4,6 +4,10 @@ import 'package:flutter/semantics.dart';
 const _mergeHighlightedTiles =
     CustomSemanticsAction(label: 'Merge highlighted tiles');
 
+/// Outcome of a tutorial overlay screen (mechanics tour, leaderboard tour),
+/// returned as the [Navigator.push] result when it pops.
+enum TutorialResult { completed, skipped }
+
 /// Modal coachmark chrome with a non-intercepting spotlight cutout.
 class TutorialSpotlight extends StatelessWidget {
   final Rect? targetRect;

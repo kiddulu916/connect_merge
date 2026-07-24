@@ -16,7 +16,8 @@ typedef InvokeMapFn = Future<Map<String, dynamic>> Function(
 typedef TableInsertFn = Future<void> Function(
     String table, List<Map<String, dynamic>> rows);
 typedef TableDeleteFn = Future<void> Function(String table);
-typedef TableSelectFn = Future<List<dynamic>> Function(String table);
+typedef TableSelectFn = Future<List<Map<String, dynamic>>> Function(
+    String table);
 
 /// Friend codes, redeeming, friends list, friends leaderboard, and the
 /// privacy-first contacts opt-in + match flow. Isolates supabase_flutter so no
@@ -49,8 +50,7 @@ class FriendsService {
         _selectMine = ((table) async {
           final uid = client.auth.currentUser?.id;
           if (uid == null) return const [];
-          final res = await client.from(table).select().eq('player_id', uid);
-          return (res as List?) ?? const [];
+          return client.from(table).select().eq('player_id', uid);
         });
 
   /// Test constructor: inject seams directly.
@@ -141,15 +141,10 @@ class FriendsService {
       'p_season': kLeaderboardSeason,
     });
     final rows = (res as List?) ?? const [];
-    return rows.map((row) {
-      final map = Map<String, dynamic>.from(row as Map);
-      return LeaderboardEntry(
-        rank: (map['rank'] as num).toInt(),
-        displayName: map['display_name'] as String,
-        score: (map['total'] as num).toInt(),
-        isMe: (map['is_me'] as bool?) ?? false,
-      );
-    }).toList();
+    return rows
+        .map((row) => LeaderboardEntry.fromPeriodJson(
+            Map<String, dynamic>.from(row as Map)))
+        .toList();
   }
 
   /// Opt in to contacts matching: store SHA256 hashes of the player's OWN

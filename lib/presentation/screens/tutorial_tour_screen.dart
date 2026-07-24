@@ -17,8 +17,6 @@ const tutorialDeadlockPath = <int>[0, 1];
 const tutorialDeadlockSeed = 0x5EED;
 const tutorialDeadlockDropTiers = <int>[5];
 
-enum TutorialTourResult { completed, skipped }
-
 final tutorialDeadlockBoard = _board(const [
   1,
   2,
@@ -192,7 +190,7 @@ class _TutorialTourScreenState extends State<TutorialTourScreen> {
     final success = await widget.onSkip(_step);
     if (!mounted) return;
     if (success) {
-      _popWith(TutorialTourResult.skipped);
+      _popWith(TutorialResult.skipped);
       return;
     }
     setState(() {
@@ -201,7 +199,7 @@ class _TutorialTourScreenState extends State<TutorialTourScreen> {
     });
   }
 
-  void _popWith(TutorialTourResult result) {
+  void _popWith(TutorialResult result) {
     if (_allowPop) return;
     setState(() => _allowPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -284,7 +282,7 @@ class _TutorialTourScreenState extends State<TutorialTourScreen> {
                   3 => () => _showStep(4),
                   4 => () => _showStep(5),
                   5 when _deadlocked => () {
-                      _popWith(TutorialTourResult.completed);
+                      _popWith(TutorialResult.completed);
                     },
                   _ => null,
                 },

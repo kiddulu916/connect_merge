@@ -57,6 +57,34 @@ export function isDifficulty(s: string): s is Difficulty {
 // ---- Connect-Merge additions (must stay in lockstep with Dart) ----
 
 /**
+ * Board/tile shapes, ported from `lib/domain/models/tile.dart`,
+ * `game_status.dart` and `board_state.dart`. Defined in this zero-import leaf
+ * module (rather than in `engine.ts`) so `seeder.ts` can use them without
+ * importing `engine.ts` — `engine.ts` imports `seeder.ts` for `DailySeeder`,
+ * so the reverse import would form a cycle. `engine.ts` re-exports these
+ * under the same names for existing consumers.
+ */
+export interface Tile {
+  id: number;
+  tier: number;
+}
+
+export type GameStatus = "playing" | "outOfMoves" | "deadlocked";
+
+export interface BoardState {
+  cells: (Tile | null)[];
+  walls: Set<number>;
+  movesRemaining: number;
+  score: number;
+  nextTileId: number;
+  dropIndex: number;
+  adContinuesUsed: number;
+  movesMade: number;
+  status: GameStatus;
+  gridSize: number;
+}
+
+/**
  * True when `nextTier` may follow `prevTier` in a Connect-Merge chain: equal
  * or exactly one tier higher, never descending or skipping. Must stay in
  * lockstep with `GameEngine.canFollow` in Dart.
@@ -134,11 +162,12 @@ export function minChainLengthFor(rule: ChallengeRule): number {
 /**
  * True if any two orthogonally-adjacent live tiles could legally merge in
  * SOME direction (spatial deadlock check — non-adjacent mergeable tiles do
- * NOT count). Structurally typed on cells so this zero-import leaf module
- * doesn't need to import engine.ts's `Tile`/`BoardState` types. Duplicated
- * (deliberately, matching this file's existing `pairMergeable`-based
- * pattern) rather than imported, since `engine.ts` already imports this file
- * and `seeder.ts` needs the same check without creating a cycle.
+ * NOT count). Structurally typed on cells (rather than using this file's own
+ * `Tile` above) to keep this helper's signature independent of the board
+ * shape; duplicated logic, matching this file's existing
+ * `pairMergeable`-based pattern, rather than delegating to `engine.ts`'s
+ * `hasMergeAvailable`, since `engine.ts` imports this file (importing back
+ * would cycle).
  */
 function hasAnyMergeablePair(
   cells: ({ tier: number } | null)[],
