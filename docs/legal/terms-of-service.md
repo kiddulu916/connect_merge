@@ -4,7 +4,7 @@
 
 These Terms of Service ("**Terms**") govern your access to and use of
 **Connect Merge** (the "**App**", "**Service**"), a daily spatial merge
-puzzle game published by **[Legal Entity Name]** ("**we**", "**us**", "**our**").
+puzzle game published by **Corey Hilsenbeck** ("**we**", "**us**", "**our**").
 By downloading, installing, or using the App, you agree to these Terms. If
 you do not agree, do not use the App.
 
@@ -208,11 +208,12 @@ constitutes acceptance of the revised Terms.
 
 ## 16. Governing Law and Disputes
 
-These Terms are governed by the laws of **[Governing Law / Jurisdiction]**,
-without regard to its conflict-of-laws principles. Any dispute arising out
-of or relating to these Terms or the App will be resolved in the courts
-located in **[Venue]**, and you consent to their jurisdiction, except
-where applicable law requires otherwise.
+These Terms are governed by the laws of **the State of California, USA
+(Sacramento County)**, without regard to its conflict-of-laws principles.
+Any dispute arising out of or relating to these Terms or the App will be
+resolved in the courts located in **Sacramento, California**, and you
+consent to their jurisdiction, except where applicable law requires
+otherwise.
 
 ## 17. Privacy
 
@@ -222,4 +223,4 @@ by reference.
 
 ## 18. Contact Us
 
-Questions about these Terms can be sent to **[support email]**.
+Questions about these Terms can be sent to **dat1kidd916@gmail.com**.
