@@ -141,15 +141,10 @@ class FriendsService {
       'p_season': kLeaderboardSeason,
     });
     final rows = (res as List?) ?? const [];
-    return rows.map((row) {
-      final map = Map<String, dynamic>.from(row as Map);
-      return LeaderboardEntry(
-        rank: (map['rank'] as num).toInt(),
-        displayName: map['display_name'] as String,
-        score: (map['total'] as num).toInt(),
-        isMe: (map['is_me'] as bool?) ?? false,
-      );
-    }).toList();
+    return rows
+        .map((row) => LeaderboardEntry.fromPeriodJson(
+            Map<String, dynamic>.from(row as Map)))
+        .toList();
   }
 
   /// Opt in to contacts matching: store SHA256 hashes of the player's OWN

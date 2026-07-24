@@ -118,15 +118,10 @@ class LeaderboardService {
       'p_to': to,
       'p_season': kLeaderboardSeason,
     });
-    return rows.map((e) {
-      final m = Map<String, dynamic>.from(e as Map);
-      return LeaderboardEntry(
-        rank: (m['rank'] as num).toInt(),
-        displayName: m['display_name'] as String,
-        score: (m['total'] as num).toInt(),
-        isMe: (m['is_me'] as bool?) ?? false,
-      );
-    }).toList();
+    return rows
+        .map((e) => LeaderboardEntry.fromPeriodJson(
+            Map<String, dynamic>.from(e as Map)))
+        .toList();
   }
 
   /// Fetch the caller's exact daily ranks over a bounded UTC date range.

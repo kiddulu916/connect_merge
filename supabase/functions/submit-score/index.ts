@@ -14,23 +14,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
 import { verifyRun, verifyRunChallenge } from "../_shared/engine.ts";
 import { isDifficulty, kLeaderboardSeason } from "../_shared/constants.ts";
+import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const CORS_HEADERS = corsHeaders("*");
 
 function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-  });
+  return jsonResponse(CORS_HEADERS, body, status);
 }
 
 /** Server's notion of "today" in UTC (YYYY-MM-DD). */
@@ -47,17 +40,8 @@ Deno.serve(async (req) => {
   }
 
   // 1. Authenticate: resolve the caller's user id from their JWT.
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "unauthorized" }, 401);
-
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData?.user) {
-    return json({ error: "unauthorized" }, 401);
-  }
-  const userId = userData.user.id;
+  const userId = await getAuthedUserId(req, SUPABASE_URL, ANON_KEY);
+  if (userId == null) return json({ error: "unauthorized" }, 401);
 
   // 2. Parse + validate the request shape.
   let payload: { date?: unknown; difficulty?: unknown; moveLog?: unknown };

@@ -62,35 +62,32 @@ class HiveStorageService implements StorageService {
   @override
   String get deviceId => _box.get(_deviceIdKey)!;
 
-  @override
-  LocalOwner? get owner {
-    final raw = _box.get(_ownerKey);
+  /// Reads [key], decodes it as JSON, and parses it via [parse]; returns null
+  /// when the key is unset OR decoding/parsing throws, so every caller gets
+  /// the same "missing or corrupt" fallback behavior without repeating the
+  /// try/catch.
+  T? _tryDecode<T>(String key, T Function(dynamic decoded) parse) {
+    final raw = _box.get(key);
     if (raw == null) return null;
     try {
-      return LocalOwner.fromJson(
-        Map<String, dynamic>.from(jsonDecode(raw) as Map),
-      );
+      return parse(jsonDecode(raw));
     } catch (_) {
       return null;
     }
   }
 
   @override
-  bool get ownerRecordCorrupt {
-    final raw = _box.get(_ownerKey);
-    if (raw == null) return false;
-    try {
-      LocalOwner.fromJson(Map<String, dynamic>.from(jsonDecode(raw) as Map));
-      return false;
-    } catch (_) {
-      return true;
-    }
-  }
+  LocalOwner? get owner => _tryDecode(
+        _ownerKey,
+        (d) => LocalOwner.fromJson(Map<String, dynamic>.from(d as Map)),
+      );
+
+  @override
+  bool get ownerRecordCorrupt => _box.get(_ownerKey) != null && owner == null;
 
   int _readRevision(String key) => int.tryParse(_box.get(key) ?? '0') ?? 0;
 
-  String? loadReferralRedeemSnapshot() =>
-      _box.get(_referralRedeemSnapshotKey);
+  String? loadReferralRedeemSnapshot() => _box.get(_referralRedeemSnapshotKey);
 
   Future<void> saveReferralRedeemSnapshot(String snapshot) =>
       _box.put(_referralRedeemSnapshotKey, snapshot);
@@ -299,15 +296,10 @@ class HiveStorageService implements StorageService {
   }
 
   @override
-  GameSnapshot? loadSnapshot(String date, Difficulty difficulty) {
-    final raw = _box.get(_snapshotKey(date, difficulty));
-    if (raw == null) return null;
-    try {
-      return GameSnapshot.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    } catch (_) {
-      return null;
-    }
-  }
+  GameSnapshot? loadSnapshot(String date, Difficulty difficulty) => _tryDecode(
+        _snapshotKey(date, difficulty),
+        (d) => GameSnapshot.fromJson(d as Map<String, dynamic>),
+      );
 
   @override
   Future<void> saveSnapshot(GameSnapshot snapshot) async {
@@ -319,30 +311,24 @@ class HiveStorageService implements StorageService {
   }
 
   @override
-  LifetimeStats loadStats(Difficulty difficulty) {
-    final raw = _box.get(_statsKey(difficulty));
-    if (raw == null) return LifetimeStats.empty;
-    try {
-      return LifetimeStats.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    } catch (_) {
-      return LifetimeStats.empty;
-    }
-  }
+  LifetimeStats loadStats(Difficulty difficulty) =>
+      _tryDecode(
+        _statsKey(difficulty),
+        (d) => LifetimeStats.fromJson(d as Map<String, dynamic>),
+      ) ??
+      LifetimeStats.empty;
 
   @override
   Future<void> saveStats(Difficulty difficulty, LifetimeStats stats) =>
       _putDurable(_statsKey(difficulty), jsonEncode(stats.toJson()));
 
   @override
-  PlayerProfile loadProfile() {
-    final raw = _box.get(_profileKey);
-    if (raw == null) return PlayerProfile.empty;
-    try {
-      return PlayerProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    } catch (_) {
-      return PlayerProfile.empty;
-    }
-  }
+  PlayerProfile loadProfile() =>
+      _tryDecode(
+        _profileKey,
+        (d) => PlayerProfile.fromJson(d as Map<String, dynamic>),
+      ) ??
+      PlayerProfile.empty;
 
   @override
   Future<void> saveProfile(PlayerProfile profile) =>
@@ -356,18 +342,14 @@ class HiveStorageService implements StorageService {
   }
 
   @override
-  List<DayResult> loadHistory() {
-    final raw = _box.get(_historyKey);
-    if (raw == null) return const [];
-    try {
-      final list = jsonDecode(raw) as List;
-      return list
-          .map((e) => DayResult.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
-    } catch (_) {
-      return const [];
-    }
-  }
+  List<DayResult> loadHistory() =>
+      _tryDecode(
+        _historyKey,
+        (d) => (d as List)
+            .map((e) => DayResult.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      ) ??
+      const [];
 
   @override
   Future<void> appendResult(DayResult result) async {

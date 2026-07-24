@@ -24,6 +24,7 @@
 // the id existed. 400 only for malformed input, 405 wrong method.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
+import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -32,21 +33,13 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 // Only the delete-my-data page on the production site may call this from a
 // browser. (The in-app path is a native HTTP call — CORS does not apply.)
 // The apex connectmerge.app 308-redirects to www, so www is the real origin.
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "https://www.connectmerge.app",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const CORS_HEADERS = corsHeaders("https://www.connectmerge.app");
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-  });
+  return jsonResponse(CORS_HEADERS, body, status);
 }
 
 Deno.serve(async (req) => {
@@ -62,18 +55,12 @@ Deno.serve(async (req) => {
   });
 
   // Path 1: in-app. A valid session JWT identifies the account; delete it.
-  const authHeader = req.headers.get("Authorization");
-  if (authHeader) {
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userData } = await userClient.auth.getUser();
-    if (userData?.user) {
-      await admin.auth.admin.deleteUser(userData.user.id);
-      return json({ ok: true }, 200);
-    }
-    // An Authorization header that doesn't resolve (e.g. the anon key alone)
-    // falls through to the web path.
+  // An Authorization header that doesn't resolve (e.g. the anon key alone)
+  // falls through to the web path.
+  const userId = await getAuthedUserId(req, SUPABASE_URL, ANON_KEY);
+  if (userId != null) {
+    await admin.auth.admin.deleteUser(userId);
+    return json({ ok: true }, 200);
   }
 
   // Path 2: web form. The Player ID in the body is the credential.
