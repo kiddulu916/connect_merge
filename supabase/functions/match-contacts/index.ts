@@ -67,7 +67,8 @@ Deno.serve(async (req) => {
   const { data: matchedRows, error: matchErr } = await admin
     .from("contact_hashes")
     .select("player_id")
-    .in("hash", hashes);
+    .in("hash", hashes)
+    .returns<{ player_id: string }[]>();
   if (matchErr) {
     return json({ error: "bad_request" }, 400);
   }
@@ -76,8 +77,8 @@ Deno.serve(async (req) => {
   const playerIds = [
     ...new Set(
       (matchedRows ?? [])
-        .map((r: { player_id: string }) => r.player_id)
-        .filter((id: string) => id !== callerId),
+        .map((r) => r.player_id)
+        .filter((id) => id !== callerId),
     ),
   ];
   if (playerIds.length === 0) {
@@ -88,17 +89,16 @@ Deno.serve(async (req) => {
   const { data: players, error: playersErr } = await admin
     .from("players")
     .select("id, display_name")
-    .in("id", playerIds);
+    .in("id", playerIds)
+    .returns<{ id: string; display_name: string }[]>();
   if (playersErr) {
     return json({ error: "bad_request" }, 400);
   }
 
-  const matches = (players ?? []).map(
-    (p: { id: string; display_name: string }) => ({
-      playerId: p.id,
-      displayName: p.display_name,
-    }),
-  );
+  const matches = (players ?? []).map((p) => ({
+    playerId: p.id,
+    displayName: p.display_name,
+  }));
 
   return json({ matches }, 200);
 });
