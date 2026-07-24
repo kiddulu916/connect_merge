@@ -42,6 +42,7 @@ class GameScreen extends StatefulWidget {
   /// The player's friend code, when online. Passed to [ScoreShareScreen] so the
   /// share card carries an invite link and the "Invite a friend" CTA appears.
   final String? friendCode;
+  final Future<String> Function()? ensureFriendCode;
 
   const GameScreen({
     super.key,
@@ -50,6 +51,7 @@ class GameScreen extends StatefulWidget {
     this.engagement,
     this.notifications,
     this.friendCode,
+    this.ensureFriendCode,
   });
 
   @override
@@ -169,6 +171,7 @@ class _GameScreenState extends State<GameScreen> {
       difficulty: difficulty,
       cosmetic: _cosmetic,
       friendCode: friendCode,
+      ensureFriendCode: widget.ensureFriendCode,
       newlyUnlocked: newly,
       nearMiss: NearMiss.message(board, bestScore: stats.bestScore),
       xpGained: xpGained,

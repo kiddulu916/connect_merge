@@ -176,6 +176,41 @@ void main() {
     expect(storage.loadStats(Difficulty.challenge), LifetimeStats.empty);
   });
 
+  test('referral snapshot survives reopen, adoption, restore, and account wipe',
+      () async {
+    var currentUid = 'account-a';
+    final storage = HiveStorageService(currentUserId: () => currentUid);
+    await storage.init();
+    await storage.rebindOwner('account-a');
+    const snapshot =
+        '{"handled":false,"active":{"code":"ABCD2345","source":"installReferrer"}}';
+    await storage.saveReferralRedeemSnapshot(snapshot);
+
+    final reopened = HiveStorageService(currentUserId: () => currentUid);
+    await reopened.init();
+    expect(reopened.loadReferralRedeemSnapshot(), snapshot);
+
+    currentUid = 'account-b';
+    await reopened.rebindOwner(currentUid);
+    expect(reopened.loadReferralRedeemSnapshot(), snapshot);
+
+    await reopened.startRestore('account-b', snapshotRevision: 1);
+    await reopened.stageRestore(
+      profile: PlayerProfile.empty,
+      stats: {
+        for (final difficulty in Difficulty.values)
+          difficulty: LifetimeStats.empty,
+      },
+      history: const [],
+    );
+    await reopened.promoteStagedRestore();
+    expect(reopened.loadReferralRedeemSnapshot(), snapshot);
+
+    await reopened.finishRestore('account-b', snapshotRevision: 1);
+    await reopened.wipeAccountData();
+    expect(reopened.loadReferralRedeemSnapshot(), snapshot);
+  });
+
   test('interrupted restore remains incomplete after reopen', () async {
     final first = HiveStorageService(currentUserId: () => 'account-a');
     await first.init();

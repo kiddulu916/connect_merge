@@ -44,14 +44,35 @@ void main() {
     });
   });
 
-  group('inviteLink', () {
+  group('invite links and message', () {
     test('builds the custom-scheme deep link', () {
       expect(FriendsService.inviteLink('ABCD2345'),
           'connectmerge://invite/ABCD2345');
     });
-    test('builds the https fallback', () {
+
+    test('builds the canonical https link', () {
       expect(FriendsService.inviteHttpsLink('ABCD2345'),
-          'https://connectmerge.app/invite/ABCD2345');
+          'https://www.connectmerge.app/invite/ABCD2345');
+    });
+
+    test('builds the signed-off invite copy with a display name', () {
+      expect(
+        FriendsService.inviteMessage('ABCD2345', name: 'Ada'),
+        'Ada challenged you on Connect Merge — everyone plays the same daily '
+        'puzzle, one run per difficulty a day. Think you can top my score? '
+        'Install and add me: '
+        'https://www.connectmerge.app/invite/ABCD2345',
+      );
+    });
+
+    test('uses a no-name fallback for blank or unknown display names', () {
+      const expected =
+          'I challenged you on Connect Merge — everyone plays the same daily '
+          'puzzle, one run per difficulty a day. Think you can top my score? '
+          'Install and add me: '
+          'https://www.connectmerge.app/invite/ABCD2345';
+      expect(FriendsService.inviteMessage('ABCD2345'), expected);
+      expect(FriendsService.inviteMessage('ABCD2345', name: '  '), expected);
     });
   });
 

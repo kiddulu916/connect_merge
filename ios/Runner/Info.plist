@@ -4,6 +4,8 @@
 	<dict>
 		<key>GADApplicationIdentifier</key>
 		<string>ca-app-pub-4807961095325796~2255720130</string>
+		<key>FlutterDeepLinkingEnabled</key>
+		<false/>
 		<!-- Contacts is OPT-IN and used ONLY to find friends already on Connect Merge.
 	     Raw phone numbers / emails NEVER leave your device — they are hashed
 	     on-device and only the hashes are checked. Denying this keeps friend
@@ -25,7 +27,7 @@
 			</dict>
 		</array>
 		<!-- Universal Links (https) require an associated-domains entitlement +
-	     apple-app-site-association hosted on connectmerge.app; see spec Open Items.
+	     apple-app-site-association hosted on www.connectmerge.app; see spec Open Items.
 	     The custom scheme above works without that setup. -->
 		<key>CADisableMinimumFrameDurationOnPhone</key>
 		<true/>

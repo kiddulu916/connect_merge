@@ -4,27 +4,29 @@ import 'package:app_links/app_links.dart';
 
 import '../domain/models/duel_challenge.dart';
 
+final RegExp _friendCodePattern = RegExp(r'^[A-Z2-7]{8}$');
+typedef InitialLinkLoader = Future<Uri?> Function();
+
 /// Parses invite + duel deep links and bridges them to redeem/challenge
 /// callbacks.
 ///
 /// Supported forms:
 ///   connectmerge://invite/<code>           (custom scheme)
-///   https://connectmerge.app/invite/<code>  (App Links / Universal Links fallback)
+///   https://www.connectmerge.app/invite/<code>  (App Links fallback)
 ///   `connectmerge://duel/<date>/<diff>/<score>/<name>`            (custom scheme)
-///   `https://connectmerge.app/duel/<date>/<diff>/<score>/<name>`   (https fallback)
+///   `https://www.connectmerge.app/duel/<date>/<diff>/<score>/<name>` (https fallback)
 ///
 /// The PURE parts — [parseInviteCode] and [DuelChallenge.fromUri] — are fully
 /// unit-tested. The app_links wiring (cold-start `getInitialLink` + warm
 /// `uriLinkStream`) is isolated here so it can be swapped/mocked. Per the spec
-/// failure-mode "lost on cold start": an invite code or duel parsed before the
-/// app is ready is QUEUED ([pendingCode] / [pendingDuel]) and replayed by the
-/// app once it's ready.
+/// Invite delivery is wired to the durable redeem coordinator before [init].
+/// Duels parsed before the UI is ready remain queued in [pendingDuel].
 class DeepLinkService {
-  final AppLinks _appLinks;
+  final InitialLinkLoader _getInitialLink;
+  final Stream<Uri> _linkStream;
 
   /// Called with a parsed invite code. May be invoked from cold start (initial
-  /// link) and from warm resume (stream). If null at parse time, the code is
-  /// queued in [pendingCode] for later replay.
+  /// link) and from warm resume (stream). Production wires this before [init].
   void Function(String code)? onInviteCode;
 
   /// Called with a parsed duel challenge. May be invoked from cold start
@@ -32,19 +34,24 @@ class DeepLinkService {
   /// challenge is queued in [pendingDuel] for later replay (mirrors invites).
   void Function(DuelChallenge duel)? onDuel;
 
-  /// A code captured before [onInviteCode] was wired (cold start before auth).
-  /// The app consumes this via [takePendingCode] once it's ready to redeem.
-  String? _pendingCode;
-
   /// A duel captured before [onDuel] was wired (cold start). The app consumes
   /// this via [takePendingDuel] once it's ready to present the challenge.
   DuelChallenge? _pendingDuel;
   StreamSubscription<Uri>? _sub;
 
-  DeepLinkService({AppLinks? appLinks}) : _appLinks = appLinks ?? AppLinks();
+  factory DeepLinkService({
+    AppLinks? appLinks,
+    InitialLinkLoader? getInitialLink,
+    Stream<Uri>? linkStream,
+  }) {
+    final links = appLinks ?? AppLinks();
+    return DeepLinkService._(
+      getInitialLink ?? links.getInitialLink,
+      linkStream ?? links.uriLinkStream,
+    );
+  }
 
-  /// The queued cold-start code, if any (without clearing it).
-  String? get pendingCode => _pendingCode;
+  DeepLinkService._(this._getInitialLink, this._linkStream);
 
   /// The queued cold-start duel, if any (without clearing it).
   DuelChallenge? get pendingDuel => _pendingDuel;
@@ -52,21 +59,35 @@ class DeepLinkService {
   /// Pure parser: extract the invite code from a deep-link [uri], or null if it
   /// isn't an invite link. Accepts both the custom scheme and the https path.
   static String? parseInviteCode(Uri uri) {
+    if (uri.userInfo.isNotEmpty ||
+        uri.hasPort ||
+        uri.authority != uri.host ||
+        uri.query.isNotEmpty ||
+        uri.fragment.isNotEmpty) {
+      return null;
+    }
     // connectmerge://invite/<code>  → host == 'invite', first path segment is code.
     if (uri.scheme == 'connectmerge') {
-      if (uri.host == 'invite') {
-        final segs = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-        if (segs.isNotEmpty) return segs.first;
-      }
-      return null;
+      if (uri.host != 'invite' || uri.pathSegments.length != 1) return null;
+      final code = uri.pathSegments.single;
+      return uri.toString() == 'connectmerge://invite/$code' &&
+              _friendCodePattern.hasMatch(code)
+          ? code
+          : null;
     }
     // https://<host>/invite/<code>
-    if (uri.scheme == 'https' || uri.scheme == 'http') {
-      final segs = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-      if (segs.length >= 2 && segs[0] == 'invite') return segs[1];
+    if (uri.scheme != 'https' ||
+        uri.host != 'www.connectmerge.app' ||
+        uri.pathSegments.length != 2 ||
+        uri.pathSegments.first != 'invite') {
       return null;
     }
-    return null;
+    final code = uri.pathSegments.last;
+    return uri.toString() ==
+                'https://www.connectmerge.app/invite/$code' &&
+            _friendCodePattern.hasMatch(code)
+        ? code
+        : null;
   }
 
   /// Parse a raw link string; null when it's not an invite link or unparsable.
@@ -92,12 +113,12 @@ class DeepLinkService {
   /// Safe to call once after the app boots.
   Future<void> init() async {
     try {
-      final initial = await _appLinks.getInitialLink();
+      final initial = await _getInitialLink();
       if (initial != null) _handle(initial);
     } catch (_) {
       // No initial link / platform not ready — ignore.
     }
-    _sub = _appLinks.uriLinkStream.listen(_handle, onError: (_) {});
+    _sub = _linkStream.listen(_handle, onError: (_) {});
   }
 
   void _handle(Uri uri) {
@@ -116,18 +137,7 @@ class DeepLinkService {
     final code = parseInviteCode(uri);
     if (code == null) return;
     final cb = onInviteCode;
-    if (cb != null) {
-      cb(code);
-    } else {
-      _pendingCode = code; // queue for replay once the app is ready.
-    }
-  }
-
-  /// Consume and clear the queued cold-start code (returns null if none).
-  String? takePendingCode() {
-    final c = _pendingCode;
-    _pendingCode = null;
-    return c;
+    cb?.call(code);
   }
 
   /// Consume and clear the queued cold-start duel (returns null if none).

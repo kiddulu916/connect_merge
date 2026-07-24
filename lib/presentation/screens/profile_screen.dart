@@ -8,7 +8,7 @@ import '../theme/tokens.dart';
 /// Player profile: avatar, display name, account actions, and delete-my-data.
 ///
 /// The Player ID is the auth UUID — the credential accepted by the web form at
-/// connectmerge.app/delete-my-data.html, so it's shown ONLY here (never on
+/// www.connectmerge.app/delete-my-data.html, so it's shown ONLY here (never on
 /// shareable surfaces like the friends screen). Tap to copy.
 ///
 /// Identity-changing callbacks are owned by the app shell, where retained
@@ -192,7 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Tap to copy. Use this ID on connectmerge.app/'
+                  'Tap to copy. Use this ID on www.connectmerge.app/'
                   'delete-my-data.html to erase your data from the web. '
                   'Keep it private — anyone with it can delete your account.',
                   style: TextStyle(color: Colors.white38, fontSize: 12),

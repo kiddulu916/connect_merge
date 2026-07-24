@@ -37,6 +37,10 @@ class ShareCard extends StatelessWidget {
   /// Tile theme for the mini-board art.
   final Cosmetic cosmetic;
 
+  /// Referral details baked into the rasterized Facebook card.
+  final String? friendCode;
+  final String? inviteLink;
+
   const ShareCard({
     super.key,
     required this.board,
@@ -48,12 +52,20 @@ class ShareCard extends StatelessWidget {
     this.displayName,
     this.rank,
     this.cosmetic = Cosmetic.classic,
+    this.friendCode,
+    this.inviteLink,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasRank = rank != null && rank! > 0;
-    return Container(
+    // The card is rasterized to a fixed-size PNG and shared to other people, so
+    // it must render deterministically regardless of the sharer's device font
+    // scaling — otherwise large accessibility text overflows the fixed 360px
+    // width. Pin the text scaler off for the whole card.
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: Container(
       key: const Key('share-card'),
       width: 360,
       padding: const EdgeInsets.all(20),
@@ -134,7 +146,54 @@ class ShareCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Center(child: LevelBadge(level: level)),
+          if (friendCode != null && inviteLink != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              key: const Key('share-card-invite'),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E2230),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'ADD ME',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 10,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  Text(
+                    friendCode!,
+                    key: const Key('share-card-invite-code'),
+                    style: const TextStyle(
+                      color: Colors.cyanAccent,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      inviteLink!,
+                      key: const Key('share-card-invite-link'),
+                      maxLines: 1,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
       ),
     );
   }

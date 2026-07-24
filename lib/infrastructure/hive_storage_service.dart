@@ -17,6 +17,7 @@ class HiveStorageService implements StorageService {
   static const _deviceIdKey = 'device_id';
   static const _localRevisionKey = 'local_revision';
   static const _syncedRevisionKey = 'synced_revision';
+  static const _referralRedeemSnapshotKey = 'referral_redeem_snapshot';
   static const _stageProfileKey = '_restore:profile';
   static const _stageStatsKey = '_restore:stats';
   static const _stageHistoryKey = '_restore:history';
@@ -26,6 +27,7 @@ class HiveStorageService implements StorageService {
     _deviceIdKey,
     _localRevisionKey,
     _syncedRevisionKey,
+    _referralRedeemSnapshotKey,
   };
 
   final String? Function() _currentUserId;
@@ -86,6 +88,12 @@ class HiveStorageService implements StorageService {
   }
 
   int _readRevision(String key) => int.tryParse(_box.get(key) ?? '0') ?? 0;
+
+  String? loadReferralRedeemSnapshot() =>
+      _box.get(_referralRedeemSnapshotKey);
+
+  Future<void> saveReferralRedeemSnapshot(String snapshot) =>
+      _box.put(_referralRedeemSnapshotKey, snapshot);
 
   @override
   int get localRevision => _readRevision(_localRevisionKey);

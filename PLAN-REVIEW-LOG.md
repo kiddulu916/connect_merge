@@ -125,3 +125,22 @@ Accepted all five (verified #4 against score_share_screen.dart:38 + tier_select_
 
 ## Resolution — MAX_ROUNDS (5) reached
 Not a deadlock: **every** Codex finding across all five rounds was accepted (a few reframed), and **zero open disagreements** remain. The loop hit the cap because the plan is exhaustively detailed — each round Codex found a finer edge (architecture → coordinator logic → persistence atomicity → verification-command rigor), not a flaw in direction. The round-5 fixes are folded into PLAN.md. Substantively converged; handed to the user for final sign-off.
+
+## Act 3 — Build
+
+### Round 1 — Codex build
+Codex (thread 019f94d8) implemented the in-repo feature with full access, uncommitted. 26 files: new `lib/infrastructure/redeem_coordinator.dart` + `install_referrer_service.dart`, migration `0012_friend_code_hardening.sql`, native config (AndroidManifest `pathPrefix="/invite/"` + `flutter_deeplinking_enabled=false`, Info.plist `FlutterDeepLinkingEnabled=false`), `friends_service.inviteMessage`, tightened `deep_link_service` URL contract, scoped identity gating + retry triggers in `main.dart`, share-time `ensureFriendCode` loader threaded through `game_screen`/`score_share_screen`, FB card invite content, canonical-host fixes (duel link, delete-my-data copy), and tests. Respected all constraints: no PLAN.md/web/_shared edits, no commit.
+
+Codex could NOT self-verify: Windows rejected all new processes with `0xC0000142` (process-table exhaustion from its own runtime subprocesses), so it never ran `flutter test`/`analyze`.
+
+### Claude's verdict — Round 1
+Ran the proof myself after Codex's processes exited. `flutter analyze`: 1 lint (missing `const`). `flutter test`: 668 pass, **2 fail** (both in Codex's new tests):
+1. `install_referrer_service.parseCode('%')` threw `ArgumentError` (uncaught; `on FormatException` too narrow for bad percent-encoding).
+2. `ShareCard` overflowed at `TextScaler.linear(2)` — fixed-width rasterized card didn't pin text scale.
+
+Fix-loop decision: Codex had just proven it can't run any proof on this Windows box, so re-delegating two small localized fixes risked another ~25-min process-exhaustion stall — the "ping-ponging trivia burns more than it saves" case. **Claude took over directly** (skill-sanctioned):
+- `parseCode`: `on FormatException` → catch-all (referrer is attacker-settable; total parser).
+- `share_card`: pinned `TextScaler.noScaling` at the card root (deterministic PNG regardless of device font scale) — root-cause fix for all rows, not per-Row Expanded.
+- `score_share_screen`: added the missing `const` constructor.
+
+Re-verified: `flutter analyze` → **No issues found**; `flutter test` → **All 670 tests pass**. Diff reviewed like a PR — spec-faithful (coordinator implements the full atomic-snapshot state machine: dedup, supersede, post-ok suppression, transient→promote, scoped Google gating, crash recovery, bounded backoff), migration does repair-or-abort + allocation hardening, retry wired on identity/foreground/post-auth. "Extra" files (duel_challenge, profile_screen, game_screen) are legitimate canonical-host/loader threading, not scope creep. Minor note: connectivity-recovery retry trigger not explicitly wired (foreground covers most reconnects).

@@ -89,6 +89,78 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byKey(const Key('share-card-name')), findsOneWidget);
     });
+
+    testWidgets('friend code and canonical invite link are baked onto the card',
+        (tester) async {
+      final cells = List<Tile?>.filled(kCellCount, null);
+      await _pumpCard(
+        tester,
+        ShareCard(
+          board: _board(cells),
+          difficulty: Difficulty.medium,
+          score: 1234,
+          highestTier: 6,
+          streak: 4,
+          level: 12,
+          friendCode: 'ABCD2345',
+          inviteLink: 'https://www.connectmerge.app/invite/ABCD2345',
+        ),
+      );
+
+      expect(find.text('ABCD2345'), findsOneWidget);
+      expect(
+        find.text('https://www.connectmerge.app/invite/ABCD2345'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('null friend code omits invite content', (tester) async {
+      final cells = List<Tile?>.filled(kCellCount, null);
+      await _pumpCard(
+        tester,
+        ShareCard(
+          board: _board(cells),
+          difficulty: Difficulty.easy,
+          score: 0,
+          highestTier: 0,
+          streak: 0,
+          level: 0,
+        ),
+      );
+
+      expect(find.byKey(const Key('share-card-invite')), findsNothing);
+    });
+
+    testWidgets('invite content survives large text without overflow',
+        (tester) async {
+      final cells = List<Tile?>.filled(kCellCount, null);
+      await tester.pumpWidget(MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Center(
+            child: ShareCard(
+              board: _board(cells),
+              difficulty: Difficulty.legendary,
+              score: 999999,
+              highestTier: kMaxTier,
+              streak: 365,
+              level: 99,
+              friendCode: 'ABCD2345',
+              inviteLink:
+                  'https://www.connectmerge.app/invite/ABCD2345',
+            ),
+          ),
+        ),
+      ));
+
+      expect(find.byKey(const Key('share-card-invite')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('ShareCardRenderer seam', () {

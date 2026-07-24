@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -172,5 +174,66 @@ void main() {
     expect(sharer.sheetCalls, 0);
     expect(shared, isNotNull);
     expect(shared, contains('1234'));
+  });
+
+  testWidgets('awaits a fresh friend code and rebuilt frame before capture',
+      (tester) async {
+    final code = Completer<String>();
+    final sharer = _FakeSharer(true);
+    var captureCalls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
+        board: _board(),
+        date: '2026-06-06',
+        stats: _stats,
+        canOfferAd: false,
+        onWatchAd: () {},
+        ensureFriendCode: () => code.future,
+        sharer: sharer,
+        captureOverride: () async {
+          captureCalls++;
+          return Uint8List.fromList([1, 2, 3]);
+        },
+      ),
+    ));
+
+    await tester.tap(find.byKey(const Key('share-card-button')));
+    await tester.pump();
+    expect(captureCalls, 0);
+
+    code.complete('ABCD2345');
+    await tester.pumpAndSettle();
+
+    expect(find.text('ABCD2345'), findsOneWidget);
+    expect(captureCalls, 1);
+    expect(sharer.fbCalls, 1);
+  });
+
+  testWidgets('render-failure fallback carries the share-time code and link',
+      (tester) async {
+    String? shared;
+    await tester.pumpWidget(MaterialApp(
+      home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
+        board: _board(),
+        date: '2026-06-06',
+        stats: _stats,
+        canOfferAd: false,
+        onWatchAd: () {},
+        ensureFriendCode: () async => 'ABCD2345',
+        captureOverride: () async => null,
+        shareText: (text) async => shared = text,
+      ),
+    ));
+
+    await tester.tap(find.byKey(const Key('share-card-button')));
+    await tester.pumpAndSettle();
+
+    expect(shared, contains('ABCD2345'));
+    expect(
+      shared,
+      contains('https://www.connectmerge.app/invite/ABCD2345'),
+    );
   });
 }

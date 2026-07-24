@@ -589,6 +589,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
             engagement: _engagement,
             notifications: widget.notifications,
             friendCode: _friendCode,
+            ensureFriendCode: widget.friends?.myFriendCode,
           ),
         ),
       ),

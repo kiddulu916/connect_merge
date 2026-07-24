@@ -20,9 +20,7 @@ import '../widgets/share_card.dart';
 /// stats. The emoji share is the (offline) comparison mechanism. When a friend
 /// code is available, the share card carries an invite link and a dedicated
 /// "invite a friend" CTA is shown (Phase 3 growth lever).
-class ScoreShareScreen extends StatelessWidget {
-  /// Wraps the visual card so it can be rasterised for sharing.
-  final GlobalKey _cardKey = GlobalKey();
+class ScoreShareScreen extends StatefulWidget {
   final BoardState board;
   final String date;
   final LifetimeStats stats;
@@ -36,6 +34,10 @@ class ScoreShareScreen extends StatelessWidget {
   /// The player's friend code, when online. When present, the share text
   /// includes an invite link and an "Invite a friend" CTA is shown.
   final String? friendCode;
+
+  /// Ensures a current friend code at share time. The eager [friendCode] remains
+  /// a fast initial value, but this loader closes the game-start race.
+  final Future<String> Function()? ensureFriendCode;
 
   /// Achievements unlocked by THIS run (Phase 4). Celebrated once here.
   final Set<Achievement> newlyUnlocked;
@@ -104,7 +106,7 @@ class ScoreShareScreen extends StatelessWidget {
   /// rival" CTA is shown. (The actual rival selection happens on Friends.)
   final VoidCallback? onSetRival;
 
-  ScoreShareScreen({
+  const ScoreShareScreen({
     super.key,
     required this.board,
     required this.date,
@@ -114,6 +116,7 @@ class ScoreShareScreen extends StatelessWidget {
     required this.adBusy,
     this.onMainMenu,
     this.friendCode,
+    this.ensureFriendCode,
     this.newlyUnlocked = const {},
     this.nearMiss,
     this.xpGained = 0,
@@ -133,6 +136,57 @@ class ScoreShareScreen extends StatelessWidget {
     this.onChallengeFriend,
     this.onSetRival,
   });
+
+  @override
+  State<ScoreShareScreen> createState() => _ScoreShareScreenState();
+}
+
+class _ScoreShareScreenState extends State<ScoreShareScreen> {
+  final GlobalKey _cardKey = GlobalKey();
+  late String? _resolvedFriendCode;
+
+  BoardState get board => widget.board;
+  String get date => widget.date;
+  LifetimeStats get stats => widget.stats;
+  bool get canOfferAd => widget.canOfferAd;
+  VoidCallback get onWatchAd => widget.onWatchAd;
+  ValueListenable<bool> get adBusy => widget.adBusy;
+  VoidCallback? get onMainMenu => widget.onMainMenu;
+  String? get friendCode => _resolvedFriendCode;
+  Set<Achievement> get newlyUnlocked => widget.newlyUnlocked;
+  String? get nearMiss => widget.nearMiss;
+  int get xpGained => widget.xpGained;
+  int get level => widget.level;
+  bool get leveledUp => widget.leveledUp;
+  int get coinsEarned => widget.coinsEarned;
+  bool get coinsDoubled => widget.coinsDoubled;
+  VoidCallback? get onDoubleCoins => widget.onDoubleCoins;
+  Future<void> Function(String text)? get shareText => widget.shareText;
+  ScoreSharer get sharer => widget.sharer;
+  Future<Uint8List?> Function()? get captureOverride =>
+      widget.captureOverride;
+  ShareCardRenderer get renderer => widget.renderer;
+  Difficulty get difficulty => widget.difficulty;
+  Cosmetic get cosmetic => widget.cosmetic;
+  String? get displayName => widget.displayName;
+  int? get rank => widget.rank;
+  Future<void> Function(String link)? get onChallengeFriend =>
+      widget.onChallengeFriend;
+  VoidCallback? get onSetRival => widget.onSetRival;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvedFriendCode = widget.friendCode;
+  }
+
+  @override
+  void didUpdateWidget(ScoreShareScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.friendCode != oldWidget.friendCode) {
+      _resolvedFriendCode = widget.friendCode;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -167,6 +221,10 @@ class ScoreShareScreen extends StatelessWidget {
                           displayName: displayName,
                           rank: rank,
                           cosmetic: cosmetic,
+                          friendCode: friendCode,
+                          inviteLink: friendCode == null
+                              ? null
+                              : FriendsService.inviteHttpsLink(friendCode!),
                         ),
                       ),
                     ),
@@ -246,7 +304,8 @@ class ScoreShareScreen extends StatelessWidget {
                         label: const Text('Set as rival'),
                       ),
                     ],
-                    if (friendCode != null) ...[
+                    if (friendCode != null ||
+                        widget.ensureFriendCode != null) ...[
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
                         key: const Key('invite-friend-button'),
@@ -289,6 +348,7 @@ class ScoreShareScreen extends StatelessWidget {
   }
 
   Future<void> _share(BuildContext context) async {
+    await _ensureFriendCode();
     final png = await _capture();
     if (png == null) {
       // Render failed (boundary not painted / capture threw): degrade to the
@@ -307,15 +367,35 @@ class ScoreShareScreen extends StatelessWidget {
     final buf = StringBuffer('Connect Merge — ${difficulty.label}: '
         'scored ${board.score} (best tile ${1 << board.highestTier})');
     if (stats.streak > 0) buf.write(', streak ${stats.streak}');
+    final code = friendCode;
+    if (code != null) {
+      buf
+        ..writeln()
+        ..write(FriendsService.inviteMessage(code, name: displayName));
+    }
     return buf.toString();
   }
 
   Future<void> _invite(BuildContext context) async {
-    final code = friendCode;
+    final code = await _ensureFriendCode();
     if (code == null) return;
-    final text = 'Add me on Connect Merge! ${FriendsService.inviteLink(code)}';
+    final text = FriendsService.inviteMessage(code, name: displayName);
     final share = shareText ?? _nativeShare;
     await share(text);
+  }
+
+  Future<String?> _ensureFriendCode() async {
+    final loader = widget.ensureFriendCode;
+    if (loader == null) return friendCode;
+    try {
+      final code = (await loader()).trim();
+      if (code.isEmpty || !mounted) return friendCode;
+      setState(() => _resolvedFriendCode = code);
+      await WidgetsBinding.instance.endOfFrame;
+      return code;
+    } catch (_) {
+      return friendCode;
+    }
   }
 
   /// Native share sheet via share_plus (device). Used in production when no

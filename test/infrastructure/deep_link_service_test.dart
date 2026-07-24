@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:connect_merge/domain/models/difficulty.dart';
 import 'package:connect_merge/domain/models/duel_challenge.dart';
@@ -12,10 +14,10 @@ void main() {
       );
     });
 
-    test('parses https fallback', () {
+    test('parses the exact canonical https form', () {
       expect(
         DeepLinkService.parseInviteCodeString(
-            'https://connectmerge.app/invite/WXYZ7654'),
+            'https://www.connectmerge.app/invite/WXYZ7654'),
         'WXYZ7654',
       );
     });
@@ -52,6 +54,47 @@ void main() {
             'connectmerge://duel/2026-06-11/hard/4096/Ann'),
         isNull,
       );
+    });
+
+    test('rejects invalid friend codes', () {
+      for (final link in [
+        'connectmerge://invite/SHORT22',
+        'connectmerge://invite/ABC01899',
+        'connectmerge://invite/abcd2345',
+        'https://www.connectmerge.app/invite/ABC01899',
+      ]) {
+        expect(DeepLinkService.parseInviteCodeString(link), isNull,
+            reason: link);
+      }
+    });
+
+    test('rejects non-exact custom-scheme forms', () {
+      for (final link in [
+        'connectmerge://invite/ABCD2345/extra',
+        'connectmerge://invite/ABCD2345/',
+        'connectmerge://invite/ABCD2345?source=x',
+        'connectmerge://invite/ABCD2345#fragment',
+        'connectmerge://other/ABCD2345',
+      ]) {
+        expect(DeepLinkService.parseInviteCodeString(link), isNull,
+            reason: link);
+      }
+    });
+
+    test('rejects non-canonical web forms', () {
+      for (final link in [
+        'http://www.connectmerge.app/invite/ABCD2345',
+        'https://connectmerge.app/invite/ABCD2345',
+        'https://evil.example/invite/ABCD2345',
+        'https://www.connectmerge.app/invite/ABCD2345/extra',
+        'https://www.connectmerge.app/invite/ABCD2345/',
+        'https://www.connectmerge.app/invite/ABCD2345?source=x',
+        'https://www.connectmerge.app/invite/ABCD2345#fragment',
+        'https://www.connectmerge.app/inviteevil/ABCD2345',
+      ]) {
+        expect(DeepLinkService.parseInviteCodeString(link), isNull,
+            reason: link);
+      }
     });
   });
 
@@ -162,6 +205,44 @@ void main() {
 
     test('garbage returns null', () {
       expect(DeepLinkService.parseDuelString('not a uri ::: '), isNull);
+    });
+  });
+
+  group('app_links delivery', () {
+    test('cold-start invite is delivered through the exact parser', () async {
+      final links = StreamController<Uri>.broadcast();
+      final received = <String>[];
+      final service = DeepLinkService(
+        getInitialLink: () async =>
+            Uri.parse('https://www.connectmerge.app/invite/ABCD2345'),
+        linkStream: links.stream,
+      )..onInviteCode = received.add;
+
+      await service.init();
+      expect(received, ['ABCD2345']);
+
+      await service.dispose();
+      await links.close();
+    });
+
+    test('warm invite is delivered and dispose stops the stream', () async {
+      final links = StreamController<Uri>.broadcast();
+      final received = <String>[];
+      final service = DeepLinkService(
+        getInitialLink: () async => null,
+        linkStream: links.stream,
+      )..onInviteCode = received.add;
+
+      await service.init();
+      links.add(Uri.parse('connectmerge://invite/WXYZ7654'));
+      await Future<void>.delayed(Duration.zero);
+      expect(received, ['WXYZ7654']);
+
+      await service.dispose();
+      links.add(Uri.parse('connectmerge://invite/ABCD2345'));
+      await Future<void>.delayed(Duration.zero);
+      expect(received, ['WXYZ7654']);
+      await links.close();
     });
   });
 }

@@ -77,11 +77,28 @@ class FriendsService {
   }
 
   /// Build the deep link a friend taps to add you.
-  static String inviteLink(String code) => 'connectmerge://invite/$code';
+  static String inviteLink(String code) => Uri(
+        scheme: 'connectmerge',
+        host: 'invite',
+        pathSegments: [code],
+      ).toString();
 
   /// Build the https fallback invite link.
-  static String inviteHttpsLink(String code) =>
-      'https://connectmerge.app/invite/$code';
+  static String inviteHttpsLink(String code) => Uri(
+        scheme: 'https',
+        host: 'www.connectmerge.app',
+        pathSegments: ['invite', code],
+      ).toString();
+
+  /// Build the single invite message used by every text-share surface.
+  static String inviteMessage(String code, {String? name}) {
+    final trimmedName = name?.trim();
+    final challenger =
+        trimmedName == null || trimmedName.isEmpty ? 'I' : trimmedName;
+    return '$challenger challenged you on Connect Merge — everyone plays the '
+        'same daily puzzle, one run per difficulty a day. Think you can top my '
+        'score? Install and add me: ${inviteHttpsLink(code)}';
+  }
 
   /// Redeem a friend code (typed or from a deep link). Creates the mutual edge
   /// via the `redeem_code` RPC (rejects self-add; idempotent).

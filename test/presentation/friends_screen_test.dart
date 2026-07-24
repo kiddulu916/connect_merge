@@ -10,7 +10,7 @@ FriendsService _service({
 }) {
   return FriendsService.withSeams(
     rpc: rpc ?? (fn, _) async {
-      if (fn == 'ensure_friend_code') return 'MYCODE12';
+      if (fn == 'ensure_friend_code') return 'MYCODE23';
       if (fn == 'friends_leaderboard') return const [];
       return null;
     },
@@ -32,7 +32,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('my-friend-code')), findsOneWidget);
-    expect(find.text('MYCODE12'), findsOneWidget);
+    expect(find.text('MYCODE23'), findsOneWidget);
     // Privacy is non-negotiable: the rationale must state contacts stay on device.
     final note = tester.widget<Text>(
         find.byKey(const Key('contacts-privacy-note')));
@@ -52,7 +52,7 @@ void main() {
 
   testWidgets('redeeming a code shows a success status', (tester) async {
     final service = _service(rpc: (fn, _) async {
-      if (fn == 'ensure_friend_code') return 'MYCODE12';
+      if (fn == 'ensure_friend_code') return 'MYCODE23';
       if (fn == 'friends_leaderboard') return const [];
       if (fn == 'redeem_code') return {'ok': true, 'friend_id': 'f1'};
       return null;
@@ -75,7 +75,7 @@ void main() {
 
   testWidgets('invalid code shows an inline error (no crash)', (tester) async {
     final service = _service(rpc: (fn, _) async {
-      if (fn == 'ensure_friend_code') return 'MYCODE12';
+      if (fn == 'ensure_friend_code') return 'MYCODE23';
       if (fn == 'friends_leaderboard') return const [];
       if (fn == 'redeem_code') {
         return {'ok': false, 'reason': 'invalid_code'};
@@ -118,7 +118,7 @@ void main() {
     var capturedHashes = <dynamic>[];
     final service = FriendsService.withSeams(
       rpc: (fn, _) async {
-        if (fn == 'ensure_friend_code') return 'MYCODE12';
+        if (fn == 'ensure_friend_code') return 'MYCODE23';
         if (fn == 'friends_leaderboard') return const [];
         return null;
       },
@@ -168,7 +168,11 @@ void main() {
     await tester.tap(find.byKey(const Key('invite-button')));
     await tester.pumpAndSettle();
 
-    expect(shared, contains('connectmerge://invite/MYCODE12'));
+    expect(
+      shared,
+      contains('https://www.connectmerge.app/invite/MYCODE23'),
+    );
+    expect(shared, contains('one run per difficulty a day'));
   });
 
   test('Friend.fromJson handles snake_case and camelCase', () {

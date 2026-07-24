@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -26,9 +27,11 @@ import 'infrastructure/crash_reporting_service.dart';
 import 'infrastructure/deep_link_service.dart';
 import 'infrastructure/friends_service.dart';
 import 'infrastructure/hive_storage_service.dart';
+import 'infrastructure/install_referrer_service.dart';
 import 'infrastructure/leaderboard_service.dart';
 import 'infrastructure/notification_service.dart';
 import 'infrastructure/profile_sync_service.dart';
+import 'infrastructure/redeem_coordinator.dart';
 import 'infrastructure/supabase_client.dart';
 import 'presentation/screens/auth_gate_screen.dart';
 import 'presentation/screens/display_name_screen.dart';
@@ -186,12 +189,37 @@ Future<void> main() async {
       onAnalyticsEvent: analytics?.logEvent,
     );
 
+    final referralReady = ValueNotifier<bool>(false);
+    final referralMessage = ValueNotifier<String?>(null);
+    final redeemCoordinator = RedeemCoordinator(
+      loadSnapshot: storage.loadReferralRedeemSnapshot,
+      saveSnapshot: storage.saveReferralRedeemSnapshot,
+      redeemCode: (code) async {
+        final service = friends;
+        if (service == null) {
+          return const RedeemResult(RedeemStatus.error);
+        }
+        return service.redeemCode(code);
+      },
+      onboardingReady: () => referralReady.value,
+      hasGoogleIdentity: () => auth?.hasGoogleIdentity ?? false,
+      onAnalyticsEvent: (name, [parameters]) {
+        analytics?.logEvent(name, parameters);
+        if (name == 'referral_redeem_result') {
+          referralMessage.value =
+              _referralResultMessage(parameters?['result'] as String?);
+        }
+      },
+    );
+
     // Deep links: invites (connectmerge://invite/<code>) AND duels
     // (connectmerge://duel/...). Duels need no backend (the challenge rides in the
     // link), so the service is started whenever EITHER is usable — i.e. always.
-    // Captures cold-start links so a redeem/challenge isn't lost before the app is
-    // ready; the app replays the pending code/duel once it's ready.
+    // Invite callbacks are durable before init; duels retain their small
+    // in-memory cold-start queue until the UI is ready.
     final deepLinks = DeepLinkService();
+    deepLinks.onInviteCode =
+        (code) => unawaited(redeemCoordinator.enqueueLiveLink(code));
     await deepLinks.init();
 
     runApp(ConnectMergeApp(
@@ -214,11 +242,28 @@ Future<void> main() async {
       superseded: superseded,
       crashReporting: crashReporting,
       analytics: analytics,
+      redeemCoordinator: redeemCoordinator,
+      referralReady: referralReady,
+      referralMessage: referralMessage,
     ));
+
+    unawaited(InstallReferrerService(
+      isHandled: () => redeemCoordinator.snapshot.handled,
+      markHandled: redeemCoordinator.markInstallReferrerHandled,
+      enqueue: redeemCoordinator.enqueueInstallReferrer,
+      analytics: analytics?.logEvent,
+    ).capture());
   }, (error, stack) {
     crashReporting?.recordError(error, stack, fatal: true);
   });
 }
+
+String? _referralResultMessage(String? result) => switch (result) {
+      'ok' => 'Friend added!',
+      'self' => "That's your own invite link.",
+      'invalidCode' || 'invalid_code' => 'That invite link is invalid.',
+      _ => null,
+    };
 
 class ConnectMergeApp extends StatefulWidget {
   final HiveStorageService storage;
@@ -240,6 +285,9 @@ class ConnectMergeApp extends StatefulWidget {
   final ValueNotifier<bool> superseded;
   final CrashReportingService? crashReporting;
   final AnalyticsService? analytics;
+  final RedeemCoordinator redeemCoordinator;
+  final ValueNotifier<bool> referralReady;
+  final ValueNotifier<String?> referralMessage;
 
   const ConnectMergeApp({
     super.key,
@@ -262,6 +310,9 @@ class ConnectMergeApp extends StatefulWidget {
     required this.superseded,
     this.crashReporting,
     this.analytics,
+    required this.redeemCoordinator,
+    required this.referralReady,
+    required this.referralMessage,
   });
 
   @override
@@ -280,6 +331,7 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
   bool _recoverFreshGuest = false;
   final _navKey = GlobalKey<NavigatorState>();
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   @override
   void initState() {
@@ -289,6 +341,12 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
     _recoveryRequired = widget.recoveryRequired;
     WidgetsBinding.instance.addObserver(this);
     widget.superseded.addListener(_onSuperseded);
+    widget.referralMessage.addListener(_showReferralMessage);
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      if (!results.contains(ConnectivityResult.none)) {
+        unawaited(widget.redeemCoordinator.retry());
+      }
+    });
     final auth = widget.auth;
     final sync = widget.profileSync;
     if (auth != null && sync != null) {
@@ -304,7 +362,11 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
     }
     _wireDeepLinks();
     if (!_showAuthGate && !_needsDisplayName && !_recoveryRequired) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startAccountWork());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.referralReady.value = true;
+        unawaited(widget.redeemCoordinator.retry());
+        _startAccountWork();
+      });
     }
   }
 
@@ -312,6 +374,12 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.superseded.removeListener(_onSuperseded);
+    widget.referralMessage.removeListener(_showReferralMessage);
+    unawaited(_connectivitySub?.cancel());
+    unawaited(widget.redeemCoordinator.dispose());
+    unawaited(widget.deepLinks?.dispose());
+    widget.referralReady.dispose();
+    widget.referralMessage.dispose();
     widget.profileSync?.dispose();
     widget.loot.close();
     super.dispose();
@@ -319,6 +387,9 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.redeemCoordinator.retry());
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       unawaited(widget.profileSync?.flush());
@@ -329,6 +400,16 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
     widget.engagement.load();
     widget.loot.load();
     widget.rivalry?.load();
+  }
+
+  void _showReferralMessage() {
+    final message = widget.referralMessage.value;
+    if (message == null) return;
+    widget.referralMessage.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text(message)));
+    });
   }
 
   void _startAccountWork() {
@@ -348,25 +429,11 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
     _accountWorkStarted = false;
   }
 
-  /// Route invite codes + duels (cold-start queued or warm) to their handlers
-  /// once the app is ready. Invites need the friends backend; duels do not (the
-  /// challenge rides in the link), so duels are wired whenever a [DuelCubit] is
-  /// present.
+  /// Route cold-start or warm duel links once the app is ready. Invite links
+  /// are wired to the durable coordinator before [DeepLinkService.init].
   void _wireDeepLinks() {
     final dl = widget.deepLinks;
     if (dl == null) return;
-
-    // --- Invites (require the friends backend). ---
-    final friends = widget.friends;
-    if (friends != null) {
-      dl.onInviteCode = _redeemInvite;
-      // Replay a cold-start code captured before this handler was wired.
-      final pending = dl.takePendingCode();
-      if (pending != null) {
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _redeemInvite(pending));
-      }
-    }
 
     // --- Duels (no backend needed). ---
     final duels = widget.duels;
@@ -396,35 +463,6 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
     _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _redeemInvite(String code) async {
-    final friends = widget.friends;
-    if (friends == null) return;
-    // Defer until onboarding is complete (signed in + display name set).
-    if (_needsDisplayName || _showAuthGate || _recoveryRequired) {
-      widget.deepLinks?.onInviteCode = null;
-      widget.deepLinks?.takePendingCode();
-      // Re-queue: store on the service-less side by re-arming after onboarding.
-      _pendingAfterOnboarding = code;
-      return;
-    }
-    String message;
-    try {
-      final res = await friends.redeemCode(code);
-      message = switch (res.status) {
-        RedeemStatus.ok => 'Friend added!',
-        RedeemStatus.self => "That's your own invite link.",
-        RedeemStatus.invalidCode => 'That invite link is invalid.',
-        RedeemStatus.unauthenticated => 'Sign in required to add friends.',
-        RedeemStatus.error => 'Could not add friend. Try again.',
-      };
-    } catch (_) {
-      message = 'Network error adding friend.';
-    }
-    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  String? _pendingAfterOnboarding;
-
   Future<void> _showReady() async {
     if (!mounted) return;
     setState(() {
@@ -433,16 +471,8 @@ class _ConnectMergeAppState extends State<ConnectMergeApp>
       _recoveryRequired = false;
       _loadingAccount = false;
     });
-    final dl = widget.deepLinks;
-    if (dl != null && widget.friends != null) {
-      dl.onInviteCode = _redeemInvite;
-    }
-    final pending = _pendingAfterOnboarding;
-    _pendingAfterOnboarding = null;
-    if (pending != null) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _redeemInvite(pending));
-    }
+    widget.referralReady.value = true;
+    unawaited(widget.redeemCoordinator.retry());
     _startAccountWork();
   }
 

@@ -110,8 +110,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
   Future<void> _invite() async {
     final code = _myCode;
     if (code == null) return;
-    final link = FriendsService.inviteLink(code);
-    final text = 'Add me on Connect Merge! $link';
+    final text = FriendsService.inviteMessage(code);
     final share = widget.shareInvite ??
         (String t) async => SharePlus.instance
             .share(ShareParams(text: t, subject: 'Connect Merge invite'));
