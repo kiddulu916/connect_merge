@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../infrastructure/auth_service.dart';
+import '../../infrastructure/consent_service.dart';
 import '../../infrastructure/storage_service.dart';
 import '../theme/tokens.dart';
 
@@ -23,6 +24,10 @@ class ProfileScreen extends StatefulWidget {
   final Future<bool> Function()? onSaveProgress;
   final VoidCallback? onChangeName;
 
+  /// UMP consent channel. Injected in tests; defaults to the real native seam.
+  /// Drives the EEA/UK-only "Privacy options" tile.
+  final ConsentService? consent;
+
   const ProfileScreen({
     super.key,
     required this.auth,
@@ -31,6 +36,7 @@ class ProfileScreen extends StatefulWidget {
     this.onSignOut,
     this.onSaveProgress,
     this.onChangeName,
+    this.consent,
   });
 
   @override
@@ -42,10 +48,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _avatar;
   bool _busy = false;
 
+  /// True only in regions (EEA/UK) where UMP requires a persistent privacy-
+  /// options entry point. Gates the "Privacy options" tile so ~everyone else
+  /// never sees a control that would do nothing.
+  bool _privacyOptionsRequired = false;
+
+  ConsentService get _consent => widget.consent ?? ConsentService();
+
   @override
   void initState() {
     super.initState();
     _load();
+    _checkPrivacyOptions();
+  }
+
+  Future<void> _checkPrivacyOptions() async {
+    final required = await _consent.isPrivacyOptionsRequired();
+    if (mounted) setState(() => _privacyOptionsRequired = required);
   }
 
   Future<void> _load() async {
@@ -236,6 +255,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? widget.onSignOut
                     : widget.onSaveProgress),
           ),
+          if (_privacyOptionsRequired) ...[
+            const SizedBox(height: 12),
+            ListTile(
+              key: const Key('profile-privacy-options'),
+              tileColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              leading: const Icon(Icons.privacy_tip_outlined,
+                  color: Colors.white70),
+              title: const Text('Privacy options'),
+              subtitle: const Text(
+                  'Review or change your ad-personalisation consent.',
+                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+              onTap: _busy ? null : () => _consent.showPrivacyOptionsForm(),
+            ),
+          ],
           const SizedBox(height: 12),
           ListTile(
             key: const Key('profile-delete'),

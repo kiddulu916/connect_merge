@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:connect_merge/infrastructure/auth_service.dart';
+import 'package:connect_merge/infrastructure/consent_service.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
 import 'package:connect_merge/presentation/screens/profile_screen.dart';
 
@@ -114,6 +115,52 @@ void main() {
     await tester.pump();
     expect(signOutCalls, 1);
   });
+
+  testWidgets('privacy-options tile is hidden outside EEA/UK', (tester) async {
+    final consent = _FakeConsentService(required: false);
+    await tester.pumpWidget(MaterialApp(
+      home: ProfileScreen(
+        auth: _FakeAuthService(),
+        storage: InMemoryStorageService(),
+        consent: consent,
+      ),
+    ));
+    await tester.pump(); // flush the async isPrivacyOptionsRequired() check
+
+    expect(find.byKey(const Key('profile-privacy-options')), findsNothing);
+  });
+
+  testWidgets('privacy-options tile shows in EEA/UK and opens the UMP form',
+      (tester) async {
+    final consent = _FakeConsentService(required: true);
+    await tester.pumpWidget(MaterialApp(
+      home: ProfileScreen(
+        auth: _FakeAuthService(),
+        storage: InMemoryStorageService(),
+        consent: consent,
+      ),
+    ));
+    await tester.pump(); // flush the async isPrivacyOptionsRequired() check
+
+    final tile = find.byKey(const Key('profile-privacy-options'));
+    expect(tile, findsOneWidget);
+    await tester.tap(tile);
+    await tester.pump();
+    expect(consent.formShown, 1);
+  });
+}
+
+/// Overrides the two UMP methods the screen calls so no native channel is hit.
+class _FakeConsentService extends ConsentService {
+  _FakeConsentService({required this.required});
+  final bool required;
+  int formShown = 0;
+
+  @override
+  Future<bool> isPrivacyOptionsRequired() async => required;
+
+  @override
+  Future<void> showPrivacyOptionsForm() async => formShown++;
 }
 
 /// Minimal fake mirroring display_name_screen_test's: the real [AuthService]
