@@ -38,6 +38,7 @@ import 'leaderboard_screen.dart';
 import 'loot_chest_screen.dart';
 import 'practice_screen.dart';
 import 'profile_screen.dart';
+import 'tier_select/challenge_card.dart';
 import 'tier_select/tier_card.dart';
 import 'tier_select/tier_tour_mixin.dart';
 
@@ -320,15 +321,16 @@ class _TierSelectScreenState extends State<TierSelectScreen>
     return nextMidnight.difference(now);
   }
 
-  String _fmt(Duration d) {
-    final h = d.inHours.toString().padLeft(2, '0');
-    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
-    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return '$h:$m:$s';
-  }
-
   /// True once the clock passes 12:00 UTC — the challenge unlocks at noon.
   bool get _challengeUnlocked => DateTime.now().toUtc().hour >= 12;
+
+  /// Time remaining until the challenge unlocks. Only meaningful/shown by
+  /// [ChallengeCard] when [_challengeUnlocked] is false.
+  Duration _timeUntilChallengeUnlock() {
+    final now = DateTime.now().toUtc();
+    final noon = DateTime.utc(now.year, now.month, now.day, 12);
+    return noon.difference(now);
+  }
 
   /// Today's challenge rule label, derived deterministically from the date.
   String get _challengeRuleLabel =>
@@ -728,7 +730,7 @@ class _TierSelectScreenState extends State<TierSelectScreen>
                         const Icon(Icons.timer_outlined,
                             size: 14, color: AppColors.accent),
                         const SizedBox(width: 6),
-                        Text('Resets in ${_fmt(_untilReset)}',
+                        Text('Resets in ${formatCountdown(_untilReset)}',
                             style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,
@@ -830,7 +832,13 @@ class _TierSelectScreenState extends State<TierSelectScreen>
                               : () => _openLeaderboard(context, d),
                         ),
                       ),
-                    _buildChallengeCard(context),
+                    ChallengeCard(
+                      unlocked: _challengeUnlocked,
+                      completed: _isCompleted(Difficulty.challenge),
+                      ruleName: _challengeRuleLabel,
+                      timeUntilUnlock: _timeUntilChallengeUnlock(),
+                      onPlay: () => _startTier(context, Difficulty.challenge),
+                    ),
                   ],
                 ),
               ),
@@ -870,206 +878,6 @@ class _TierSelectScreenState extends State<TierSelectScreen>
               Positioned.fill(child: buildTourOverlay()),
           ],
         ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Daily Challenge card
-  // ---------------------------------------------------------------------------
-
-  static const _challengeAccent = Color(0xFF9C27B0); // deep purple / violet
-
-  /// Builds the Daily Challenge card in one of three states:
-  ///   • Locked (before noon UTC): countdown + rule teaser + lock icon
-  ///   • Unlocked, not played: rule label + Play button
-  ///   • Completed: Done ✓ + rule label
-  Widget _buildChallengeCard(BuildContext context) {
-    final unlocked = _challengeUnlocked;
-    final completed = _isCompleted(Difficulty.challenge);
-    final ruleName = _challengeRuleLabel;
-
-    // --- Shared card frame ---
-    Widget frame({required Widget child}) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-        child: AnimatedScale(
-          scale: 1.0,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-          child: Material(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            child: InkWell(
-              key: const Key('tier-challenge'),
-              borderRadius: BorderRadius.circular(AppRadii.md),
-              onTap: (!unlocked || completed)
-                  ? null
-                  : () => _startTier(context, Difficulty.challenge),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadii.md),
-                  border: Border.all(
-                    color: completed
-                        ? AppColors.success.withValues(alpha: 0.45)
-                        : _challengeAccent.withValues(alpha: 0.50),
-                    width: 1.5,
-                  ),
-                ),
-                padding: const EdgeInsets.all(20),
-                child: child,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    // --- Locked state ---
-    if (!unlocked) {
-      final now = DateTime.now().toUtc();
-      final noon = DateTime.utc(now.year, now.month, now.day, 12);
-      final remaining = noon.difference(now);
-
-      return frame(
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: _challengeAccent.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(AppRadii.sm),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.lock_clock,
-                  size: 26, color: _challengeAccent),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Daily Challenge',
-                      style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800)),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text('Today: $ruleName',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 13)),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Opens in ${_fmt(remaining)}',
-                    style: const TextStyle(
-                        color: _challengeAccent,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        fontFeatures: [FontFeature.tabularFigures()]),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // --- Completed state ---
-    if (completed) {
-      return frame(
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(AppRadii.sm),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.check_circle,
-                  size: 28, color: AppColors.success),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Daily Challenge',
-                      style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800)),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Done today ✓  ·  $ruleName',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.success,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // --- Unlocked, not yet played ---
-    return frame(
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _challengeAccent,
-              borderRadius: BorderRadius.circular(AppRadii.sm),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.bolt, size: 28, color: Colors.white),
-          ),
-          const SizedBox(width: AppSpacing.lg),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Daily Challenge',
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800)),
-                const SizedBox(height: AppSpacing.xs),
-                Text('Today: $ruleName',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 13)),
-              ],
-            ),
-          ),
-          FilledButton(
-            key: const Key('play-challenge'),
-            onPressed: () => _startTier(context, Difficulty.challenge),
-            style: FilledButton.styleFrom(
-              backgroundColor: _challengeAccent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text('Play',
-                style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ],
       ),
     );
   }
