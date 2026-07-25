@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 import 'package:connect_merge/application/engagement_cubit.dart';
 import 'package:connect_merge/application/duel_cubit.dart';
 import 'package:connect_merge/domain/constants.dart';
@@ -11,9 +13,12 @@ import 'package:connect_merge/domain/models/difficulty.dart';
 import 'package:connect_merge/domain/models/duel_challenge.dart';
 import 'package:connect_merge/domain/models/game_status.dart';
 import 'package:connect_merge/domain/models/tile.dart';
+import 'package:connect_merge/application/rivalry_cubit.dart';
 import 'package:connect_merge/infrastructure/ad_service.dart';
 import 'package:connect_merge/infrastructure/analytics_service.dart';
+import 'package:connect_merge/infrastructure/friends_service.dart';
 import 'package:connect_merge/infrastructure/leaderboard_service.dart';
+import 'package:connect_merge/infrastructure/notification_service.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
 import 'package:connect_merge/presentation/screens/tier_select_screen.dart';
 import 'package:connect_merge/presentation/widgets/tutorial_spotlight.dart';
@@ -410,6 +415,72 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.byKey(const Key('tier-easy')), findsOneWidget);
+  });
+
+  testWidgets(
+      'on app-open, a rival who overtook us on a tier fires the nudge once '
+      'and refreshes the chip data', (tester) async {
+    // The screen stamps the nudge with tz.TZDateTime.now(tz.local); production
+    // initializes this in main(), so the test must too.
+    tzdata.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('UTC'));
+
+    final storage = await _storageWithTutorialSeen();
+    // Set the rival, then create the cubit the screen will read.
+    await storage
+        .saveProfile(storage.loadProfile().setRival('rival-1', 'Nadia'));
+    final rivalry = RivalryCubit(storage: storage)..load();
+    addTearDown(rivalry.close);
+
+    final scheduled = <ScheduledNotification>[];
+    final notifications = NotificationService.withSeams(
+      schedule: (n) async => scheduled.add(n),
+      cancel: (_) async {},
+      requestPermission: () async => true,
+    );
+
+    // Friends board where the rival sits far ahead of our (absent = 0) score.
+    final friends = FriendsService.withSeams(
+      rpc: (fn, params) async => fn == 'friends_leaderboard'
+          ? [
+              {
+                'rank': 1,
+                'display_name': 'Nadia',
+                'score': 9999,
+                'is_me': false,
+                'player_id': 'rival-1',
+              }
+            ]
+          : const [],
+      invoke: (_, __) async => const {},
+      insert: (_, __) async {},
+      deleteMine: (_) async {},
+      selectMine: (_) async => const [],
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: TierSelectScreen(
+        storage: storage,
+        adService: AdService(),
+        friends: friends,
+        rivalry: rivalry,
+        notifications: notifications,
+        todayProvider: () => '2026-06-07',
+        onTierSelected: (_, __) {},
+      ),
+    ));
+    await tester.pump(); // first frame -> post-frame callback
+    await tester.pump(const Duration(milliseconds: 50)); // flush the fetch chain
+
+    // The nudge fired exactly once, personalized with the rival + score.
+    final nudges = scheduled.where((n) => n.id == kRivalPassedId).toList();
+    expect(nudges, hasLength(1));
+    expect(nudges.single.title, 'Nadia just passed you');
+    expect(nudges.single.body, contains('9999'));
+
+    // The chip's data source (last-seen rival score) is now populated, so the
+    // you-vs-rival indicator stops showing the rival at 0.
+    expect(rivalry.state.lastSeenFor(Difficulty.easy), 9999);
   });
 
   testWidgets('tour analytics record start, skipped step, then durable finish',

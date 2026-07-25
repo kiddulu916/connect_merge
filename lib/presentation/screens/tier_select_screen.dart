@@ -209,9 +209,13 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
       setState(() => _untilReset = _computeUntilReset());
     });
     _loadFriendCode();
-    // On app-open: reschedule the daily reminder based on current state.
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _rescheduleNotifications());
+    // On app-open: reschedule the daily reminder based on current state, and
+    // check whether a chosen rival has overtaken us (fires the nudge + refreshes
+    // the you-vs-rival chip).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _rescheduleNotifications();
+      _checkRivalOvertake();
+    });
     if (!widget.storage.loadProfile().settings.tutorialSeen) {
       _tourPhase = _TourPhase.mechanics;
       widget.analytics?.logEvent('tutorial_started');
@@ -477,6 +481,55 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
       );
     } catch (_) {
       // Notifications are best-effort; never block the UI.
+    }
+  }
+
+  /// On app-open: if a rival is set and a friends fetch is available, pull the
+  /// rival's score on the first still-incomplete tier and route it through
+  /// [RivalryCubit.recordRivalScore], which fires the "your rival passed you"
+  /// nudge at most once per overtake and refreshes the you-vs-rival chip.
+  ///
+  /// Best-effort: no rival, no friends service, offline, or a rival who hasn't
+  /// played the tier today all silently skip. `recordRivalScore` keeps its own
+  /// monotonic last-seen, so a stale/lower fetch can't re-arm an old overtake.
+  ///
+  /// ponytail: app-open detection only — there's no background fetch, so the OS
+  /// nudge can surface right after the user has already opened the app. Upgrade
+  /// path: move behind a background worker if re-engagement lift justifies it.
+  Future<void> _checkRivalOvertake() async {
+    final friends = widget.friends;
+    final rivalId = _rivalry.state.rivalId;
+    final rivalName = _rivalry.state.rivalName;
+    if (friends == null || rivalId == null || rivalName == null) return;
+    // The same tier the you-vs-rival chip shows: first still-incomplete tier.
+    final tier = Difficulty.values.firstWhere(
+      (d) => !_isCompleted(d),
+      orElse: () => Difficulty.values.first,
+    );
+    try {
+      final rows =
+          await friends.friendsLeaderboard(difficulty: tier, date: widget.today());
+      final rivalRows = rows.where((e) => e.playerId == rivalId);
+      if (rivalRows.isEmpty) return; // Rival hasn't played this tier today.
+      final rivalScore = rivalRows.first.score;
+      final myScore =
+          widget.storage.loadSnapshot(widget.today(), tier)?.board.score ?? 0;
+      final passed = await _rivalry.recordRivalScore(
+        difficulty: tier,
+        myScore: myScore,
+        rivalScore: rivalScore,
+      );
+      final notif = widget.notifications;
+      if (passed && notif != null) {
+        await notif.showRivalPassed(
+          now: tz.TZDateTime.now(tz.local),
+          rivalName: rivalName,
+          difficultyLabel: tier.label,
+          rivalScore: rivalScore,
+        );
+      }
+    } catch (_) {
+      // Best-effort: never block the home screen on a rival fetch.
     }
   }
 

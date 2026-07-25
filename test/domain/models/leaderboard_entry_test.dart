@@ -39,15 +39,39 @@ void main() {
       expect(e.isMe, isFalse);
     });
 
-    test('value equality', () {
+    test('maps player_id when present (friends daily board)', () {
+      final e = LeaderboardEntry.fromJson({
+        'rank': 2,
+        'display_name': 'Nadia',
+        'score': 800,
+        'is_me': false,
+        'player_id': 'rival-1',
+      });
+      expect(e.playerId, 'rival-1');
+    });
+
+    test('player_id is null when absent (global/period boards)', () {
+      final e = LeaderboardEntry.fromJson({
+        'rank': 1,
+        'display_name': 'Anon',
+        'score': 0,
+        'is_me': false,
+      });
+      expect(e.playerId, isNull);
+    });
+
+    test('value equality includes player_id', () {
       const a = LeaderboardEntry(
           rank: 1, displayName: 'A', score: 5, isMe: false);
       const b = LeaderboardEntry(
           rank: 1, displayName: 'A', score: 5, isMe: false);
       const c = LeaderboardEntry(
           rank: 1, displayName: 'A', score: 5, isMe: true);
+      const d = LeaderboardEntry(
+          rank: 1, displayName: 'A', score: 5, isMe: false, playerId: 'x');
       expect(a, equals(b));
       expect(a == c, isFalse);
+      expect(a == d, isFalse);
     });
   });
 }
