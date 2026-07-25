@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../domain/date_utils.dart' show formatDate, mondayOfWeek, utcToday;
 import '../../domain/models/difficulty.dart';
-import '../../domain/models/leaderboard_entry.dart';
 import '../../domain/models/weekly_prize.dart';
 import '../../infrastructure/friends_service.dart';
 import '../../infrastructure/leaderboard_service.dart';
 import '../theme/tokens.dart';
-import '../widgets/leaderboard_row.dart';
 import '../widgets/tutorial_spotlight.dart';
+import 'leaderboard/leaderboard_tutorial_mixin.dart';
+import 'leaderboard/tier_board.dart';
 
 /// Which board the user is viewing within a tier.
 enum LeaderboardScope { global, friends }
@@ -16,8 +16,6 @@ enum LeaderboardScope { global, friends }
 /// Time period for a board. Daily uses the per-day RPC; the rest use a
 /// read-only period aggregation (sum of daily bests).
 enum LeaderboardPeriod { daily, weekly, monthly, allTime }
-
-enum _TutorialTarget { scope, period, row }
 
 extension LeaderboardPeriodX on LeaderboardPeriod {
   String get label => switch (this) {
@@ -89,26 +87,10 @@ class LeaderboardScreen extends StatefulWidget {
 }
 
 class _LeaderboardScreenState extends State<LeaderboardScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, LeaderboardTutorialMixin {
   late final TabController _tabs;
   LeaderboardScope _scope = LeaderboardScope.global;
   LeaderboardPeriod _period = LeaderboardPeriod.daily;
-  final _scopeTutorialKey = GlobalKey();
-  final _periodTutorialKey = GlobalKey();
-  final _rowTutorialKey = GlobalKey();
-  int _tutorialTargetIndex = 0;
-  Rect? _tutorialRect;
-  bool? _rowsAvailable;
-  bool _rowFallbackLocked = false;
-  bool _tutorialAdvancing = true;
-  bool _allowPop = false;
-
-  List<_TutorialTarget> get _tutorialTargets => [
-        if (widget.friendsService != null) _TutorialTarget.scope,
-        if (widget.initialDifficulty != Difficulty.challenge)
-          _TutorialTarget.period,
-        _TutorialTarget.row,
-      ];
 
   @override
   void initState() {
@@ -122,10 +104,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       if (!_tabs.indexIsChanging) setState(() {});
     });
     if (widget.tutorialMode) {
-      if (_tutorialTargets.first == _TutorialTarget.row) {
-        _rowFallbackLocked = true;
-      }
-      _measureTutorialTarget();
+      initTutorial();
     }
   }
 
@@ -134,82 +113,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     _tabs.dispose();
     super.dispose();
   }
-
-  void _measureTutorialTarget() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !widget.tutorialMode) return;
-      final target = _tutorialTargets[_tutorialTargetIndex];
-      final context = switch (target) {
-        _TutorialTarget.scope => _scopeTutorialKey.currentContext,
-        _TutorialTarget.period => _periodTutorialKey.currentContext,
-        _TutorialTarget.row => !_rowFallbackLocked && _rowsAvailable == true
-            ? _rowTutorialKey.currentContext
-            : null,
-      };
-      final box = context?.findRenderObject() as RenderBox?;
-      final rect = box == null || !box.hasSize
-          ? null
-          : box.localToGlobal(Offset.zero) & box.size;
-      if (_tutorialRect != rect || _tutorialAdvancing) {
-        setState(() {
-          _tutorialRect = rect;
-          _tutorialAdvancing = false;
-        });
-      }
-    });
-  }
-
-  void _setRowsAvailable(bool available) {
-    if (_rowsAvailable == available) return;
-    setState(() => _rowsAvailable = available);
-    _measureTutorialTarget();
-  }
-
-  void _nextTutorialTarget() {
-    if (_tutorialAdvancing || _allowPop) return;
-    if (_tutorialTargetIndex == _tutorialTargets.length - 1) {
-      _finishTutorial(TutorialResult.completed);
-      return;
-    }
-    setState(() {
-      _tutorialAdvancing = true;
-      _tutorialTargetIndex++;
-      _tutorialRect = null;
-      if (_tutorialTargets[_tutorialTargetIndex] == _TutorialTarget.row &&
-          _rowsAvailable != true) {
-        _rowFallbackLocked = true;
-      }
-    });
-    _measureTutorialTarget();
-  }
-
-  void _finishTutorial(TutorialResult result) {
-    if (_allowPop) return;
-    setState(() => _allowPop = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) Navigator.of(context).pop(result);
-    });
-  }
-
-  (String, String) _tutorialCopy(_TutorialTarget target) => switch (target) {
-        _TutorialTarget.scope => (
-            'Global or friends',
-            'Compare with everyone, or switch to Friends for a smaller race.',
-          ),
-        _TutorialTarget.period => (
-            'Choose a time period',
-            'Daily ranks your best score for today. Weekly, Monthly, and '
-                'All-time each sum your best score from every day in that '
-                'span, so playing well on more days climbs you higher — not '
-                'just one great run.',
-          ),
-        _TutorialTarget.row => (
-            'How rankings work',
-            !_rowFallbackLocked && _rowsAvailable == true
-                ? 'Each row shows a rank and best score. Your own row is marked You.'
-                : 'Scores appear here as ranked rows. Your own result is marked You when the board has entries.',
-          ),
-      };
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +136,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         children: [
           if (showToggle)
             KeyedSubtree(
-              key: _scopeTutorialKey,
+              key: scopeTutorialKey,
               child: Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -258,7 +161,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           // Challenge is daily-only in both scopes.
           if (Difficulty.values[_tabs.index] != Difficulty.challenge)
             KeyedSubtree(
-              key: _periodTutorialKey,
+              key: periodTutorialKey,
               child: Padding(
                   padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
                   child: SingleChildScrollView(
@@ -281,7 +184,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               controller: _tabs,
               children: [
                 for (final d in Difficulty.values)
-                  _TierBoard(
+                  TierBoard(
                     key: ValueKey(
                         'board-${d.name}-${_scope.name}-${_period.name}'),
                     service: widget.service,
@@ -293,11 +196,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                     weeklyPrizes: widget.weeklyPrizes,
                     tutorialRowKey: widget.tutorialMode &&
                             d == Difficulty.values[_tabs.index]
-                        ? _rowTutorialKey
+                        ? rowTutorialKey
                         : null,
                     onRowsAvailable: widget.tutorialMode &&
                             d == Difficulty.values[_tabs.index]
-                        ? _setRowsAvailable
+                        ? setRowsAvailable
                         : null,
                   ),
               ],
@@ -331,14 +234,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       ),
     );
     if (!widget.tutorialMode) return scaffold;
-    final target = _tutorialTargets[_tutorialTargetIndex];
-    final copy = _tutorialCopy(target);
-    final fallback = target == _TutorialTarget.row &&
-        (_rowFallbackLocked || _rowsAvailable != true);
+    final target = currentTutorialTarget;
+    final copy = tutorialCopy(target);
+    final fallback = isRowFallback;
     return PopScope(
-      canPop: _allowPop,
+      canPop: allowPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _finishTutorial(TutorialResult.skipped);
+        if (!didPop) finishTutorial(TutorialResult.skipped);
       },
       child: Stack(
         children: [
@@ -347,14 +249,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             child: KeyedSubtree(
               key: fallback ? const Key('tutorial-text-fallback') : null,
               child: TutorialSpotlight(
-                targetRect: _tutorialRect,
+                targetRect: tutorialRect,
                 stepLabel: 'step-7',
                 title: copy.$1,
                 body: copy.$2,
-                onSkip: () =>
-                    _finishTutorial(TutorialResult.skipped),
-                onNext: _tutorialAdvancing ? null : _nextTutorialTarget,
-                nextLabel: target == _TutorialTarget.row ? 'Finish' : 'Next',
+                onSkip: () => finishTutorial(TutorialResult.skipped),
+                onNext: tutorialAdvancing ? null : nextTutorialTarget,
+                nextLabel: target == TutorialTarget.row ? 'Finish' : 'Next',
               ),
             ),
           ),
@@ -369,197 +270,4 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         3 => '\u{1F949}',
         _ => '\u{1F3C5}',
       };
-}
-
-class _TierBoard extends StatefulWidget {
-  final LeaderboardService service;
-  final FriendsService? friendsService;
-  final LeaderboardScope scope;
-  final LeaderboardPeriod period;
-  final Difficulty difficulty;
-  final String date;
-  final List<WeeklyPrize> weeklyPrizes;
-  final GlobalKey? tutorialRowKey;
-  final ValueChanged<bool>? onRowsAvailable;
-
-  const _TierBoard({
-    super.key,
-    required this.service,
-    required this.friendsService,
-    required this.scope,
-    required this.period,
-    required this.difficulty,
-    required this.date,
-    this.weeklyPrizes = const [],
-    this.tutorialRowKey,
-    this.onRowsAvailable,
-  });
-
-  @override
-  State<_TierBoard> createState() => _TierBoardState();
-}
-
-class _TierBoardState extends State<_TierBoard>
-    with AutomaticKeepAliveClientMixin {
-  late Future<List<LeaderboardEntry>> _future;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _startLoad();
-  }
-
-  Future<List<LeaderboardEntry>> _startLoad() {
-    final future = _load();
-    future.then<void>(
-      (entries) {
-        if (mounted) widget.onRowsAvailable?.call(entries.isNotEmpty);
-      },
-      onError: (Object _, StackTrace __) {
-        if (mounted) widget.onRowsAvailable?.call(false);
-      },
-    );
-    return future;
-  }
-
-  Future<List<LeaderboardEntry>> _load() {
-    final period = widget.difficulty == Difficulty.challenge
-        ? LeaderboardPeriod.daily
-        : widget.period;
-    if (widget.scope == LeaderboardScope.friends &&
-        widget.friendsService != null) {
-      if (period == LeaderboardPeriod.daily) {
-        return widget.friendsService!.friendsLeaderboard(
-          difficulty: widget.difficulty,
-          date: widget.date,
-        );
-      }
-      final (from, to) = period.range(widget.date);
-      return widget.friendsService!.friendsLeaderboardPeriod(
-        difficulty: widget.difficulty,
-        from: from,
-        to: to,
-      );
-    }
-    // Global scope: daily uses the per-day RPC; weekly/monthly/all-time use the
-    // read-only period aggregation (sum of daily bests).
-    if (period == LeaderboardPeriod.daily) {
-      return widget.service
-          .fetch(difficulty: widget.difficulty, date: widget.date);
-    }
-    final (from, to) = period.range(widget.date);
-    return widget.service
-        .fetchPeriod(difficulty: widget.difficulty, from: from, to: to);
-  }
-
-  Future<void> _refresh() async {
-    setState(() => _future = _startLoad());
-    await _future;
-  }
-
-  /// Returns the prize indicator suffix for challenge-board rows.
-  /// Ranks 1-3 get 🏆; ranks 4-10 get ✦; others get null.
-  String? _challengeSuffix(int rank) {
-    if (rank <= 3) return '\u{1F3C6}';
-    if (rank <= 10) return '✶';
-    return null;
-  }
-
-  /// Returns the crown emoji for "me" rows that have a matching weekly prize
-  /// on this tier. Returns null for other players or when there is no prize.
-  String? _weekCrown(LeaderboardEntry entry) {
-    if (!entry.isMe) return null;
-    for (final prize in widget.weeklyPrizes) {
-      if (prize.tier == widget.difficulty) {
-        return switch (prize.rank) {
-          1 => '\u{1F947}',
-          2 => '\u{1F948}',
-          3 => '\u{1F949}',
-          4 || 5 => '\u{1F3C5}',
-          _ => null,
-        };
-      }
-    }
-    return null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final isFriends = widget.scope == LeaderboardScope.friends;
-    return FutureBuilder<List<LeaderboardEntry>>(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: Colors.deepPurpleAccent));
-        }
-        if (snap.hasError) {
-          return _Message(
-            key: const Key('lb-error'),
-            text: "Couldn't load the leaderboard.\nPull to retry.",
-            onRetry: _refresh,
-          );
-        }
-        final allEntries = snap.data ?? const <LeaderboardEntry>[];
-        // All board RPCs are capped at 100; retain a client-side backstop.
-        final entries = widget.difficulty == Difficulty.challenge
-            ? allEntries.take(100).toList()
-            : allEntries;
-        if (entries.isEmpty) {
-          return _Message(
-            key: const Key('lb-empty'),
-            text: isFriends
-                ? 'No friends on the board yet.\nInvite some!'
-                : 'No scores yet today.\nBe the first!',
-            onRetry: _refresh,
-          );
-        }
-        return RefreshIndicator(
-          onRefresh: _refresh,
-          child: ListView.builder(
-            key: const Key('lb-list'),
-            itemCount: entries.length,
-            itemBuilder: (context, i) {
-              final entry = entries[i];
-              final row = LeaderboardRow(
-                entry: entry,
-                crownEmoji: _weekCrown(entry),
-                prizeSuffix: widget.difficulty == Difficulty.challenge
-                    ? _challengeSuffix(entry.rank)
-                    : null,
-              );
-              if (i != 0 || widget.tutorialRowKey == null) return row;
-              return KeyedSubtree(key: widget.tutorialRowKey, child: row);
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  final String text;
-  final Future<void> Function() onRetry;
-  const _Message({super.key, required this.text, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    // Wrap in a scrollable so RefreshIndicator works on the empty/error states.
-    return RefreshIndicator(
-      onRefresh: onRetry,
-      child: ListView(
-        children: [
-          SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-          Text(text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white54, fontSize: 16)),
-        ],
-      ),
-    );
-  }
 }
