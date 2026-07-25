@@ -29,7 +29,6 @@ import '../widgets/coin_balance.dart';
 import '../widgets/duel_banner.dart';
 import '../widgets/rival_indicator.dart';
 import '../widgets/streak_banner.dart';
-import '../widgets/tutorial_spotlight.dart';
 import 'achievements_screen.dart';
 import 'almanac_screen.dart';
 import 'cosmetics_screen.dart';
@@ -39,14 +38,8 @@ import 'leaderboard_screen.dart';
 import 'loot_chest_screen.dart';
 import 'practice_screen.dart';
 import 'profile_screen.dart';
-import 'tutorial_tour_screen.dart';
-
-enum _TourPhase { inactive, mechanics, tiers, leaderboard }
-
-/// Step 6 of the tour is two beats, not one pass per tier: spotlight every
-/// difficulty at once with a single blanket description, then spotlight one
-/// representative practice icon with a single blanket explanation.
-enum _TierTourStep { allTiers, practice }
+import 'tier_select/tier_card.dart';
+import 'tier_select/tier_tour_mixin.dart';
 
 /// Entry screen: pick a difficulty tier. Each card shows the starting tile
 /// count, whether the tier is already done today, and a live countdown to the
@@ -141,11 +134,8 @@ class TierSelectScreen extends StatefulWidget {
   State<TierSelectScreen> createState() => _TierSelectScreenState();
 }
 
-class _TierSelectScreenState extends State<TierSelectScreen> {
-  static const _tierTourSteps = [
-    _TierTourStep.allTiers,
-    _TierTourStep.practice
-  ];
+class _TierSelectScreenState extends State<TierSelectScreen>
+    with TierTourMixin {
   Timer? _ticker;
   Duration _untilReset = Duration.zero;
   final _tourScrollController = ScrollController();
@@ -155,15 +145,15 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
         .where((difficulty) => difficulty != Difficulty.challenge))
       difficulty: GlobalKey(debugLabel: 'tutorial-practice-${difficulty.name}'),
   };
-  _TourPhase _tourPhase = _TourPhase.inactive;
-  int _tierTourIndex = 0;
-  Rect? _tourTargetRect;
-  bool _tierTourAdvancing = false;
-  bool _completing = false;
-  bool _completionFailed = false;
-  bool _completionPending = false;
-  bool _pendingSkipped = false;
-  int _pendingCompletionStep = 1;
+
+  @override
+  GlobalKey get tierListKey => _tierListKey;
+
+  @override
+  Map<Difficulty, GlobalKey> get practiceTourKeys => _practiceTourKeys;
+
+  @override
+  EngagementCubit get engagementCubit => _engagement;
 
   /// Cached so the share screen can offer an invite link without an extra RPC.
   String? _friendCode;
@@ -217,9 +207,9 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
       _checkRivalOvertake();
     });
     if (!widget.storage.loadProfile().settings.tutorialSeen) {
-      _tourPhase = _TourPhase.mechanics;
+      tourPhase = TourPhase.mechanics;
       widget.analytics?.logEvent('tutorial_started');
-      WidgetsBinding.instance.addPostFrameCallback((_) => _launchMechanics());
+      WidgetsBinding.instance.addPostFrameCallback((_) => launchMechanics());
     }
   }
 
@@ -242,216 +232,6 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
     if (_ownsLoot) _loot.close();
     if (_ownsRivalry) _rivalry.close();
     super.dispose();
-  }
-
-  bool get _tourActive => _tourPhase != _TourPhase.inactive;
-
-  void _launchMechanics() {
-    if (!mounted || _tourPhase != _TourPhase.mechanics) return;
-    Navigator.of(context)
-        .push<TutorialResult>(
-      MaterialPageRoute<TutorialResult>(
-        builder: (_) => TutorialTourScreen(
-          onSkip: (step) => _completeTour(skipped: true, step: step),
-        ),
-      ),
-    )
-        .then((result) {
-      if (mounted && result == TutorialResult.completed) _startTierTour();
-    });
-  }
-
-  void _startTierTour() {
-    if (!mounted) return;
-    setState(() {
-      _tourPhase = _TourPhase.tiers;
-      _tierTourIndex = 0;
-      _tourTargetRect = null;
-      _tierTourAdvancing = true;
-    });
-    _measureTierTourTarget();
-  }
-
-  GlobalKey get _currentTierTourKey => switch (_tierTourSteps[_tierTourIndex]) {
-        _TierTourStep.allTiers => _tierListKey,
-        _TierTourStep.practice => _practiceTourKeys[Difficulty.easy]!,
-      };
-
-  Future<void> _measureTierTourTarget([int attempt = 0]) async {
-    final targetIndex = _tierTourIndex;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted ||
-          _tourPhase != _TourPhase.tiers ||
-          _tierTourIndex != targetIndex) {
-        return;
-      }
-      final targetContext = _currentTierTourKey.currentContext;
-      if (targetContext == null) {
-        if (attempt < 3) {
-          _measureTierTourTarget(attempt + 1);
-        } else {
-          setState(() => _tierTourAdvancing = false);
-        }
-        return;
-      }
-      if (!targetContext.mounted) return;
-      await Scrollable.ensureVisible(
-        targetContext,
-        alignment: 0.45,
-        duration: const Duration(milliseconds: 180),
-      );
-      if (!mounted ||
-          !targetContext.mounted ||
-          _tourPhase != _TourPhase.tiers ||
-          _tierTourIndex != targetIndex) {
-        return;
-      }
-      final box = targetContext.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) return;
-      final rect = box.localToGlobal(Offset.zero) & box.size;
-      setState(() {
-        _tourTargetRect = rect;
-        _tierTourAdvancing = false;
-      });
-    });
-  }
-
-  void _nextTierTourTarget() {
-    if (_tierTourAdvancing || _tourTargetRect == null) return;
-    _tierTourAdvancing = true;
-    if (_tierTourIndex < _tierTourSteps.length - 1) {
-      setState(() {
-        _tierTourIndex++;
-        _tourTargetRect = null;
-      });
-      _measureTierTourTarget();
-      return;
-    }
-    _launchLeaderboardTutorial();
-  }
-
-  void _launchLeaderboardTutorial() {
-    setState(() {
-      _tourPhase = _TourPhase.leaderboard;
-      _tourTargetRect = null;
-    });
-    final service = widget.leaderboard;
-    if (service == null) return;
-    Navigator.of(context)
-        .push<TutorialResult>(
-            MaterialPageRoute<TutorialResult>(
-      builder: (_) => LeaderboardScreen(
-        service: service,
-        friendsService: widget.friends,
-        initialDifficulty: Difficulty.easy,
-        todayProvider: widget.todayProvider,
-        weeklyPrizes: _engagement.state.weeklyPrizes,
-        tutorialMode: true,
-      ),
-    ))
-        .then((result) {
-      if (!mounted) return;
-      _completeTour(
-        skipped: result != TutorialResult.completed,
-        step: 7,
-      );
-    });
-  }
-
-  Future<bool> _completeTour({required bool skipped, required int step}) async {
-    if (_completing) return false;
-    if (!_completionPending) {
-      _completionPending = true;
-      _pendingSkipped = skipped;
-      _pendingCompletionStep = step;
-      if (skipped) {
-        widget.analytics?.logEvent('tutorial_skipped', {'step': step});
-      }
-    }
-    setState(() {
-      _completing = true;
-      _completionFailed = false;
-    });
-    final success = await _engagement.markTutorialSeen();
-    if (!mounted) return success;
-    if (!success) {
-      setState(() {
-        _completing = false;
-        _completionFailed = true;
-      });
-      return false;
-    }
-    widget.analytics?.logEvent('tutorial_completed');
-    setState(() {
-      _tourPhase = _TourPhase.inactive;
-      _completing = false;
-      _completionFailed = false;
-      _completionPending = false;
-    });
-    return true;
-  }
-
-  void _retryTourCompletion() {
-    _completeTour(
-      skipped: _pendingSkipped,
-      step: _pendingCompletionStep,
-    );
-  }
-
-  (String, String) get _tierTourCopy =>
-      switch (_tierTourSteps[_tierTourIndex]) {
-        _TierTourStep.allTiers => (
-            'Choose your difficulty',
-            'Easy (8×8) is the most forgiving board. Medium, Hard, and '
-                'Legendary shrink the grid and starting tiles for a tighter '
-                'puzzle each step up. Challenge uses the tightest board plus '
-                'a daily rule and unlocks at noon UTC on its own leaderboard. '
-                'You get one run a day per difficulty, so make it count for '
-                'your best score.',
-          ),
-        _TierTourStep.practice => (
-            'Practice mode',
-            'Tap the practice icon on any tier to play that board '
-                'off-leaderboard, anytime, with no daily move budget — a good '
-                'way to warm up before your one daily run.',
-          ),
-      };
-
-  Widget _buildTourOverlay() {
-    final isTier = _tourPhase == _TourPhase.tiers;
-    final copy = isTier
-        ? _tierTourCopy
-        : (
-            'Leaderboards',
-            'Global rankings compare daily scores by difficulty and period. '
-                'Connect online to see the live board and friends results.',
-          );
-    return TutorialSpotlight(
-      key: _completing ? const Key('tutorial-completing') : null,
-      targetRect: isTier ? _tourTargetRect : null,
-      stepLabel: isTier ? 'step-6' : 'step-7',
-      title: _completionFailed ? 'Couldn’t save progress' : copy.$1,
-      body: _completionFailed
-          ? 'Your tour is still open. Check local storage and try again.'
-          : copy.$2,
-      onSkip: () => _completeTour(step: isTier ? 6 : 7, skipped: true),
-      onNext: _completionFailed
-          ? _retryTourCompletion
-          : isTier
-              ? _tierTourAdvancing || _tourTargetRect == null
-                  ? null
-                  : _nextTierTourTarget
-              : () => _completeTour(step: 7, skipped: false),
-      nextLabel: _completionFailed
-          ? 'Retry'
-          : isTier
-              ? 'Next'
-              : 'Finish',
-      nextKey: _completionFailed
-          ? const Key('tutorial-retry')
-          : const Key('tutorial-next'),
-      waiting: _completing,
-    );
   }
 
   /// True when every tier's day is already completed.
@@ -1035,7 +815,7 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
                         .where((d) => d != Difficulty.challenge))
                       Padding(
                         padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                        child: _TierCard(
+                        child: TierCard(
                           difficulty: d,
                           completed: _isCompleted(d),
                           accent: TilePalette.colorForTier(d.startingFill),
@@ -1060,12 +840,12 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
       ),
     );
     return PopScope(
-      canPop: !_tourActive,
+      canPop: !tourActive,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _tourPhase != _TourPhase.mechanics) {
-          _completeTour(
+        if (!didPop && tourPhase != TourPhase.mechanics) {
+          completeTour(
             skipped: true,
-            step: _tourPhase == _TourPhase.tiers ? 6 : 7,
+            step: tourPhase == TourPhase.tiers ? 6 : 7,
           );
         }
       },
@@ -1075,19 +855,19 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
           children: [
             Positioned.fill(
               child: AbsorbPointer(
-                absorbing: _tourActive,
+                absorbing: tourActive,
                 child: ExcludeSemantics(
-                  excluding: _tourActive,
+                  excluding: tourActive,
                   child: content,
                 ),
               ),
             ),
-            if (_tourPhase == _TourPhase.tiers ||
-                (_tourPhase == _TourPhase.leaderboard &&
+            if (tourPhase == TourPhase.tiers ||
+                (tourPhase == TourPhase.leaderboard &&
                     (widget.leaderboard == null ||
-                        _completing ||
-                        _completionFailed)))
-              Positioned.fill(child: _buildTourOverlay()),
+                        completing ||
+                        completionFailed)))
+              Positioned.fill(child: buildTourOverlay()),
           ],
         ),
       ),
@@ -1291,237 +1071,6 @@ class _TierSelectScreenState extends State<TierSelectScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// A single difficulty tier as a tappable "hero" card.
-///
-/// Stateful only to drive a subtle press-scale ([scale-feedback]); the InkWell
-/// still supplies the ripple and is the keyed tap target the tests drive. A
-/// completed card switches to a success-tinted outline + check badge and is
-/// non-interactive.
-class _TierCard extends StatefulWidget {
-  final Difficulty difficulty;
-  final bool completed;
-  final Color accent;
-
-  /// 0-based difficulty rank; drives the 1–4 pip indicator.
-  final int rank;
-
-  /// Tap handler. Null when the tier is already completed (card is inert).
-  final VoidCallback? onTap;
-  final VoidCallback onPractice;
-  final GlobalKey? practiceTargetKey;
-
-  /// Opens the per-tier leaderboard; null hides the icon (offline).
-  final VoidCallback? onLeaderboard;
-
-  const _TierCard({
-    required this.difficulty,
-    required this.completed,
-    required this.accent,
-    required this.rank,
-    required this.onTap,
-    required this.onPractice,
-    this.practiceTargetKey,
-    required this.onLeaderboard,
-  });
-
-  @override
-  State<_TierCard> createState() => _TierCardState();
-}
-
-class _TierCardState extends State<_TierCard> {
-  bool _pressed = false;
-
-  /// Compact trailing-action button (20px glyph, 36px hit area) so the practice
-  /// + per-tier leaderboard icons leave the label room to render in full.
-  Widget _cardIconButton({
-    required Key iconKey,
-    required String tooltip,
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return IconButton(
-      key: iconKey,
-      tooltip: tooltip,
-      icon: Icon(icon, color: AppColors.textMuted),
-      iconSize: 20,
-      onPressed: onPressed,
-      style: IconButton.styleFrom(
-        minimumSize: const Size(36, 36),
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final d = widget.difficulty;
-    final completed = widget.completed;
-    final accent = widget.accent;
-
-    return AnimatedScale(
-      scale: _pressed ? 0.97 : 1.0,
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        child: InkWell(
-          key: Key('tier-${d.name}'),
-          borderRadius: BorderRadius.circular(AppRadii.md),
-          onTap: widget.onTap,
-          onHighlightChanged: (v) => setState(() => _pressed = v),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadii.md),
-              border: Border.all(
-                color: completed
-                    ? AppColors.success.withValues(alpha: 0.45)
-                    : accent.withValues(alpha: 0.35),
-                width: 1.5,
-              ),
-            ),
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: completed ? 0.3 : 1.0),
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text('${d.startingFill}',
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800)),
-                ),
-                const SizedBox(width: AppSpacing.lg),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // The label gets the full column width on its own line and
-                      // a scale-down FittedBox so longer tiers (e.g. "Legendary")
-                      // render in full — never ellipsized — even with the online
-                      // per-tier leaderboard icon present. It keeps full size on
-                      // real-device widths and only shrinks on very narrow ones.
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(d.label,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: TextStyle(
-                                  color: completed
-                                      ? AppColors.textMuted
-                                      : AppColors.textPrimary,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800)),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      // Difficulty pips + status share the second line; the
-                      // status can ellipsize (never the fixed trailing row), so
-                      // the card never overflows on narrow phones.
-                      Row(
-                        children: [
-                          _DifficultyPips(
-                            filled: widget.rank + 1,
-                            total: Difficulty.values.length,
-                            color: accent,
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: Text(
-                              completed
-                                  ? 'Done today ✓'
-                                  : '${d.startingFill} starting tiles',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  color: completed
-                                      ? AppColors.success
-                                      : AppColors.textFaint,
-                                  fontSize: 13,
-                                  fontWeight: completed
-                                      ? FontWeight.w700
-                                      : FontWeight.w400),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                KeyedSubtree(
-                  key: widget.practiceTargetKey,
-                  child: _cardIconButton(
-                    iconKey: Key('practice-${d.name}'),
-                    tooltip: 'Practice',
-                    icon: Icons.fitness_center,
-                    onPressed: widget.onPractice,
-                  ),
-                ),
-                if (widget.onLeaderboard != null)
-                  _cardIconButton(
-                    iconKey: Key('leaderboard-${d.name}'),
-                    tooltip: 'Leaderboard',
-                    icon: Icons.leaderboard,
-                    onPressed: widget.onLeaderboard!,
-                  ),
-                Icon(
-                  completed ? Icons.check_circle : Icons.chevron_right,
-                  color: completed ? AppColors.success : AppColors.textMuted,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A compact 1-of-N difficulty meter rendered as filled/empty dots.
-class _DifficultyPips extends StatelessWidget {
-  final int filled;
-  final int total;
-  final Color color;
-
-  const _DifficultyPips({
-    required this.filled,
-    required this.total,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < total; i++)
-          Padding(
-            padding: const EdgeInsets.only(right: 3),
-            child: Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: i < filled ? color : AppColors.border,
-              ),
-            ),
-          ),
-      ],
     );
   }
 }
