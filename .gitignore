@@ -97,3 +97,6 @@ coverage/
 
 # Firebase CLI cache / emulator / deploy artifacts (debug logs covered by *.log)
 .firebase/
+
+# Generated codebase-rehab audit microsites
+test-results/
