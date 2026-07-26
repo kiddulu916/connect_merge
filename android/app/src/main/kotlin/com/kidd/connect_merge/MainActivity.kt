@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import androidx.core.content.FileProvider
+import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
@@ -24,7 +25,19 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun gatherConsent() {
-        val params = ConsentRequestParameters.Builder().build()
+        val paramsBuilder = ConsentRequestParameters.Builder()
+        // Debug builds only: the AdMob account has no published consent message yet,
+        // so real devices get "Publisher misconfiguration" and canRequestAds() never
+        // becomes true. Force non-EEA geography locally so ads can still be tested
+        // while the console-side Privacy & messaging setup is pending.
+        if (BuildConfig.DEBUG) {
+            val debugSettings = ConsentDebugSettings.Builder(this)
+                .setDebugGeography(ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_NOT_EEA)
+                .addTestDeviceHashedId("9CC5896EA884B3449B45CAA496675BAA")
+                .build()
+            paramsBuilder.setConsentDebugSettings(debugSettings)
+        }
+        val params = paramsBuilder.build()
         consentInformation = UserMessagingPlatform.getConsentInformation(this)
         consentInformation.requestConsentInfoUpdate(
             this,
