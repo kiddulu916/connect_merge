@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:android_play_install_referrer/android_play_install_referrer.dart';
+import 'package:play_install_referrer/play_install_referrer.dart';
 
 typedef InstallReferrerAnalytics = void Function(
   String event,
@@ -67,7 +67,7 @@ class InstallReferrerService {
   }
 
   static Future<String?> _fetchFromPlay() async {
-    final details = await AndroidPlayInstallReferrer.installReferrer;
+    final details = await PlayInstallReferrer.installReferrer;
     return details.installReferrer;
   }
 }
