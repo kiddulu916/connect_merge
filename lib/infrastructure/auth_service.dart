@@ -248,6 +248,19 @@ class AuthService {
     }
   }
 
+  /// Update only the avatar glyph on the player's row (the display name already
+  /// exists by the time avatars are pickable). Update-only, so it never risks a
+  /// NOT NULL insert on `display_name`.
+  Future<void> updateAvatar(String avatar) async {
+    final id = currentUserId;
+    if (id == null) {
+      throw StateError('Cannot set an avatar before signing in.');
+    }
+    await _requiredClient
+        .from('players')
+        .update({'avatar': avatar}).eq('id', id);
+  }
+
   Future<void> deleteAccount() async {
     if (currentUserId == null) {
       throw StateError('Cannot delete an account before signing in.');

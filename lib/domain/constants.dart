@@ -100,6 +100,11 @@ const int kAlmanacMasteryThreshold = 5;
 const int kCosmeticPriceCommon = 150;
 const int kCosmeticPriceRare = 400;
 
+/// Flat coin price for a purchasable emoji avatar. Lighter flair than a full
+/// tile theme, so priced just under [kCosmeticPriceCommon]. Open tuning item
+/// (watch the coin sink/earn ratio alongside cosmetics).
+const int kAvatarPrice = 100;
+
 /// Phase 2 — flat soft-currency reward for completing a tier's day. Credited via
 /// the same [onCoinsEarned] wallet hook as golden tiles, so it NEVER touches
 /// `BoardState.score`. A rewarded ad can double the run's earned coins.
