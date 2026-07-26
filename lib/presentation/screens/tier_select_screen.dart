@@ -378,6 +378,7 @@ class _TierSelectScreenState extends State<TierSelectScreen>
         builder: (_) => ProfileScreen(
           auth: auth,
           storage: widget.storage,
+          engagement: _engagement,
           onDelete: widget.onAccountDeleted,
           onSignOut: widget.onSignOut,
           onSaveProgress: widget.onSaveProgress,

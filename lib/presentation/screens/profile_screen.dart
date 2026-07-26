@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../application/engagement_cubit.dart';
 import '../../infrastructure/auth_service.dart';
 import '../../infrastructure/consent_service.dart';
 import '../../infrastructure/storage_service.dart';
 import '../theme/tokens.dart';
+import 'avatars_screen.dart';
 
 /// Player profile: avatar, display name, account actions, and delete-my-data.
 ///
@@ -28,6 +30,10 @@ class ProfileScreen extends StatefulWidget {
   /// Drives the EEA/UK-only "Privacy options" tile.
   final ConsentService? consent;
 
+  /// Retention cubit — drives the Avatars picker. Null hides the Avatars tile
+  /// (e.g. tests / offline construction).
+  final EngagementCubit? engagement;
+
   const ProfileScreen({
     super.key,
     required this.auth,
@@ -37,6 +43,7 @@ class ProfileScreen extends StatefulWidget {
     this.onSaveProgress,
     this.onChangeName,
     this.consent,
+    this.engagement,
   });
 
   @override
@@ -229,6 +236,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: const Text('Change name'),
             onTap: _busy ? null : widget.onChangeName,
           ),
+          if (widget.engagement != null) ...[
+            const SizedBox(height: 12),
+            ListTile(
+              key: const Key('profile-avatars'),
+              tileColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              leading:
+                  const Icon(Icons.emoji_emotions_outlined, color: Colors.white70),
+              title: const Text('Avatars'),
+              subtitle: const Text('Unlock and choose your emoji.',
+                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+              onTap: _busy
+                  ? null
+                  : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => AvatarsScreen(
+                            engagement: widget.engagement!,
+                            auth: widget.auth,
+                          ),
+                        ),
+                      ),
+            ),
+          ],
           const SizedBox(height: 12),
           ListTile(
             key: Key(widget.auth.hasGoogleIdentity
