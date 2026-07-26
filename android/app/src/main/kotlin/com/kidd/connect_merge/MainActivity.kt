@@ -31,9 +31,12 @@ class MainActivity : FlutterActivity() {
         // becomes true. Force non-EEA geography locally so ads can still be tested
         // while the console-side Privacy & messaging setup is pending.
         if (BuildConfig.DEBUG) {
+            // The emulator auto-registers as a test device, so this geography
+            // override applies there with no device id listed. To force it on a
+            // physical device, register that device as a test device locally
+            // (add its hashed id here in your working copy — do NOT commit it).
             val debugSettings = ConsentDebugSettings.Builder(this)
                 .setDebugGeography(ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_NOT_EEA)
-                .addTestDeviceHashedId("9CC5896EA884B3449B45CAA496675BAA")
                 .build()
             paramsBuilder.setConsentDebugSettings(debugSettings)
         }
