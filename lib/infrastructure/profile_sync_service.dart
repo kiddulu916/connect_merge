@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../domain/models/day_result.dart';
 import '../domain/models/difficulty.dart';
+import 'profile_sync/snapshot_validator.dart';
 import 'storage_service.dart';
 
 const int kProfileSchemaVersion = 1;
@@ -39,18 +38,6 @@ typedef ProfileRpc = Future<dynamic> Function(
   String function,
   Map<String, dynamic> params,
 );
-
-class _ValidatedSnapshot {
-  final PlayerProfile profile;
-  final Map<Difficulty, LifetimeStats> stats;
-  final List<DayResult> history;
-
-  const _ValidatedSnapshot({
-    required this.profile,
-    required this.stats,
-    required this.history,
-  });
-}
 
 class _ClaimedProfile {
   final Object? snapshot;
@@ -299,7 +286,7 @@ class ProfileSyncService {
   }) async {
     final uid = currentUid();
     if (uid == null) throw StateError('Cannot restore without a session.');
-    final outcome = _validationOutcome(snapshot);
+    final outcome = snapshotValidationOutcome(snapshot);
     if (outcome != null) {
       await storage.markRecoveryRequired(
         uid,
@@ -310,7 +297,7 @@ class ProfileSyncService {
       return outcome;
     }
 
-    final validated = _validate(snapshot);
+    final validated = validateSnapshot(snapshot);
     // Incomplete is persisted before any live key, and complete after every
     // promotion. This remains safe during same-uid Reload profile crashes.
     await storage.startRestore(uid, snapshotRevision: serverRevision);
@@ -323,48 +310,6 @@ class ProfileSyncService {
     await storage.finishRestore(uid, snapshotRevision: serverRevision);
     _onLog?.call('profile restore outcome: restored');
     return SnapshotOutcome.restored;
-  }
-
-  SnapshotOutcome? _validationOutcome(Map<String, dynamic> snapshot) {
-    if (utf8.encode(jsonEncode(snapshot)).length > kMaxProfileSnapshotBytes) {
-      return SnapshotOutcome.oversized;
-    }
-    final version = snapshot['schema_version'];
-    if (version is int && version > kProfileSchemaVersion) {
-      return SnapshotOutcome.newerVersion;
-    }
-    try {
-      _validate(snapshot);
-      return null;
-    } catch (_) {
-      return SnapshotOutcome.corrupt;
-    }
-  }
-
-  _ValidatedSnapshot _validate(Map<String, dynamic> snapshot) {
-    if (snapshot['schema_version'] != kProfileSchemaVersion) {
-      throw const FormatException('Unsupported profile schema.');
-    }
-    final profile = PlayerProfile.fromJson(
-      Map<String, dynamic>.from(snapshot['profile'] as Map),
-    );
-    final statsJson = Map<String, dynamic>.from(snapshot['stats'] as Map);
-    if (statsJson.length != Difficulty.values.length ||
-        !Difficulty.values
-            .every((difficulty) => statsJson.containsKey(difficulty.name))) {
-      throw const FormatException('Profile stats tiers are incomplete.');
-    }
-    final stats = {
-      for (final difficulty in Difficulty.values)
-        difficulty: LifetimeStats.fromJson(
-          Map<String, dynamic>.from(statsJson[difficulty.name] as Map),
-        ),
-    };
-    final history = (snapshot['history'] as List)
-        .map((value) =>
-            DayResult.fromJson(Map<String, dynamic>.from(value as Map)))
-        .toList();
-    return _ValidatedSnapshot(profile: profile, stats: stats, history: history);
   }
 
   void arm() {
