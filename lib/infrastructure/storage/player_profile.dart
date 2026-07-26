@@ -1,5 +1,6 @@
 import '../../domain/models/weekly_prize.dart';
 import 'activity_streak.dart';
+import 'avatars_inventory.dart';
 import 'cosmetics_inventory.dart';
 import 'player_settings.dart';
 import 'prize_ledger.dart';
@@ -13,6 +14,7 @@ class PlayerProfile {
   final ActivityStreak activity;
   final Progression progression;
   final CosmeticsInventory cosmetics;
+  final AvatarsInventory avatars;
   final PlayerSettings settings;
   final Wallet wallet;
   final Rivalry rivalry;
@@ -22,6 +24,7 @@ class PlayerProfile {
     this.activity = const ActivityStreak(),
     this.progression = const Progression(),
     this.cosmetics = const CosmeticsInventory(),
+    this.avatars = const AvatarsInventory(),
     this.settings = const PlayerSettings(),
     this.wallet = const Wallet(),
     this.rivalry = const Rivalry(),
@@ -34,6 +37,7 @@ class PlayerProfile {
     ActivityStreak? activity,
     Progression? progression,
     CosmeticsInventory? cosmetics,
+    AvatarsInventory? avatars,
     PlayerSettings? settings,
     Wallet? wallet,
     Rivalry? rivalry,
@@ -43,6 +47,7 @@ class PlayerProfile {
         activity: activity ?? this.activity,
         progression: progression ?? this.progression,
         cosmetics: cosmetics ?? this.cosmetics,
+        avatars: avatars ?? this.avatars,
         settings: settings ?? this.settings,
         wallet: wallet ?? this.wallet,
         rivalry: rivalry ?? this.rivalry,
@@ -142,6 +147,25 @@ class PlayerProfile {
         cosmetics: cosmetics.copyWith(selectedCosmetic: name),
       );
 
+  /// Records a caller-validated avatar purchase by debiting and unioning its
+  /// enum name. Unlock-kind, idempotency, and funds checks stay in the cubit
+  /// (mirrors [recordPurchase]).
+  PlayerProfile recordAvatarPurchase(
+    String avatarName, {
+    required int price,
+  }) =>
+      copyWith(
+        wallet: wallet.copyWith(coins: wallet.coins - price),
+        avatars: avatars.copyWith(
+          purchasedAvatars: {...avatars.purchasedAvatars, avatarName},
+        ),
+      );
+
+  /// Selects an avatar by its emoji glyph (the persisted selection token).
+  PlayerProfile selectAvatar(String emoji) => copyWith(
+        avatars: avatars.copyWith(selectedAvatar: emoji),
+      );
+
   PlayerProfile claimLoot(
     String date, {
     required int awardCoins,
@@ -177,6 +201,8 @@ class PlayerProfile {
         'coins': wallet.coins,
         'lastLootClaimDate': wallet.lastLootClaimDate,
         'purchasedCosmetics': cosmetics.purchasedCosmetics.toList(),
+        'selectedAvatar': avatars.selectedAvatar,
+        'purchasedAvatars': avatars.purchasedAvatars.toList(),
         'lifetimeXp': progression.lifetimeXp,
         'almanacCounts': progression.almanacCounts,
         'rivalId': rivalry.rivalId,
@@ -214,6 +240,12 @@ class PlayerProfile {
               .map((e) => e as String)
               .toSet(),
           purchasedCosmetics: ((j['purchasedCosmetics'] as List?) ?? const [])
+              .map((e) => e as String)
+              .toSet(),
+        ),
+        avatars: AvatarsInventory(
+          selectedAvatar: (j['selectedAvatar'] as String?) ?? '🦊',
+          purchasedAvatars: ((j['purchasedAvatars'] as List?) ?? const [])
               .map((e) => e as String)
               .toSet(),
         ),

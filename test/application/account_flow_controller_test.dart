@@ -506,6 +506,9 @@ class _FakeAuthService implements AuthService {
   }
 
   @override
+  Future<void> updateAvatar(String avatar) async {}
+
+  @override
   Future<void> signOut() async {
     uid = null;
     googleIdentity = false;

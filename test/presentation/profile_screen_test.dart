@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:connect_merge/application/engagement_cubit.dart';
 import 'package:connect_merge/infrastructure/auth_service.dart';
 import 'package:connect_merge/infrastructure/consent_service.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
@@ -116,6 +117,35 @@ void main() {
     expect(signOutCalls, 1);
   });
 
+  testWidgets('Avatars tile appears only when an EngagementCubit is provided',
+      (tester) async {
+    // Hidden without a cubit.
+    await tester.pumpWidget(MaterialApp(
+      home: ProfileScreen(
+        auth: _FakeAuthService(),
+        storage: InMemoryStorageService(),
+      ),
+    ));
+    await tester.pump();
+    expect(find.byKey(const Key('profile-avatars')), findsNothing);
+
+    // Shown with one.
+    final engagement = EngagementCubit(
+      storage: InMemoryStorageService(),
+      todayProvider: () => '2026-06-12',
+    )..load();
+    addTearDown(engagement.close);
+    await tester.pumpWidget(MaterialApp(
+      home: ProfileScreen(
+        auth: _FakeAuthService(),
+        storage: InMemoryStorageService(),
+        engagement: engagement,
+      ),
+    ));
+    await tester.pump();
+    expect(find.byKey(const Key('profile-avatars')), findsOneWidget);
+  });
+
   testWidgets('privacy-options tile is hidden outside EEA/UK', (tester) async {
     final consent = _FakeConsentService(required: false);
     await tester.pumpWidget(MaterialApp(
@@ -173,6 +203,9 @@ class _FakeAuthService implements AuthService {
 
   @override
   Future<void> setDisplayName(String name, {String? avatar}) async {}
+
+  @override
+  Future<void> updateAvatar(String avatar) async {}
 
   @override
   Future<void> deleteAccount() async {

@@ -170,6 +170,131 @@ enum Cosmetic {
       0xFF60A5FA,
       0xFF34D399,
     ],
+  ),
+
+  /// Unlocked at a 14-day streak. Deep indigo → blue-violet night ramp.
+  midnight(
+    label: 'Midnight',
+    unlock: CosmeticUnlock.streak,
+    threshold: 14,
+    colors: [
+      0x14FFFFFF,
+      0xFF1E1B4B,
+      0xFF312E81,
+      0xFF3730A3,
+      0xFF4338CA,
+      0xFF4F46E5,
+      0xFF6366F1,
+      0xFF818CF8,
+      0xFF6D28D9,
+      0xFF7C3AED,
+      0xFF8B5CF6,
+      0xFFA78BFA,
+    ],
+  ),
+
+  /// Unlocked by the High Roller achievement (reach 1024). Ash → fiery ramp.
+  ember(
+    label: 'Ember',
+    unlock: CosmeticUnlock.achievement,
+    achievement: Achievement.highRoller,
+    colors: [
+      0x14FFFFFF,
+      0xFF44403C,
+      0xFF57534E,
+      0xFF78350F,
+      0xFF92400E,
+      0xFFB45309,
+      0xFFD97706,
+      0xFFEA580C,
+      0xFFF97316,
+      0xFFDC2626,
+      0xFFEF4444,
+      0xFFFB923C,
+    ],
+  ),
+
+  /// Unlocked by the Top 10 achievement. Icy white → cyan ramp.
+  frost(
+    label: 'Frost',
+    unlock: CosmeticUnlock.achievement,
+    achievement: Achievement.topTenFinish,
+    colors: [
+      0x14FFFFFF,
+      0xFFE0F2FE,
+      0xFFBAE6FD,
+      0xFF7DD3FC,
+      0xFF38BDF8,
+      0xFF0EA5E9,
+      0xFF0284C7,
+      0xFF67E8F9,
+      0xFF22D3EE,
+      0xFF06B6D4,
+      0xFFA5F3FC,
+      0xFFCFFAFE,
+    ],
+  ),
+
+  /// Unlocked by a rewarded ad. Pastel candy ramp (pink/lilac/mint).
+  candy(
+    label: 'Candy',
+    unlock: CosmeticUnlock.rewardedAd,
+    colors: [
+      0x14FFFFFF,
+      0xFFFBCFE8,
+      0xFFF9A8D4,
+      0xFFF472B6,
+      0xFFE879F9,
+      0xFFD8B4FE,
+      0xFFC4B5FD,
+      0xFFA7F3D0,
+      0xFF6EE7B7,
+      0xFF99F6E4,
+      0xFFFDE68A,
+      0xFFFECDD3,
+    ],
+  ),
+
+  /// Bought with coins. Cool slate grayscale ramp.
+  mono(
+    label: 'Mono',
+    unlock: CosmeticUnlock.purchase,
+    price: kCosmeticPriceCommon,
+    colors: [
+      0x14FFFFFF,
+      0xFFF1F5F9,
+      0xFFCBD5E1,
+      0xFF94A3B8,
+      0xFF64748B,
+      0xFF475569,
+      0xFF334155,
+      0xFF1E293B,
+      0xFF0F172A,
+      0xFFE2E8F0,
+      0xFFA8A29E,
+      0xFF78716C,
+    ],
+  ),
+
+  /// Bought with coins (rare). Deep purple → magenta → starlight ramp.
+  galaxy(
+    label: 'Galaxy',
+    unlock: CosmeticUnlock.purchase,
+    price: kCosmeticPriceRare,
+    colors: [
+      0x14FFFFFF,
+      0xFF2E1065,
+      0xFF4C1D95,
+      0xFF5B21B6,
+      0xFF6D28D9,
+      0xFF7C3AED,
+      0xFF9333EA,
+      0xFFA855F7,
+      0xFFC026D3,
+      0xFFD946EF,
+      0xFFE879F9,
+      0xFFF5D0FE,
+    ],
   );
 
   const Cosmetic({

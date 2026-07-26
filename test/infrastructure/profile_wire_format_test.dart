@@ -17,6 +17,8 @@ void main() {
       'coins': 4321,
       'lastLootClaimDate': '2026-07-16',
       'purchasedCosmetics': ['royal', 'neon'],
+      'selectedAvatar': '🐼',
+      'purchasedAvatars': ['wolf', 'lion'],
       'lifetimeXp': 98765,
       'almanacCounts': {'3': 4, '11': 2},
       'rivalId': 'rival-42',
@@ -34,7 +36,7 @@ void main() {
     };
 
     const golden =
-        '{"dailyActiveStreak":12,"lastActiveDate":"2026-07-17","unlockedAchievements":["firstMerge","sevenDayStreak"],"selectedCosmetic":"ocean","adUnlockedCosmetics":["ember","forest"],"notificationsEnabled":true,"reminderMinutes":615,"bestRankByDifficulty":{"easy":2,"hard":7},"coins":4321,"lastLootClaimDate":"2026-07-16","purchasedCosmetics":["royal","neon"],"lifetimeXp":98765,"almanacCounts":{"3":4,"11":2},"rivalId":"rival-42","rivalName":"Ada","lastSeenRivalScoreByTier":{"medium":2048,"expert":8192},"tutorialSeen":true,"colorblindMode":true,"lastWeeklyPrizeDate":"2026-07-13","weeklyPrizes":[{"weekStart":"2026-07-13","tier":"hard","rank":2}],"lastChallengeCheckDate":"2026-07-17","lastDailyPrizeDate":"2026-07-17","lastMonthlyPrizeMonth":"2026-06"}';
+        '{"dailyActiveStreak":12,"lastActiveDate":"2026-07-17","unlockedAchievements":["firstMerge","sevenDayStreak"],"selectedCosmetic":"ocean","adUnlockedCosmetics":["ember","forest"],"notificationsEnabled":true,"reminderMinutes":615,"bestRankByDifficulty":{"easy":2,"hard":7},"coins":4321,"lastLootClaimDate":"2026-07-16","purchasedCosmetics":["royal","neon"],"selectedAvatar":"🐼","purchasedAvatars":["wolf","lion"],"lifetimeXp":98765,"almanacCounts":{"3":4,"11":2},"rivalId":"rival-42","rivalName":"Ada","lastSeenRivalScoreByTier":{"medium":2048,"expert":8192},"tutorialSeen":true,"colorblindMode":true,"lastWeeklyPrizeDate":"2026-07-13","weeklyPrizes":[{"weekStart":"2026-07-13","tier":"hard","rank":2}],"lastChallengeCheckDate":"2026-07-17","lastDailyPrizeDate":"2026-07-17","lastMonthlyPrizeMonth":"2026-06"}';
 
     expect(jsonEncode(PlayerProfile.fromJson(fixture).toJson()), golden);
   });
@@ -52,6 +54,8 @@ void main() {
       'coins': 0,
       'lastLootClaimDate': null,
       'purchasedCosmetics': <String>[],
+      'selectedAvatar': '🦊',
+      'purchasedAvatars': <String>[],
       'lifetimeXp': 0,
       'almanacCounts': <String, int>{},
       'rivalId': null,
@@ -91,6 +95,8 @@ void main() {
       'coins': 0,
       'lastLootClaimDate': null,
       'purchasedCosmetics': <String>[],
+      'selectedAvatar': '🦊',
+      'purchasedAvatars': <String>[],
       'lifetimeXp': 0,
       'almanacCounts': <String, int>{},
       'rivalId': null,

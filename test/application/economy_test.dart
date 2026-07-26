@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:connect_merge/application/engagement_cubit.dart';
+import 'package:connect_merge/domain/models/avatar.dart';
 import 'package:connect_merge/domain/models/cosmetic.dart';
 import 'package:connect_merge/domain/models/player_level.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
@@ -98,6 +99,73 @@ void main() {
       final reloaded = make()..load();
       expect(reloaded.state.unlockedCosmetics, contains(buyable));
       expect(reloaded.state.coins, 0);
+    });
+  });
+
+  group('purchaseAvatar + selectAvatar', () {
+    final buyableAvatar =
+        Avatar.values.firstWhere((a) => a.unlock == CosmeticUnlock.purchase);
+
+    test('buying debits the price and unlocks the avatar', () async {
+      await storage
+          .saveProfile(PlayerProfile(wallet: Wallet(coins: buyableAvatar.price)));
+      final c = make()..load();
+
+      final ok = await c.purchaseAvatar(buyableAvatar);
+
+      expect(ok, isTrue);
+      expect(storage.loadProfile().wallet.coins, 0);
+      expect(storage.loadProfile().avatars.purchasedAvatars,
+          contains(buyableAvatar.name));
+      expect(c.state.unlockedAvatars, contains(buyableAvatar));
+    });
+
+    test('overspend is rejected without a debit', () async {
+      await storage.saveProfile(
+          PlayerProfile(wallet: Wallet(coins: buyableAvatar.price - 1)));
+      final c = make()..load();
+      expect(await c.purchaseAvatar(buyableAvatar), isFalse);
+      expect(storage.loadProfile().wallet.coins, buyableAvatar.price - 1);
+      expect(storage.loadProfile().avatars.purchasedAvatars, isEmpty);
+    });
+
+    test('double purchase is idempotent (debited once)', () async {
+      await storage.saveProfile(
+          PlayerProfile(wallet: Wallet(coins: buyableAvatar.price * 2)));
+      final c = make()..load();
+      expect(await c.purchaseAvatar(buyableAvatar), isTrue);
+      expect(await c.purchaseAvatar(buyableAvatar), isFalse);
+      expect(storage.loadProfile().wallet.coins, buyableAvatar.price);
+    });
+
+    test('selecting a locked avatar is a no-op; an owned one persists the glyph',
+        () async {
+      final c = make()..load();
+      // Locked purchase avatar: rejected, selection unchanged.
+      await c.selectAvatar(buyableAvatar);
+      expect(c.state.selectedAvatar, isNot(buyableAvatar.emoji));
+
+      // A free avatar is always selectable and writes the glyph to storage.
+      await c.selectAvatar(Avatar.panda);
+      expect(c.state.selectedAvatar, Avatar.panda.emoji);
+      expect(storage.loadProfile().avatars.selectedAvatar, Avatar.panda.emoji);
+    });
+
+    test('a purchased avatar survives a reload', () async {
+      await storage
+          .saveProfile(PlayerProfile(wallet: Wallet(coins: buyableAvatar.price)));
+      await (make()..load()).purchaseAvatar(buyableAvatar);
+
+      final reloaded = make()..load();
+      expect(reloaded.state.unlockedAvatars, contains(buyableAvatar));
+    });
+
+    test('syncSelectedAvatar seeds the glyph without a gate', () async {
+      final c = make()..load();
+      // A not-yet-owned glyph can still be seeded from the server source of truth.
+      await c.syncSelectedAvatar('🐺');
+      expect(c.state.selectedAvatar, '🐺');
+      expect(storage.loadProfile().avatars.selectedAvatar, '🐺');
     });
   });
 

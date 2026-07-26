@@ -4,6 +4,7 @@ import '../domain/date_utils.dart' show previousUtcDay, utcToday;
 import '../domain/engine/almanac_progress.dart';
 import '../domain/models/achievement.dart';
 import '../domain/models/almanac.dart';
+import '../domain/models/avatar.dart';
 import '../domain/models/cosmetic.dart';
 import '../domain/models/difficulty.dart';
 import '../domain/models/player_level.dart';
@@ -34,6 +35,12 @@ class EngagementState {
   /// The full set of cosmetics currently unlocked (free + earned + ad).
   final Set<Cosmetic> unlockedCosmetics;
 
+  /// Currently selected avatar, as its emoji glyph (matches `players.avatar`).
+  final String selectedAvatar;
+
+  /// The full set of avatars currently unlocked (free + purchased).
+  final Set<Avatar> unlockedAvatars;
+
   /// Banked streak-freeze tokens (mirrors the headline streak; one bridges one
   /// missed UTC day).
   final int freezeTokens;
@@ -58,6 +65,17 @@ class EngagementState {
     this.newlyUnlocked = const {},
     this.selectedCosmetic = Cosmetic.classic,
     this.unlockedCosmetics = const {Cosmetic.classic},
+    this.selectedAvatar = '🦊',
+    this.unlockedAvatars = const {
+      Avatar.fox,
+      Avatar.cat,
+      Avatar.panda,
+      Avatar.frog,
+      Avatar.unicorn,
+      Avatar.octopus,
+      Avatar.owl,
+      Avatar.bee,
+    },
     this.freezeTokens = 0,
     this.coins = 0,
     this.lifetimeXp = 0,
@@ -76,6 +94,8 @@ class EngagementState {
     Set<Achievement>? newlyUnlocked,
     Cosmetic? selectedCosmetic,
     Set<Cosmetic>? unlockedCosmetics,
+    String? selectedAvatar,
+    Set<Avatar>? unlockedAvatars,
     int? freezeTokens,
     int? coins,
     int? lifetimeXp,
@@ -91,6 +111,8 @@ class EngagementState {
         newlyUnlocked: newlyUnlocked ?? this.newlyUnlocked,
         selectedCosmetic: selectedCosmetic ?? this.selectedCosmetic,
         unlockedCosmetics: unlockedCosmetics ?? this.unlockedCosmetics,
+        selectedAvatar: selectedAvatar ?? this.selectedAvatar,
+        unlockedAvatars: unlockedAvatars ?? this.unlockedAvatars,
         freezeTokens: freezeTokens ?? this.freezeTokens,
         coins: coins ?? this.coins,
         lifetimeXp: lifetimeXp ?? this.lifetimeXp,
@@ -174,6 +196,10 @@ class EngagementCubit extends Cubit<EngagementState>
         achievements: unlocked,
         adUnlocked: adCosmetics,
         purchased: purchased,
+      ),
+      selectedAvatar: profile.avatars.selectedAvatar,
+      unlockedAvatars: unlockedAvatars(
+        purchased: _decodeAvatars(profile.avatars.purchasedAvatars),
       ),
       freezeTokens: maxTierFreezeTokens(),
       coins: profile.wallet.coins,
@@ -334,5 +360,20 @@ class EngagementCubit extends Cubit<EngagementState>
       if (c.name == name) return c;
     }
     return Cosmetic.defaultCosmetic;
+  }
+
+  /// Decode persisted avatar names to [Avatar]s, dropping any unrecognized
+  /// token (e.g. a retired avatar) rather than defaulting it in.
+  Set<Avatar> _decodeAvatars(Set<String> names) {
+    final out = <Avatar>{};
+    for (final name in names) {
+      for (final a in Avatar.values) {
+        if (a.name == name) {
+          out.add(a);
+          break;
+        }
+      }
+    }
+    return out;
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../domain/models/avatar.dart';
 import '../../domain/models/cosmetic.dart';
 import '../../domain/models/difficulty.dart';
 import '../../infrastructure/storage_service.dart';
@@ -76,6 +77,50 @@ mixin CosmeticsWalletMixin on Cubit<EngagementState> {
     emit(state.copyWith(
       coins: newCoins,
       unlockedCosmetics: {...state.unlockedCosmetics, cosmetic},
+    ));
+    return true;
+  }
+
+  /// Select an avatar. Gated on the unlocked set — selecting a locked avatar is
+  /// a no-op. Persists the emoji glyph locally; the CALLER is responsible for
+  /// syncing it to the server (`AuthService.updateAvatar`) so it renders on
+  /// other players' leaderboards/friends lists — that's the one way avatars
+  /// differ from purely-local tile themes.
+  Future<void> selectAvatar(Avatar avatar) async {
+    if (!state.unlockedAvatars.contains(avatar)) return;
+    final profile = storage.loadProfile();
+    await storage.saveProfile(profile.selectAvatar(avatar.emoji));
+    emit(state.copyWith(selectedAvatar: avatar.emoji));
+  }
+
+  /// Seed the locally-cached selected avatar from an external source of truth
+  /// (the server profile, read when the avatars screen opens), so the checkmark
+  /// matches what other players see. No unlock gate and no server write — this is
+  /// a one-way pull, unlike the user-driven [selectAvatar].
+  Future<void> syncSelectedAvatar(String emoji) async {
+    if (state.selectedAvatar == emoji) return;
+    final profile = storage.loadProfile();
+    await storage.saveProfile(profile.selectAvatar(emoji));
+    emit(state.copyWith(selectedAvatar: emoji));
+  }
+
+  /// Purchase a [CosmeticUnlock.purchase] avatar with coins. Same read-check-
+  /// write safety as [purchaseCosmetic]: rejects non-purchasable avatars,
+  /// overspend (no debit), and is idempotent. Returns true only on a fresh,
+  /// committed purchase.
+  Future<bool> purchaseAvatar(Avatar avatar) async {
+    if (avatar.unlock != CosmeticUnlock.purchase) return false;
+    final profile = storage.loadProfile();
+    if (profile.avatars.purchasedAvatars.contains(avatar.name)) return false;
+    if (profile.wallet.coins < avatar.price) return false;
+
+    final newCoins = profile.wallet.coins - avatar.price;
+    await storage.saveProfile(
+      profile.recordAvatarPurchase(avatar.name, price: avatar.price),
+    );
+    emit(state.copyWith(
+      coins: newCoins,
+      unlockedAvatars: {...state.unlockedAvatars, avatar},
     ));
     return true;
   }
