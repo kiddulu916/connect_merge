@@ -9,7 +9,6 @@ import '../../application/engagement_cubit.dart';
 import '../../application/game_cubit.dart' show utcToday;
 import '../../application/game_session_factory.dart';
 import '../../application/loot_cubit.dart';
-import '../../application/loot_state.dart';
 import '../../application/rivalry_cubit.dart';
 import '../../domain/engine/daily_seeder.dart';
 import '../../domain/models/challenge_rule.dart';
@@ -25,10 +24,8 @@ import '../../infrastructure/notification_service.dart';
 import '../../infrastructure/storage_service.dart';
 import '../theme/tile_palette.dart';
 import '../theme/tokens.dart';
-import '../widgets/coin_balance.dart';
 import '../widgets/duel_banner.dart';
 import '../widgets/rival_indicator.dart';
-import '../widgets/streak_banner.dart';
 import 'achievements_screen.dart';
 import 'almanac_screen.dart';
 import 'cosmetics_screen.dart';
@@ -39,7 +36,10 @@ import 'loot_chest_screen.dart';
 import 'practice_screen.dart';
 import 'profile_screen.dart';
 import 'tier_select/challenge_card.dart';
+import 'tier_select/loot_leaderboard_row.dart';
+import 'tier_select/streak_section.dart';
 import 'tier_select/tier_card.dart';
+import 'tier_select/tier_select_app_bar.dart';
 import 'tier_select/tier_tour_mixin.dart';
 
 /// Entry screen: pick a difficulty tier. Each card shows the starting tile
@@ -567,30 +567,6 @@ class _TierSelectScreenState extends State<TierSelectScreen>
     );
   }
 
-  /// A compact secondary-nav icon button for the top app bar. Tighter than the
-  /// default 48px target (22px glyph, 40px hit area, no padding) so up to five
-  /// fit alongside the title without forcing it to wrap.
-  Widget _navIconButton({
-    required Key iconKey,
-    required String tooltip,
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return IconButton(
-      key: iconKey,
-      tooltip: tooltip,
-      icon: Icon(icon, color: AppColors.textSecondary),
-      iconSize: 22,
-      onPressed: onPressed,
-      style: IconButton.styleFrom(
-        minimumSize: const Size(40, 40),
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final content = SafeArea(
@@ -599,79 +575,21 @@ class _TierSelectScreenState extends State<TierSelectScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Top app bar: title left, secondary-nav icons right. The title
-            // uses FittedBox(scaleDown) so it always stays on ONE line —
-            // shrinking only if the (up to 5) compact action icons leave it
-            // too little room — and never wraps.
-            Row(
-              children: [
-                const Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text('Connect Merge',
-                        maxLines: 1,
-                        softWrap: false,
-                        style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900)),
-                  ),
-                ),
-                _navIconButton(
-                  iconKey: const Key('open-achievements'),
-                  tooltip: 'Achievements',
-                  icon: Icons.emoji_events,
-                  onPressed: () => _openAchievements(context),
-                ),
-                _navIconButton(
-                  iconKey: const Key('open-cosmetics'),
-                  tooltip: 'Tile themes',
-                  icon: Icons.palette,
-                  onPressed: () => _openCosmetics(context),
-                ),
-                _navIconButton(
-                  iconKey: const Key('open-almanac'),
-                  tooltip: 'Merge Almanac',
-                  icon: Icons.menu_book,
-                  onPressed: () => _openAlmanac(context),
-                ),
-                if (widget.friends != null)
-                  _navIconButton(
-                    iconKey: const Key('open-friends'),
-                    tooltip: 'Friends',
-                    icon: Icons.group,
-                    onPressed: () => _openFriends(context),
-                  ),
-                if (widget.auth != null)
-                  _navIconButton(
-                    iconKey: const Key('open-profile'),
-                    tooltip: 'Profile',
-                    icon: Icons.person,
-                    onPressed: () => _openProfile(context),
-                  ),
-              ],
+            // Top app bar: title left, secondary-nav icons right.
+            TierSelectAppBar(
+              showFriends: widget.friends != null,
+              showProfile: widget.auth != null,
+              onAchievements: () => _openAchievements(context),
+              onCosmetics: () => _openCosmetics(context),
+              onAlmanac: () => _openAlmanac(context),
+              onFriends: () => _openFriends(context),
+              onProfile: () => _openProfile(context),
             ),
             const SizedBox(height: AppSpacing.sm),
-            BlocBuilder<EngagementCubit, EngagementState>(
-              bloc: _engagement,
-              builder: (context, eng) {
-                if (eng.dailyActiveStreak <= 0) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: ValueListenableBuilder<bool>(
-                    valueListenable: widget.adService.showing,
-                    builder: (context, busy, _) => StreakBanner(
-                      streak: eng.dailyActiveStreak,
-                      freezeTokens: eng.freezeTokens,
-                      busy: busy,
-                      onFreeze: () => _watchFreezeAd(context),
-                    ),
-                  ),
-                );
-              },
+            StreakSection(
+              engagement: _engagement,
+              adBusy: widget.adService.showing,
+              onFreezePressed: _watchFreezeAd,
             ),
             BlocBuilder<RivalryCubit, RivalryState>(
               bloc: _rivalry,
@@ -743,49 +661,10 @@ class _TierSelectScreenState extends State<TierSelectScreen>
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            BlocBuilder<LootCubit, LootState>(
-              bloc: _loot,
-              builder: (context, loot) {
-                final ready = loot is LootReady;
-                return Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        key: const Key('open-loot-chest'),
-                        onPressed: () => _openLootChest(context),
-                        icon: const Icon(Icons.card_giftcard, size: 18),
-                        label: Text(ready ? 'Daily chest' : 'Chest claimed',
-                            overflow: TextOverflow.ellipsis),
-                        style: FilledButton.styleFrom(
-                          backgroundColor:
-                              ready ? AppColors.accent : AppColors.surface,
-                          foregroundColor: AppColors.textPrimary,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: AppSpacing.md),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    CoinBalance(coins: loot.coins),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        key: const Key('open-leaderboard-menu'),
-                        onPressed: () => _openLeaderboardOrExplain(context),
-                        icon: const Icon(Icons.leaderboard, size: 18),
-                        label: const Text('Leaderboard',
-                            overflow: TextOverflow.ellipsis),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textPrimary,
-                          side: const BorderSide(color: AppColors.border),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: AppSpacing.md),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+            LootLeaderboardRow(
+              loot: _loot,
+              onOpenLootChest: () => _openLootChest(context),
+              onOpenLeaderboard: () => _openLeaderboardOrExplain(context),
             ),
             const SizedBox(height: AppSpacing.lg),
             if (widget.duels != null)

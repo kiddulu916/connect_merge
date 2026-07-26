@@ -119,6 +119,25 @@ void main() {
     expect(find.textContaining('Resets in'), findsOneWidget);
   });
 
+  testWidgets('streak banner is hidden with no active streak', (tester) async {
+    final storage = await _storageWithTutorialSeen();
+    await tester.pumpWidget(_tierSelect(storage));
+    expect(find.byKey(const Key('streak-banner')), findsNothing);
+  });
+
+  testWidgets('streak banner shows the current streak when active',
+      (tester) async {
+    final storage = await _storageWithTutorialSeen();
+    final profile = storage.loadProfile();
+    await storage.saveProfile(profile.copyWith(
+      activity: profile.activity
+          .copyWith(dailyActiveStreak: 3, lastActiveDate: '2026-06-06'),
+    ));
+    await tester.pumpWidget(_tierSelect(storage));
+    expect(find.byKey(const Key('streak-banner')), findsOneWidget);
+    expect(find.text('3-day streak'), findsOneWidget);
+  });
+
   testWidgets('main-menu Leaderboard button is always visible', (tester) async {
     final storage = await _storageWithTutorialSeen();
     await tester.pumpWidget(MaterialApp(
