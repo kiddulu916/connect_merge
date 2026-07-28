@@ -9,11 +9,12 @@
 // GameCubit.playChain / GameCubit.grantAdReward exactly.
 
 import { Prng } from "./prng.ts";
-import { challengeRule, DailySeeder } from "./seeder.ts";
+import { challengeRule, DailySeeder, type DailyStart } from "./seeder.ts";
 import {
   ascendBonus,
   type BoardState,
   canFollow,
+  type ChallengeRule,
   comboMultiplier,
   comboRushMultiplier,
   type Difficulty,
@@ -29,7 +30,6 @@ import {
   kMaxTier,
   kMovesPerDay,
   minChainLengthFor,
-  pairMergeable,
   STARTING_FILL,
   type Tile,
 } from "./constants.ts";
@@ -194,25 +194,13 @@ export function refillBoard(
 /**
  * True if any two orthogonally-adjacent live tiles could legally merge in
  * SOME direction (spatial deadlock — non-adjacent mergeable tiles do NOT
- * count).
+ * count). Delegates to the single scan in `constants.ts` (`hasAnyMergeablePair`,
+ * reached via `hasChainOfLength` at minLength 2) so the adjacency scan is
+ * written exactly once in TypeScript. Must stay in lockstep with Dart
+ * `GameEngine.hasMergeAvailable`.
  */
 export function hasMergeAvailable(s: BoardState): boolean {
-  const gs = s.gridSize;
-  for (let i = 0; i < s.cells.length; i++) {
-    const t = s.cells[i];
-    if (t === null) continue;
-    const row = Math.floor(i / gs);
-    const col = i % gs;
-    if (col + 1 < gs) {
-      const e = s.cells[i + 1];
-      if (e !== null && pairMergeable(t.tier, e.tier)) return true;
-    }
-    if (row + 1 < gs) {
-      const so = s.cells[i + gs];
-      if (so !== null && pairMergeable(t.tier, so.tier)) return true;
-    }
-  }
-  return false;
+  return hasChainOfLength(s.cells, s.gridSize, 2);
 }
 
 /**
@@ -331,6 +319,48 @@ export async function verifyRun(
   };
 }
 
+export interface ChallengeStart {
+  rule: ChallengeRule;
+  start: DailyStart;
+  startingFill: number;
+  movesOverride: number;
+  minChainLength: number;
+  multiplierFn: (n: number) => number;
+}
+
+/**
+ * Resolve the per-rule generation overrides for today's Challenge board and
+ * seed the starting board. Single source for how the daily challenge board is
+ * built, so the board-parity digest and verifyRunChallenge cannot diverge on
+ * it. Mirrors the challenge branch of Dart `GameCubit.init`.
+ */
+export async function seedChallengeStart(
+  date: string,
+): Promise<ChallengeStart> {
+  const rule = await challengeRule(date);
+  const startingFill = rule === "denseStart"
+    ? kChallengeDenseFill
+    : rule === "sparseStart"
+    ? kChallengeSparseFill
+    : rule === "longChainsOnly"
+    ? kChallengeDenseFill
+    : STARTING_FILL["challenge"];
+  const wallCountOverride = rule === "wallMaze" ? kChallengeWallMazeCount : 0;
+  const movesOverride = rule === "budgetCut" ? kChallengeMoves : kMovesPerDay;
+  const multiplierFn = rule === "comboRush"
+    ? comboRushMultiplier
+    : comboMultiplier;
+  const minChainLength = minChainLengthFor(rule);
+  const seeder = new DailySeeder(date, "challenge");
+  const start = await seeder.generate({
+    startingFillOverride: startingFill,
+    wallCountOverride,
+    movesOverride,
+    minChainLength,
+  });
+  return { rule, start, startingFill, movesOverride, minChainLength, multiplierFn };
+}
+
 /**
  * Challenge-mode replay verifier. Derives the day's ChallengeRule, regenerates
  * the challenge board with rule-specific overrides, and replays the move log
@@ -351,30 +381,12 @@ export async function verifyRunChallenge(
 ): Promise<VerifyResult> {
   if (!Array.isArray(log)) return REJECT;
 
-  const rule = await challengeRule(date);
-  // Denser than the default 8 for longChainsOnly: raising the minimum chain
-  // length to 3 means the board needs more raw material to keep producing
-  // legal moves, on top of the rule-aware refill/re-roll (below).
-  const startingFillOverride = rule === "denseStart" ? kChallengeDenseFill
-    : rule === "sparseStart" ? kChallengeSparseFill
-    : rule === "longChainsOnly" ? kChallengeDenseFill
-    : STARTING_FILL["challenge"]; // 8 for other rules
-  const wallCountOverride = rule === "wallMaze" ? kChallengeWallMazeCount : 0;
-  // budgetCut gets kChallengeMoves (15); all other rules get kMovesPerDay (30).
-  const movesOverride = rule === "budgetCut" ? kChallengeMoves : kMovesPerDay;
-  const multiplierFn = rule === "comboRush" ? comboRushMultiplier : comboMultiplier;
-  const minChainLength = minChainLengthFor(rule);
+  const { start, startingFill, minChainLength, multiplierFn } =
+    await seedChallengeStart(date);
 
   const seeder = new DailySeeder(date, "challenge");
-  const start = await seeder.generate({
-    startingFillOverride,
-    wallCountOverride,
-    movesOverride,
-    minChainLength,
-  });
   const dropPrng = await seeder.dropTierPrng();
   const landing = await seeder.landingPrng();
-  const startingFill = startingFillOverride;
 
   let board = start.board;
 
