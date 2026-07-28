@@ -56,6 +56,19 @@ class LocalOwner {
     this.claimed = false,
   });
 
+  /// Whether this owner may push its local profile for [uid].
+  ///
+  /// This is the sync push-eligibility predicate only. It requires a matching,
+  /// complete, non-recovery owner with a real server `claim_profile` claim; a
+  /// bare uid match can push against a null active_device_id and falsely report
+  /// supersession.
+  ///
+  /// This is not the storage write-guard, which deliberately omits [claimed]
+  /// so offline or unclaimed owners can write, nor the recovery-UI gate. Those
+  /// deferred predicates must not reuse this method.
+  bool canPush(String uid) =>
+      this.uid == uid && restoreComplete && !recoveryRequired && claimed;
+
   LocalOwner copyWith({
     int? snapshotRevision,
     bool? restoreComplete,

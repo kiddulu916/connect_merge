@@ -349,6 +349,42 @@ void main() {
     expect(sync.isArmed, isFalse);
   });
 
+  test('push blocks when the sync uid no longer matches the local owner',
+      () async {
+    final target = InMemoryStorageService(currentUserId: () => 'player-1');
+    await target.rebindOwner('player-1', claimed: true);
+    var syncUid = 'player-1';
+    final calls = <(String, Map<String, dynamic>)>[];
+    final logs = <String>[];
+    final sync = ProfileSyncService.withSeams(
+      storage: target,
+      currentUid: () => syncUid,
+      debounce: const Duration(days: 1),
+      rpc: (method, args) async {
+        calls.add((method, args));
+        return true;
+      },
+      onLog: logs.add,
+    )..arm();
+
+    await target.saveProfile(
+      const PlayerProfile(wallet: Wallet(coins: 1)),
+    );
+    syncUid = 'player-2';
+
+    expect(await sync.pushNow(), ProfilePushOutcome.failed);
+    expect(calls.where((call) => call.$1 == 'push_profile'), isEmpty);
+    expect(target.isDirty, isTrue);
+    expect(sync.isArmed, isFalse);
+    expect(logs, contains('profile push blocked: local owner mismatch'));
+
+    await target.saveProfile(
+      const PlayerProfile(wallet: Wallet(coins: 2)),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.where((call) => call.$1 == 'push_profile'), isEmpty);
+  });
+
   test('debounce coalesces rapid durable writes into the latest snapshot',
       () async {
     final uploadedCoins = <int>[];

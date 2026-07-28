@@ -319,12 +319,7 @@ class ProfileSyncService {
         _superseded ||
         uid == null ||
         localOwner == null ||
-        localOwner.uid != uid ||
-        !localOwner.restoreComplete ||
-        localOwner.recoveryRequired ||
-        // Arming on a bare uid match would push against a null
-        // active_device_id and report a bogus supersession.
-        !localOwner.claimed) {
+        !localOwner.canPush(uid)) {
       return;
     }
     _armed = true;
@@ -382,11 +377,7 @@ class ProfileSyncService {
     final uid = currentUid();
     if (uid == null) return ProfilePushOutcome.failed;
     final localOwner = storage.owner;
-    if (localOwner == null ||
-        localOwner.uid != uid ||
-        !localOwner.restoreComplete ||
-        localOwner.recoveryRequired ||
-        !localOwner.claimed) {
+    if (localOwner == null || !localOwner.canPush(uid)) {
       _onLog?.call('profile push blocked: local owner mismatch');
       _disarm();
       return ProfilePushOutcome.failed;
