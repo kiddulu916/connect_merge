@@ -319,20 +319,6 @@ export async function verifyRun(
   };
 }
 
-/**
- * Challenge-mode replay verifier. Derives the day's ChallengeRule, regenerates
- * the challenge board with rule-specific overrides, and replays the move log
- * applying rule constraints:
- *   - budgetCut:      board starts with kChallengeMoves (15) moves.
- *   - longChainsOnly: reject ChainEvent paths shorter than minChainLengthFor
- *                     (3); board also starts denser (kChallengeDenseFill) and
- *                     refill/re-roll/deadlock-detection all require a chain
- *                     of that length, not just any 2-chain.
- *   - denseStart:     board seeded with kChallengeDenseFill tiles.
- *   - sparseStart:    board seeded with kChallengeSparseFill tiles.
- *   - wallMaze:       board seeded with kChallengeWallMazeCount walls.
- *   - comboRush:      score computed with comboRushMultiplier.
- */
 export interface ChallengeStart {
   rule: ChallengeRule;
   start: DailyStart;
@@ -375,6 +361,20 @@ export async function seedChallengeStart(
   return { rule, start, startingFill, movesOverride, minChainLength, multiplierFn };
 }
 
+/**
+ * Challenge-mode replay verifier. Derives the day's ChallengeRule, regenerates
+ * the challenge board with rule-specific overrides, and replays the move log
+ * applying rule constraints:
+ *   - budgetCut:      board starts with kChallengeMoves (15) moves.
+ *   - longChainsOnly: reject ChainEvent paths shorter than minChainLengthFor
+ *                     (3); board also starts denser (kChallengeDenseFill) and
+ *                     refill/re-roll/deadlock-detection all require a chain
+ *                     of that length, not just any 2-chain.
+ *   - denseStart:     board seeded with kChallengeDenseFill tiles.
+ *   - sparseStart:    board seeded with kChallengeSparseFill tiles.
+ *   - wallMaze:       board seeded with kChallengeWallMazeCount walls.
+ *   - comboRush:      score computed with comboRushMultiplier.
+ */
 export async function verifyRunChallenge(
   date: string,
   log: unknown,
