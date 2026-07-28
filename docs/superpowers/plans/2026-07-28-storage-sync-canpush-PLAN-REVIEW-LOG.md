@@ -60,3 +60,15 @@ VERDICT: APPROVED
 
 ### Resolution
 Converged after 3 rounds (Act 1 grill + Act 2 cross-model review). Plan locked and approved. No code written during either act.
+
+## Act 3 — Build (Codex builds, Claude verifies)
+Builder model: gpt-5.6-sol (`-c model` override; config's gpt-5.3-codex 400s). Thread 019faa4d-e2d8-7903-8cde-13100cb37b3b.
+
+### Round 1 — Codex build
+Codex report: added documented `LocalOwner.canPush`; routed `arm()` and `_pushOnce()` through it; added the `canPush` truth-table unit test and the `_pushOnce` ineligible-owner integration test. `flutter analyze` clean; full `flutter test` 722 passed. Deviations: none. (Process deviation: Codex self-committed as `f62919f` despite the "Codex never commits" contract — Claude will finalize the commit/attribution at the human gate.)
+
+### Claude's verdict — VERIFIED
+- Read the full diff (4 files, +73/-11). `lib/` changes are exactly to spec: `canPush = this.uid == uid && restoreComplete && !recoveryRequired && claimed` with the mandatory doc comment distinguishing it from the write-guard/UI gate; both call sites reduced to `!localOwner.canPush(uid)` with every other guard and branch body preserved verbatim. `!canPush(uid)` equals the removed inline predicate by De Morgan.
+- Tests faithful to Approach step 3 (mutable sync `currentUid`, real dirtying write, recording rpc, `onLog` capture, `debounce: 1 day` so the timer can't auto-fire, plus a second-write assertion confirming the disarm persisted).
+- Ran proof myself: `flutter analyze` on the 4 touched files → No issues; the 3 proof suites → 31/31 pass.
+- **Behavior-preservation empirically proven:** reverted the two `lib/` files to pre-refactor (inline predicate, no `canPush`) and re-ran `profile_sync_service_test.dart` → 24/24 pass, including the new `_pushOnce` test. The test pins existing behavior on BOTH old and new code; the refactor changes no behavior. Tree restored clean.
