@@ -29,7 +29,6 @@ import {
   kMaxTier,
   kMovesPerDay,
   minChainLengthFor,
-  pairMergeable,
   STARTING_FILL,
   type Tile,
 } from "./constants.ts";
@@ -194,25 +193,13 @@ export function refillBoard(
 /**
  * True if any two orthogonally-adjacent live tiles could legally merge in
  * SOME direction (spatial deadlock — non-adjacent mergeable tiles do NOT
- * count).
+ * count). Delegates to the single scan in `constants.ts` (`hasAnyMergeablePair`,
+ * reached via `hasChainOfLength` at minLength 2) so the adjacency scan is
+ * written exactly once in TypeScript. Must stay in lockstep with Dart
+ * `GameEngine.hasMergeAvailable`.
  */
 export function hasMergeAvailable(s: BoardState): boolean {
-  const gs = s.gridSize;
-  for (let i = 0; i < s.cells.length; i++) {
-    const t = s.cells[i];
-    if (t === null) continue;
-    const row = Math.floor(i / gs);
-    const col = i % gs;
-    if (col + 1 < gs) {
-      const e = s.cells[i + 1];
-      if (e !== null && pairMergeable(t.tier, e.tier)) return true;
-    }
-    if (row + 1 < gs) {
-      const so = s.cells[i + gs];
-      if (so !== null && pairMergeable(t.tier, so.tier)) return true;
-    }
-  }
-  return false;
+  return hasChainOfLength(s.cells, s.gridSize, 2);
 }
 
 /**
