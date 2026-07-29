@@ -26,3 +26,12 @@ VERDICT: APPROVED
 
 ### Resolution
 Converged after 2 rounds (Act 1 grill + Act 2 cross-model review). Plan locked and approved. No code written during either act.
+
+## Act 3 — Build (Codex builds, Claude verifies)
+Builder model: gpt-5.6-sol (`-c model` override). Thread 019faf47-7598-7852-99bf-c8d8a9019e5d. Codex self-committed as cf77feb (contract deviation; Claude finalizes at the gate).
+
+### Claude's verdict — VERIFIED
+- Read the full diff (prize_checking_mixin.dart +177/-117, 2 test files). Faithful to spec: `_checkPeriod` with the `syncWeeklyPrizes` emit branch (weekly => coins-or-crowns + copyWith(coins, weeklyPrizes); others => coins-only), the three helpers lifted verbatim, weekly/monthly `ranksFor` with `try` wrapping ONLY `fetchRanks` and `_nonChallengeRanks` after the catch, daily/challenge `ranksFor` never-null. All four public signatures unchanged (main.dart callers untouched).
+- Ran proof myself: `flutter analyze` on the 3 touched files → No issues; the 5 proof suites → 54/54 pass.
+- **Behavior-preservation proven:** reverted the mixin to pre-refactor and ran the two new absent-date tests against the OLD code → pass (12/12 daily+challenge). The new tests pin existing behavior on both old and new code.
+- Broad regression: `test/application/ test/infrastructure/` → 396/396 pass (all callers of the change). Full `flutter test` locally exceeds 10 min purely due to the unrelated board_vectors GameCubit-drive (candidate #1's flagged perf ceiling); CI runs it in ~2 min.
