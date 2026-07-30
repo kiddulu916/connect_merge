@@ -296,6 +296,113 @@ void main() {
     expect(sync.isSuperseded, isFalse);
   });
 
+  test('claimAndRestore drains an in-flight push before restoring', () async {
+    final calls = <String>[];
+    final pushGate = Completer<dynamic>();
+    final storage = InMemoryStorageService(
+      currentUserId: () => 'player-1',
+    );
+    await storage.rebindOwner(
+      'player-1',
+      snapshotRevision: 1,
+      claimed: true,
+    );
+    final sync = ProfileSyncService.withSeams(
+      storage: storage,
+      currentUid: () => 'player-1',
+      debounce: const Duration(days: 1),
+      rpc: (function, _) async {
+        calls.add(function);
+        if (function == 'push_profile') {
+          await pushGate.future;
+          return true;
+        }
+        expect(function, 'claim_profile');
+        return [
+          {
+            'profile_snapshot': _snapshot(coins: 55),
+            'snapshot_revision': 5,
+          },
+        ];
+      },
+    )..arm();
+    await storage.saveProfile(
+      const PlayerProfile(wallet: Wallet(coins: 1)),
+    );
+    final push = sync.pushNow();
+    await storage.saveProfile(
+      const PlayerProfile(wallet: Wallet(coins: 2)),
+    );
+
+    final claim = sync.claimAndRestore();
+    await Future<void>.delayed(Duration.zero);
+    final callsBeforePushDrained = List<String>.of(calls);
+
+    pushGate.complete(true);
+    expect(await push, ProfilePushOutcome.pushed);
+    final outcome = await claim;
+
+    expect(callsBeforePushDrained, ['push_profile']);
+    expect(outcome, SnapshotOutcome.restored);
+    expect(storage.owner!.snapshotRevision, 5);
+    expect(storage.syncedRevision, storage.localRevision);
+    expect(storage.isDirty, isFalse);
+  });
+
+  test('claimAndPushLocal drains before claiming and forcing a new push',
+      () async {
+    final calls = <String>[];
+    final pushGate = Completer<dynamic>();
+    var pushes = 0;
+    final storage = InMemoryStorageService(
+      currentUserId: () => 'player-1',
+    );
+    await storage.rebindOwner(
+      'player-1',
+      snapshotRevision: 1,
+      claimed: true,
+    );
+    final sync = ProfileSyncService.withSeams(
+      storage: storage,
+      currentUid: () => 'player-1',
+      debounce: const Duration(days: 1),
+      rpc: (function, _) async {
+        calls.add(function);
+        if (function == 'claim_profile') {
+          return [
+            {'profile_snapshot': null, 'snapshot_revision': 5},
+          ];
+        }
+        expect(function, 'push_profile');
+        pushes++;
+        if (pushes == 1) await pushGate.future;
+        return true;
+      },
+    )..arm();
+    await storage.saveProfile(
+      const PlayerProfile(wallet: Wallet(coins: 1)),
+    );
+    final push = sync.pushNow();
+
+    final claim = sync.claimAndPushLocal();
+    await Future<void>.delayed(Duration.zero);
+    final callsBeforePushDrained = List<String>.of(calls);
+
+    pushGate.complete(true);
+    expect(await push, ProfilePushOutcome.pushed);
+    final outcome = await claim;
+
+    expect(callsBeforePushDrained, ['push_profile']);
+    expect(
+      calls,
+      ['push_profile', 'claim_profile', 'push_profile'],
+    );
+    expect(outcome, SnapshotOutcome.restored);
+    expect(storage.owner!.snapshotRevision, 6);
+    expect(storage.syncedRevision, storage.localRevision);
+    expect(storage.isDirty, isFalse);
+  });
+
   test('flush repeats when a local write lands during an upload', () async {
     final firstResponse = Completer<dynamic>();
     final uploadedCoins = <int>[];
