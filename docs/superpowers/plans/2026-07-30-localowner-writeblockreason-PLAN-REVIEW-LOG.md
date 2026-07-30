@@ -28,3 +28,12 @@ VERDICT: APPROVED
 
 ### Resolution
 Converged after 2 rounds. Plan locked and approved. No code written during either act.
+
+## Act 3 — Build (Codex builds, Claude verifies)
+Builder model: gpt-5.6-sol. Thread 019fb20f-1a04-7ec2-b340-6126983901fd. Codex self-committed as 60bfa3a (finalized by Claude at the gate).
+
+### Claude's verdict — VERIFIED
+- Full diff (4 files, +67/-37) faithful: `LocalOwner.writeBlockReason` with exact precedence + the reuse INVARIANT doc; both `_guardWrite`s use the lazy `writeBlockReason(null) ?? writeBlockReason(_currentUserId())` (Hive keeps its `ownerRecordCorrupt` top-check); main.dart recovery gate → `ownerRecordCorrupt || (owner?.writeBlockReason(null) != null)`, mustReconcile → `uid != null && (owner?.writeBlockReason(uid) != null)`. No exhaustive switches (per the plan's #4 disposition).
+- New `writeBlockReason` truth-table test covers all-clear (claimed or not), restore-vs-mismatch and recovery-vs-mismatch precedence, the all-three-blockers case → restoreIncomplete, ownerMismatch, and null-session → null.
+- Ran proof myself: `flutter analyze` (4 files) → No issues; proof suites → 41/41 (incl. main_test's recovery gate); broad `application`+`infrastructure`+`presentation` → 526/526.
+- Behavior-preservation: the guard/gate tests are PRE-EXISTING, so their passing on the refactored code directly proves no behavior change (no revert-check needed).

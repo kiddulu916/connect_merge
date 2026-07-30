@@ -56,6 +56,28 @@ class LocalOwner {
     this.claimed = false,
   });
 
+  /// The write-guard reason that blocks this owner from writing for
+  /// [currentUserId] (null when a write is allowed). Checked in precedence
+  /// order restoreIncomplete → recoveryRequired → ownerMismatch, matching the
+  /// storage guards. [currentUserId] null means "no session" — offline play
+  /// against the last owner stays writable, so ownerMismatch never fires.
+  /// This is the write-guard predicate: unlike [canPush] it does NOT require
+  /// `claimed` (offline/unclaimed owners may write). `main.dart`'s recovery
+  /// reads reuse it (writeBlockReason(null) for the recovery gate,
+  /// writeBlockReason(uid) for reconcile) because the booleans coincide.
+  /// INVARIANT for that reuse: every [StorageWriteBlockReason] is a
+  /// recovery/reconcile condition, so `writeBlockReason(...) != null` is a
+  /// sound recovery signal. If a future reason is added that is NOT a
+  /// recovery condition, revisit the two `main.dart` call sites.
+  StorageWriteBlockReason? writeBlockReason(String? currentUserId) {
+    if (!restoreComplete) return StorageWriteBlockReason.restoreIncomplete;
+    if (recoveryRequired) return StorageWriteBlockReason.recoveryRequired;
+    if (currentUserId != null && currentUserId != uid) {
+      return StorageWriteBlockReason.ownerMismatch;
+    }
+    return null;
+  }
+
   /// Whether this owner may push its local profile for [uid].
   ///
   /// This is the sync push-eligibility predicate only. It requires a matching,
@@ -285,19 +307,9 @@ class InMemoryStorageService implements StorageService {
   void _guardWrite() {
     final owner = _owner;
     if (owner == null) return;
-    if (!owner.restoreComplete) {
-      throw const StorageWriteBlockedException(
-          StorageWriteBlockReason.restoreIncomplete);
-    }
-    if (owner.recoveryRequired) {
-      throw const StorageWriteBlockedException(
-          StorageWriteBlockReason.recoveryRequired);
-    }
-    final currentUserId = _currentUserId();
-    if (currentUserId != null && currentUserId != owner.uid) {
-      throw const StorageWriteBlockedException(
-          StorageWriteBlockReason.ownerMismatch);
-    }
+    final reason = owner.writeBlockReason(null) ??
+        owner.writeBlockReason(_currentUserId()); // lazy session (Codex R1 #1)
+    if (reason != null) throw StorageWriteBlockedException(reason);
   }
 
   @override
