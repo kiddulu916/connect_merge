@@ -68,6 +68,28 @@ void main() {
     expect(storage.loadProfile().prizes.lastChallengeCheckDate, '2026-06-22');
   });
 
+  test('absent dates stamp zero awards and advance the loop', () async {
+    final storage = InMemoryStorageService();
+    await storage.saveProfile(const PlayerProfile(
+      prizes: PrizeLedger(lastChallengeCheckDate: '2026-06-20'),
+    ));
+    final cubit = EngagementCubit(
+      storage: storage,
+      todayProvider: () => '2026-06-23',
+    )..load();
+    addTearDown(cubit.close);
+
+    await cubit.checkChallengePayouts(({
+      required String from,
+      required String to,
+    }) async =>
+        {});
+
+    expect(cubit.state.coins, 0);
+    expect(storage.loadProfile().wallet.coins, 0);
+    expect(storage.loadProfile().prizes.lastChallengeCheckDate, '2026-06-22');
+  });
+
   test('catch-up is bounded to seven closed days', () async {
     final storage = InMemoryStorageService();
     await storage.saveProfile(const PlayerProfile(

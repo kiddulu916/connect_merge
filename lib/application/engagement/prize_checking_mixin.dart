@@ -172,6 +172,83 @@ mixin PrizeCheckingMixin on Cubit<EngagementState> {
     return commit;
   }
 
+  Map<Difficulty, int> _nonChallengeRanks(
+    Map<Difficulty, int>? inner,
+  ) =>
+      Map<Difficulty, int>.fromEntries(
+        (inner ?? const {}).entries.where(
+              (entry) => entry.key != Difficulty.challenge,
+            ),
+      );
+
+  Map<Difficulty, int> _challengeOnlyRanks(
+    Map<Difficulty, int>? inner,
+  ) {
+    final challengeRank = inner?[Difficulty.challenge];
+    return challengeRank == null
+        ? const <Difficulty, int>{}
+        : {Difficulty.challenge: challengeRank};
+  }
+
+  List<WeeklyPrize> _weeklyCrowns(
+    Map<Difficulty, int> ranks,
+    String weekFrom,
+  ) =>
+      ranks.entries
+          .where((entry) => _weeklyCoinsFor(entry.value) > 0)
+          .map((entry) => WeeklyPrize(
+                weekStart: weekFrom,
+                tier: entry.key,
+                rank: entry.value,
+              ))
+          .toList();
+
+  Future<void> _checkPeriod({
+    required List<String> periodKeys,
+    required Future<Map<Difficulty, int>?> Function(String key) ranksFor,
+    required String? Function(PlayerProfile) guardOf,
+    required int Function(int rank) coinsFor,
+    required PlayerProfile Function(
+      PlayerProfile profile,
+      String key,
+      int coins,
+      Map<Difficulty, int> ranks,
+    ) award,
+    required bool syncWeeklyPrizes,
+  }) async {
+    for (final key in periodKeys) {
+      final ranks = await ranksFor(key);
+      if (ranks == null) break;
+      await serializedPrizeCommit(() async {
+        final profile = storage.loadProfile();
+        final storedGuard = guardOf(profile);
+        if (storedGuard != null && storedGuard.compareTo(key) >= 0) return;
+        final bestRank = _bestQualifyingRank(ranks, coinsFor);
+        final coins = bestRank == null ? 0 : coinsFor(bestRank);
+        final updated = award(profile, key, coins, ranks);
+        await storage.saveProfile(updated);
+        // Preserve each path's original emit exactly: coins-only paths must
+        // not synchronize weekly prizes from a separately loaded profile.
+        if (syncWeeklyPrizes) {
+          if (updated.wallet.coins != state.coins ||
+              !_sameWeeklyPrizes(
+                  updated.prizes.weeklyPrizes, state.weeklyPrizes)) {
+            emit(state.copyWith(
+              coins: updated.wallet.coins,
+              weeklyPrizes: updated.prizes.weeklyPrizes,
+            ));
+          }
+        } else {
+          if (updated.wallet.coins != state.coins) {
+            emit(state.copyWith(coins: updated.wallet.coins));
+          }
+        }
+      });
+      final committed = guardOf(storage.loadProfile());
+      if (committed == null || committed.compareTo(key) < 0) break;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Daily prize helpers
   // ---------------------------------------------------------------------------
@@ -200,27 +277,15 @@ mixin PrizeCheckingMixin on Cubit<EngagementState> {
       return;
     }
 
-    for (final date in dates) {
-      final ranks = Map<Difficulty, int>.fromEntries(
-        (ranksByDate[date] ?? const {}).entries.where(
-              (entry) => entry.key != Difficulty.challenge,
-            ),
-      );
-      await serializedPrizeCommit(() async {
-        final profile = storage.loadProfile();
-        final storedGuard = profile.prizes.lastDailyPrizeDate;
-        if (storedGuard != null && storedGuard.compareTo(date) >= 0) return;
-        final bestRank = _bestQualifyingRank(ranks, _dailyCoinsFor);
-        final coins = bestRank == null ? 0 : _dailyCoinsFor(bestRank);
-        final updated = profile.awardDailyPrize(date, awardCoins: coins);
-        await storage.saveProfile(updated);
-        if (updated.wallet.coins != state.coins) {
-          emit(state.copyWith(coins: updated.wallet.coins));
-        }
-      });
-      final committed = storage.loadProfile().prizes.lastDailyPrizeDate;
-      if (committed == null || committed.compareTo(date) < 0) break;
-    }
+    await _checkPeriod(
+      periodKeys: dates,
+      ranksFor: (date) async => _nonChallengeRanks(ranksByDate[date]),
+      guardOf: (profile) => profile.prizes.lastDailyPrizeDate,
+      coinsFor: _dailyCoinsFor,
+      award: (profile, key, coins, _) =>
+          profile.awardDailyPrize(key, awardCoins: coins),
+      syncWeeklyPrizes: false,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -263,53 +328,28 @@ mixin PrizeCheckingMixin on Cubit<EngagementState> {
       stepDays: 7,
       limit: 4,
     );
-    for (final weekFrom in weeks) {
-      final weekTo = _weekSunday(weekFrom);
-      late final Map<Difficulty, int> fetchedRanks;
-      try {
-        fetchedRanks = await fetchRanks(from: weekFrom, to: weekTo);
-      } catch (error, stack) {
-        onErrorHook?.call(error, stack);
-        break;
-      }
-      final ranks = Map<Difficulty, int>.fromEntries(
-        fetchedRanks.entries.where(
-          (entry) => entry.key != Difficulty.challenge,
-        ),
-      );
-
-      await serializedPrizeCommit(() async {
-        final profile = storage.loadProfile();
-        final storedGuard = profile.prizes.lastWeeklyPrizeDate;
-        if (storedGuard != null && storedGuard.compareTo(weekFrom) >= 0) return;
-        final bestRank = _bestQualifyingRank(ranks, _weeklyCoinsFor);
-        final coins = bestRank == null ? 0 : _weeklyCoinsFor(bestRank);
-        final crowns = ranks.entries
-            .where((entry) => _weeklyCoinsFor(entry.value) > 0)
-            .map((entry) => WeeklyPrize(
-                  weekStart: weekFrom,
-                  tier: entry.key,
-                  rank: entry.value,
-                ))
-            .toList();
-        final updated = profile.awardWeeklyPrize(
-          weekFrom,
-          awardCoins: coins,
-          crowns: crowns,
-        );
-        await storage.saveProfile(updated);
-        if (updated.wallet.coins != state.coins ||
-            !_sameWeeklyPrizes(
-                updated.prizes.weeklyPrizes, state.weeklyPrizes)) {
-          emit(state.copyWith(
-            coins: updated.wallet.coins,
-            weeklyPrizes: updated.prizes.weeklyPrizes,
-          ));
+    await _checkPeriod(
+      periodKeys: weeks,
+      ranksFor: (weekFrom) async {
+        final weekTo = _weekSunday(weekFrom);
+        final Map<Difficulty, int> fetched;
+        try {
+          fetched = await fetchRanks(from: weekFrom, to: weekTo);
+        } catch (error, stack) {
+          onErrorHook?.call(error, stack);
+          return null;
         }
-      });
-      final committed = storage.loadProfile().prizes.lastWeeklyPrizeDate;
-      if (committed == null || committed.compareTo(weekFrom) < 0) break;
-    }
+        return _nonChallengeRanks(fetched);
+      },
+      guardOf: (profile) => profile.prizes.lastWeeklyPrizeDate,
+      coinsFor: _weeklyCoinsFor,
+      award: (profile, key, coins, ranks) => profile.awardWeeklyPrize(
+        key,
+        awardCoins: coins,
+        crowns: _weeklyCrowns(ranks, key),
+      ),
+      syncWeeklyPrizes: true,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -344,37 +384,27 @@ mixin PrizeCheckingMixin on Cubit<EngagementState> {
     final latestMonth = _lastMonthKey(todayProvider());
     final guard = storage.loadProfile().prizes.lastMonthlyPrizeMonth;
     final months = _boundedMonthKeys(guard, latestMonth);
-    for (final monthKey in months) {
-      final from = _firstOfMonth(monthKey);
-      final to = _lastOfMonth(monthKey);
-      late final Map<Difficulty, int> fetchedRanks;
-      try {
-        fetchedRanks = await fetchRanks(from: from, to: to);
-      } catch (error, stack) {
-        onErrorHook?.call(error, stack);
-        break;
-      }
-      final ranks = Map<Difficulty, int>.fromEntries(
-        fetchedRanks.entries.where(
-          (entry) => entry.key != Difficulty.challenge,
-        ),
-      );
-
-      await serializedPrizeCommit(() async {
-        final profile = storage.loadProfile();
-        final storedGuard = profile.prizes.lastMonthlyPrizeMonth;
-        if (storedGuard != null && storedGuard.compareTo(monthKey) >= 0) return;
-        final bestRank = _bestQualifyingRank(ranks, _monthlyCoinsFor);
-        final coins = bestRank == null ? 0 : _monthlyCoinsFor(bestRank);
-        final updated = profile.awardMonthlyPrize(monthKey, awardCoins: coins);
-        await storage.saveProfile(updated);
-        if (updated.wallet.coins != state.coins) {
-          emit(state.copyWith(coins: updated.wallet.coins));
+    await _checkPeriod(
+      periodKeys: months,
+      ranksFor: (monthKey) async {
+        final Map<Difficulty, int> fetched;
+        try {
+          fetched = await fetchRanks(
+            from: _firstOfMonth(monthKey),
+            to: _lastOfMonth(monthKey),
+          );
+        } catch (error, stack) {
+          onErrorHook?.call(error, stack);
+          return null;
         }
-      });
-      final committed = storage.loadProfile().prizes.lastMonthlyPrizeMonth;
-      if (committed == null || committed.compareTo(monthKey) < 0) break;
-    }
+        return _nonChallengeRanks(fetched);
+      },
+      guardOf: (profile) => profile.prizes.lastMonthlyPrizeMonth,
+      coinsFor: _monthlyCoinsFor,
+      award: (profile, key, coins, _) =>
+          profile.awardMonthlyPrize(key, awardCoins: coins),
+      syncWeeklyPrizes: false,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -405,25 +435,14 @@ mixin PrizeCheckingMixin on Cubit<EngagementState> {
       return;
     }
 
-    for (final date in dates) {
-      final challengeRank = ranksByDate[date]?[Difficulty.challenge];
-      final ranks = challengeRank == null
-          ? const <Difficulty, int>{}
-          : {Difficulty.challenge: challengeRank};
-      await serializedPrizeCommit(() async {
-        final profile = storage.loadProfile();
-        final storedGuard = profile.prizes.lastChallengeCheckDate;
-        if (storedGuard != null && storedGuard.compareTo(date) >= 0) return;
-        final bestRank = _bestQualifyingRank(ranks, _challengeCoinsFor);
-        final coins = bestRank == null ? 0 : _challengeCoinsFor(bestRank);
-        final updated = profile.awardChallengeCheck(date, awardCoins: coins);
-        await storage.saveProfile(updated);
-        if (updated.wallet.coins != state.coins) {
-          emit(state.copyWith(coins: updated.wallet.coins));
-        }
-      });
-      final committed = storage.loadProfile().prizes.lastChallengeCheckDate;
-      if (committed == null || committed.compareTo(date) < 0) break;
-    }
+    await _checkPeriod(
+      periodKeys: dates,
+      ranksFor: (date) async => _challengeOnlyRanks(ranksByDate[date]),
+      guardOf: (profile) => profile.prizes.lastChallengeCheckDate,
+      coinsFor: _challengeCoinsFor,
+      award: (profile, key, coins, _) =>
+          profile.awardChallengeCheck(key, awardCoins: coins),
+      syncWeeklyPrizes: false,
+    );
   }
 }
