@@ -66,6 +66,7 @@ class ProfileSyncService {
   bool _superseded = false;
   bool _pausing = false;
   bool _forcePushPending = false;
+  Future<void> _transitionLock = Future<void>.value();
 
   ProfileSyncService({
     required SupabaseClient client,
@@ -93,6 +94,15 @@ class ProfileSyncService {
 
   bool get isArmed => _armed;
   bool get isSuperseded => _superseded;
+
+  /// Serializes owner transitions (claim/restore AND pauseAndDrain) so two
+  /// cannot interleave their quiesce/mutate/arm sequences or contend on
+  /// `_pausing`. Errors do not break the chain.
+  Future<T> _serializeTransition<T>(Future<T> Function() body) {
+    final run = _transitionLock.then((_) => body());
+    _transitionLock = run.then((_) {}, onError: (_) {});
+    return run;
+  }
 
   static Map<String, dynamic> collect(StorageService storage) => {
         'schema_version': kProfileSchemaVersion,
@@ -192,38 +202,54 @@ class ProfileSyncService {
     };
   }
 
-  Future<SnapshotOutcome> claimAndRestore() async {
-    await _quiesceForOwnerTransition();
-    _forcePushPending = false;
-    final claim = await _claim();
-    if (claim == null) return SnapshotOutcome.missingPlayerRow;
-    final uid = currentUid()!;
-    if (claim.snapshot == null) {
-      await storage.wipeAccountData();
-      // The claim above succeeded, so this owner genuinely holds it; binding
-      // unclaimed here would leave the account permanently unable to push.
-      await storage.rebindOwner(
-        uid,
-        snapshotRevision: claim.revision,
-        claimed: true,
-      );
-      arm();
+  Future<SnapshotOutcome> claimAndRestore() =>
+      _serializeTransition(_claimAndRestore);
+
+  Future<SnapshotOutcome> _claimAndRestore() async {
+    late final SnapshotOutcome outcome;
+    var armAfter = false;
+    try {
+      await _quiesceForOwnerTransition();
+      _forcePushPending = false;
+      final claim = await _claim();
+      if (claim == null) {
+        outcome = SnapshotOutcome.missingPlayerRow;
+      } else {
+        final uid = currentUid()!;
+        if (claim.snapshot == null) {
+          await storage.wipeAccountData();
+          // The claim above succeeded, so this owner genuinely holds it;
+          // binding unclaimed here would leave the account permanently unable
+          // to push.
+          await storage.rebindOwner(
+            uid,
+            snapshotRevision: claim.revision,
+            claimed: true,
+          );
+          outcome = SnapshotOutcome.emptySnapshot;
+          armAfter = true;
+        } else if (claim.snapshot is! Map) {
+          await storage.markRecoveryRequired(
+            uid,
+            snapshotRevision: claim.revision,
+          );
+          _onLog?.call('profile restore outcome: corrupt');
+          outcome = SnapshotOutcome.corrupt;
+        } else {
+          outcome = await restore(
+            Map<String, dynamic>.from(claim.snapshot! as Map),
+            serverRevision: claim.revision,
+          );
+          armAfter = outcome == SnapshotOutcome.restored;
+        }
+      }
+    } finally {
+      _pausing = false;
+    }
+    if (armAfter) arm();
+    if (outcome == SnapshotOutcome.emptySnapshot) {
       _onLog?.call('profile restore outcome: empty cloud');
-      return SnapshotOutcome.emptySnapshot;
     }
-    if (claim.snapshot is! Map) {
-      await storage.markRecoveryRequired(
-        uid,
-        snapshotRevision: claim.revision,
-      );
-      _onLog?.call('profile restore outcome: corrupt');
-      return SnapshotOutcome.corrupt;
-    }
-    final outcome = await restore(
-      Map<String, dynamic>.from(claim.snapshot! as Map),
-      serverRevision: claim.revision,
-    );
-    if (outcome == SnapshotOutcome.restored) arm();
     return outcome;
   }
 
@@ -231,19 +257,36 @@ class ProfileSyncService {
   /// belong to that uid, so claiming must be followed by an initial push, not
   /// the destructive empty-cloud adoption path.
   Future<SnapshotOutcome> claimAndPushLocal() async {
-    await _quiesceForOwnerTransition();
-    final claim = await _claim();
+    final (claim, pushFuture) = await _serializeTransition(() async {
+      late final _ClaimedProfile? c;
+      try {
+        await _quiesceForOwnerTransition();
+        c = await _claim();
+        if (c != null) {
+          await storage.recordClaim(
+            currentUid()!,
+            snapshotRevision: c.revision,
+          );
+        }
+      } finally {
+        _pausing = false;
+      }
+      if (c == null) {
+        return (null, null) as (_ClaimedProfile?, Future<ProfilePushOutcome>?);
+      }
+      arm();
+      // This flag is separate from dirty revisions: an existing install can be
+      // locally clean yet still need its first post-link cloud snapshot. A
+      // network failure must leave that obligation retryable by flush/pause.
+      _forcePushPending = true;
+      // Start (do NOT await) synchronously: pushNow sets _inFlight before the
+      // closure returns, so the lock releases with the push already on the
+      // wire and the next transition's quiesce drains it. No interleave gap.
+      final pf = pushNow(force: true);
+      return (c, pf);
+    });
     if (claim == null) return SnapshotOutcome.missingPlayerRow;
-    await storage.recordClaim(
-      currentUid()!,
-      snapshotRevision: claim.revision,
-    );
-    arm();
-    // This flag is separate from dirty revisions: an existing install can be
-    // locally clean yet still need its first post-link cloud snapshot. A
-    // network failure must leave that obligation retryable by flush/pause.
-    _forcePushPending = true;
-    final pushed = await pushNow(force: true);
+    final pushed = await pushFuture!;
     return switch (pushed) {
       ProfilePushOutcome.pushed ||
       ProfilePushOutcome.clean =>
@@ -317,7 +360,8 @@ class ProfileSyncService {
         _superseded ||
         uid == null ||
         localOwner == null ||
-        !localOwner.canPush(uid)) {
+        !localOwner.canPush(uid) ||
+        _pausing) {
       return;
     }
     _armed = true;
@@ -425,8 +469,8 @@ class ProfileSyncService {
   /// Quiesce the pusher for an owner transition (claim/restore): block new
   /// pushes, cancel queued/debounced work, disarm, and WAIT for any push
   /// already on the wire so it cannot land its markPushed on an owner about
-  /// to be replaced. `_pausing` is held across the await so a concurrent
-  /// arm()/write cannot start a replacement push that escapes the drain.
+  /// to be replaced. Leaves `_pausing` held; the caller MUST release it in a
+  /// `finally`, and must call this method inside that `try`.
   Future<void> _quiesceForOwnerTransition() async {
     _pausing = true;
     _debounceTimer?.cancel();
@@ -437,28 +481,31 @@ class ProfileSyncService {
     final running = _inFlight;
     if (running != null) await running;
     _superseded = false;
-    _pausing = false;
   }
 
   /// Session swaps call this before changing auth. It cancels queued work,
   /// waits for the one request that may already be on the wire, and drops the
   /// old account's dirty/superseded session state before a rebind.
-  Future<void> pauseAndDrain({bool discardQueuedWork = true}) async {
-    _pausing = true;
-    _debounceTimer?.cancel();
-    _debounceTimer = null;
-    _queued = false;
-    _forceQueued = false;
-    _disarm();
-    final running = _inFlight;
-    if (running != null) await running;
-    if (discardQueuedWork) {
-      await storage.discardStaleDirty();
-      _forcePushPending = false;
-    }
-    _superseded = false;
-    _pausing = false;
-  }
+  Future<void> pauseAndDrain({bool discardQueuedWork = true}) =>
+      _serializeTransition(() async {
+        try {
+          _pausing = true;
+          _debounceTimer?.cancel();
+          _debounceTimer = null;
+          _queued = false;
+          _forceQueued = false;
+          _disarm();
+          final running = _inFlight;
+          if (running != null) await running;
+          if (discardQueuedWork) {
+            await storage.discardStaleDirty();
+            _forcePushPending = false;
+          }
+          _superseded = false;
+        } finally {
+          _pausing = false;
+        }
+      });
 
   void dispose() {
     _disarm();

@@ -52,3 +52,11 @@ VERDICT: APPROVED
 
 ### Resolution
 Converged after 4 rounds. Plan locked and approved. No code written during either act.
+
+## Act 3 — Build (Codex builds, Claude verifies)
+Builder model: gpt-5.6-sol (config default). Thread 019fb2f9-22a4-7133-bd10-ed4b41d04387. Codex self-committed as 273f456; touched ONLY profile_sync_service.dart + its test.
+
+### Claude's verdict — VERIFIED
+- Full production diff (171 lines) matches the 4-round-approved plan verbatim: `_transitionLock` + `_serializeTransition`; `claimAndRestore`->`_serializeTransition(_claimAndRestore)` with quiesce-in-try, `_pausing` released in finally, arm() after finally, empty-cloud arm->log preserved, corrupt log in try; `claimAndPushLocal` returns `(claim, pushFuture)` — pushNow(force:true) started synchronously inside the lock, awaited outside; `arm()` gains `|| _pausing`; `_quiesceForOwnerTransition` holds `_pausing`; `pauseAndDrain` serialized + own try/finally.
+- **Regression tests genuinely catch the bug (Codex's mandatory fail-without-fix run):** without the hardening, test 1 fails `Expected: false, Actual: <true>` (isArmed true during the claim) and test 2 fails with order `[claim1.claim_profile, claim2.claim_profile, claim1.push_profile]` (queued claim interleaves before the push). Both PASS with the hardening.
+- Ran proof myself: `flutter analyze` (2 files) -> No issues; proof suites (profile_sync + account_flow_controller + main_test) -> 46/46; broad application+infrastructure -> 403/403.
