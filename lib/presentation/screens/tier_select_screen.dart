@@ -293,8 +293,7 @@ class _TierSelectScreenState extends State<TierSelectScreen>
       final rivalRows = rows.where((e) => e.playerId == rivalId);
       if (rivalRows.isEmpty) return; // Rival hasn't played this tier today.
       final rivalScore = rivalRows.first.score;
-      final myScore =
-          widget.storage.loadSnapshot(widget.today(), tier)?.board.score ?? 0;
+      final myScore = widget.storage.scoreFor(widget.today(), tier) ?? 0;
       final passed = await _rivalry.recordRivalScore(
         difficulty: tier,
         myScore: myScore,
@@ -338,7 +337,7 @@ class _TierSelectScreenState extends State<TierSelectScreen>
 
   bool _isCompleted(Difficulty d) {
     final today = widget.today();
-    return widget.storage.loadSnapshot(today, d)?.completed ?? false;
+    return widget.storage.isCompletedFor(today, d);
   }
 
   void _openLeaderboard(BuildContext context, Difficulty difficulty) {
@@ -450,7 +449,7 @@ class _TierSelectScreenState extends State<TierSelectScreen>
     if (challenge == null) return;
     final today = widget.today();
     if (challenge.date != today || challenge.difficulty != difficulty) return;
-    final score = widget.storage.loadSnapshot(today, difficulty)?.board.score;
+    final score = widget.storage.scoreFor(today, difficulty);
     if (score == null) return;
     duels.recordMyResult(date: today, difficulty: difficulty, myScore: score);
     final outcome = duels.state.outcome;
@@ -604,11 +603,7 @@ class _TierSelectScreenState extends State<TierSelectScreen>
                   (d) => !_isCompleted(d),
                   orElse: () => Difficulty.values.first,
                 );
-                final mine = widget.storage
-                        .loadSnapshot(widget.today(), tier)
-                        ?.board
-                        .score ??
-                    0;
+                final mine = widget.storage.scoreFor(widget.today(), tier) ?? 0;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Center(

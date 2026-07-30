@@ -202,6 +202,17 @@ abstract class StorageService {
   void addChangeListener(StorageChangeListener listener);
   void removeChangeListener(StorageChangeListener listener);
   GameSnapshot? loadSnapshot(String date, Difficulty difficulty);
+
+  /// Score in the persisted snapshot for [date]/[difficulty], or null if there
+  /// is no snapshot yet. Callers apply their own default (some want 0, some
+  /// need to distinguish "not played" from a real score of 0).
+  int? scoreFor(String date, Difficulty difficulty) =>
+      loadSnapshot(date, difficulty)?.board.score;
+
+  /// Whether the run for [date]/[difficulty] is completed (false if no snapshot).
+  bool isCompletedFor(String date, Difficulty difficulty) =>
+      loadSnapshot(date, difficulty)?.completed ?? false;
+
   Future<void> saveSnapshot(GameSnapshot snapshot); // carries date + difficulty
   LifetimeStats loadStats(Difficulty difficulty);
   Future<void> saveStats(Difficulty difficulty, LifetimeStats stats);
@@ -233,7 +244,7 @@ abstract class StorageService {
   Future<void> wipeAll();
 }
 
-class InMemoryStorageService implements StorageService {
+class InMemoryStorageService extends StorageService {
   final String? Function() _currentUserId;
   final void Function()? _onChanged;
   final Set<StorageChangeListener> _listeners = {};
