@@ -39,3 +39,12 @@ So for a replacement push to race the claim's mutation, some caller must re-`arm
 
 ### Resolution — user-decided tie-break
 Codex agreed on all points except #1-v2 (hold `_pausing` through the whole mutation / serialize overlapping transitions). Verified NOT reachable in the current call graph (nothing re-arms mid-claim; flush() inert while disarmed). User chose: ship the targeted fix + document the invariant (same disposition as the accepted restore()/bootstrap deferrals); the deeper primitive hardening is a tracked follow-up. Proceeding to build with the targeted fix. This is a user tie-break, not a Codex APPROVED verdict — logged as such.
+
+## Act 3 — Build (Codex builds, Claude verifies)
+Builder model: gpt-5.6-sol. Thread 019fb22f-64ed-7982-ba87-18fed1b3d744. Codex self-committed as 31a7851.
+
+### Claude's verdict — VERIFIED
+- Lib diff faithful: `_quiesceForOwnerTransition()` (pausing held across the drain-await, queue-clear, disarm, drain `_inFlight`, reset `_superseded`); both claim methods routed through it; `pauseAndDrain` untouched; `_forcePushPending=false` kept explicit in claimAndRestore, not cleared in claimAndPushLocal.
+- **Regression tests genuinely catch the bug:** Codex's mandatory fail-without-drain run shows BOTH new tests FAIL on the un-drained code with the exact race signature — `Expected ['push_profile'], Actual ['push_profile','claim_profile']` (claim fires before the push drains) — and PASS with the drain.
+- Ran proof myself: `flutter analyze` (2 files) → No issues; proof suites (`profile_sync_service` + `account_flow_controller` + `main_test`) → 44/44; broad `application`+`infrastructure` → 399/399.
+- #1-v2 deep-hardening NOT implemented (per the user tie-break); documented as an unreachable-today invariant + tracked follow-up.

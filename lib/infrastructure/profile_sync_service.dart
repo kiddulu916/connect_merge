@@ -193,8 +193,7 @@ class ProfileSyncService {
   }
 
   Future<SnapshotOutcome> claimAndRestore() async {
-    _disarm();
-    _superseded = false;
+    await _quiesceForOwnerTransition();
     _forcePushPending = false;
     final claim = await _claim();
     if (claim == null) return SnapshotOutcome.missingPlayerRow;
@@ -232,8 +231,7 @@ class ProfileSyncService {
   /// belong to that uid, so claiming must be followed by an initial push, not
   /// the destructive empty-cloud adoption path.
   Future<SnapshotOutcome> claimAndPushLocal() async {
-    _disarm();
-    _superseded = false;
+    await _quiesceForOwnerTransition();
     final claim = await _claim();
     if (claim == null) return SnapshotOutcome.missingPlayerRow;
     await storage.recordClaim(
@@ -422,6 +420,24 @@ class ProfileSyncService {
       }
     }
     return outcome;
+  }
+
+  /// Quiesce the pusher for an owner transition (claim/restore): block new
+  /// pushes, cancel queued/debounced work, disarm, and WAIT for any push
+  /// already on the wire so it cannot land its markPushed on an owner about
+  /// to be replaced. `_pausing` is held across the await so a concurrent
+  /// arm()/write cannot start a replacement push that escapes the drain.
+  Future<void> _quiesceForOwnerTransition() async {
+    _pausing = true;
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    _queued = false;
+    _forceQueued = false;
+    _disarm();
+    final running = _inFlight;
+    if (running != null) await running;
+    _superseded = false;
+    _pausing = false;
   }
 
   /// Session swaps call this before changing auth. It cancels queued work,
