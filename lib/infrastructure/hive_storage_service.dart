@@ -9,7 +9,7 @@ import 'storage_service.dart';
 
 /// Hive-backed persistence. Values are JSON strings, avoiding generated
 /// TypeAdapters while keeping profile restore payloads inspectable.
-class HiveStorageService implements StorageService {
+class HiveStorageService extends StorageService {
   static const _boxName = 'connect_merge';
   static const _profileKey = 'profile';
   static const _historyKey = 'history';

@@ -23,3 +23,11 @@ VERDICT: APPROVED
 
 ### Resolution
 Converged after 2 rounds. Plan locked and approved.
+
+## Act 3 — Build (Codex builds, Claude verifies)
+Builder model: gpt-5.6-sol. Codex self-committed as ce9814d. (The codex CLI exceeded the 10-min tool timeout on the controller side AFTER writing+committing the work; no -o report flushed, so Claude verified entirely from the diff.)
+
+### Claude's verdict — VERIFIED
+- Full diff faithful: both impls `implements`->`extends StorageService`; two concrete accessors on the abstract class with the corrected "Score in the persisted snapshot" doc; all four widget reads migrated (297/608 keep `?? 0`; 453 keeps its `if (score == null) return`; `_isCompleted` -> isCompletedFor); two new accessor unit tests (stored + absent).
+- Ran proof myself: `flutter analyze` (4 files) -> No issues; proof suites (in_memory_storage + storage_ownership + tier_select_screen) -> 43/43; broad infrastructure+presentation -> 350/350.
+- Behavior-preservation: the PRE-EXISTING tier_select_screen rival/duel tests exercise the migrated scoreFor paths and pass, directly proving no behavior change; new accessor tests pin the accessors.

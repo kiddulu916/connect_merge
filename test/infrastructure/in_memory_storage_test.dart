@@ -63,6 +63,28 @@ void main() {
         s.loadSnapshot('2026-06-06', Difficulty.legendary)!.completed, isTrue);
   });
 
+  test('snapshot accessors return the stored score and completion', () async {
+    final s = InMemoryStorageService();
+    await s.init();
+    await s.saveSnapshot(GameSnapshot(
+      date: '2026-06-08',
+      difficulty: Difficulty.hard,
+      board: sampleBoard(score: 314),
+      completed: true,
+    ));
+
+    expect(s.scoreFor('2026-06-08', Difficulty.hard), 314);
+    expect(s.isCompletedFor('2026-06-08', Difficulty.hard), isTrue);
+  });
+
+  test('snapshot accessors default when there is no snapshot', () async {
+    final s = InMemoryStorageService();
+    await s.init();
+
+    expect(s.scoreFor('2026-06-08', Difficulty.easy), isNull);
+    expect(s.isCompletedFor('2026-06-08', Difficulty.easy), isFalse);
+  });
+
   test('stats are per-tier and default to zero', () async {
     final s = InMemoryStorageService();
     await s.init();
