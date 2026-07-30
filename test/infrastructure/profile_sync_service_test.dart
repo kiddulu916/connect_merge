@@ -296,6 +296,105 @@ void main() {
     expect(sync.isSuperseded, isFalse);
   });
 
+  test('arm and forced push stay inert while a claim mutates the owner',
+      () async {
+    final calls = <String>[];
+    final claimEntered = Completer<void>();
+    final claimGate = Completer<void>();
+    final storage = InMemoryStorageService(
+      currentUserId: () => 'player-1',
+    );
+    await storage.rebindOwner('player-1', claimed: true);
+    final sync = ProfileSyncService.withSeams(
+      storage: storage,
+      currentUid: () => 'player-1',
+      debounce: const Duration(days: 1),
+      rpc: (function, _) async {
+        calls.add(function);
+        if (function == 'claim_profile') {
+          claimEntered.complete();
+          await claimGate.future;
+          return [
+            {'profile_snapshot': null, 'snapshot_revision': 1},
+          ];
+        }
+        expect(function, 'push_profile');
+        return true;
+      },
+    );
+
+    final claim = sync.claimAndRestore();
+    await claimEntered.future;
+    sync.arm();
+    unawaited(sync.pushNow(force: true));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(sync.isArmed, isFalse);
+    expect(calls.where((call) => call == 'push_profile'), isEmpty);
+
+    claimGate.complete();
+    expect(await claim, SnapshotOutcome.emptySnapshot);
+    expect(sync.isArmed, isTrue);
+  });
+
+  test('queued claim waits for the preceding forced push handoff', () async {
+    final calls = <String>[];
+    final claim1Entered = Completer<void>();
+    final claim1Gate = Completer<void>();
+    final push1Entered = Completer<void>();
+    final push1Gate = Completer<void>();
+    var claims = 0;
+    final storage = InMemoryStorageService(
+      currentUserId: () => 'player-1',
+    );
+    await storage.rebindOwner('player-1', claimed: true);
+    final sync = ProfileSyncService.withSeams(
+      storage: storage,
+      currentUid: () => 'player-1',
+      debounce: const Duration(days: 1),
+      rpc: (function, _) async {
+        if (function == 'claim_profile') {
+          claims++;
+          calls.add('claim$claims.claim_profile');
+          if (claims == 1) {
+            claim1Entered.complete();
+            await claim1Gate.future;
+          }
+          return [
+            {'profile_snapshot': null, 'snapshot_revision': claims},
+          ];
+        }
+        expect(function, 'push_profile');
+        calls.add('claim1.push_profile');
+        push1Entered.complete();
+        await push1Gate.future;
+        return true;
+      },
+    );
+
+    final claim1 = sync.claimAndPushLocal();
+    await claim1Entered.future;
+    final claim2 = sync.claimAndRestore();
+    claim1Gate.complete();
+    await push1Entered.future;
+    await Future<void>.delayed(Duration.zero);
+
+    expect(calls, contains('claim1.push_profile'));
+    expect(calls, isNot(contains('claim2.claim_profile')));
+
+    push1Gate.complete();
+    expect(await claim1, SnapshotOutcome.restored);
+    expect(await claim2, SnapshotOutcome.emptySnapshot);
+    expect(
+      calls,
+      [
+        'claim1.claim_profile',
+        'claim1.push_profile',
+        'claim2.claim_profile',
+      ],
+    );
+  });
+
   test('claimAndRestore drains an in-flight push before restoring', () async {
     final calls = <String>[];
     final pushGate = Completer<dynamic>();
