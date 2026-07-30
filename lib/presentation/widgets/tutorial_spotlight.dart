@@ -97,14 +97,6 @@ class TutorialSpotlight extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      stepLabel.replaceFirst('step-', 'Step '),
-                      style: const TextStyle(
-                        color: Colors.amberAccent,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
                       title,
                       style: const TextStyle(
                         color: Colors.white,

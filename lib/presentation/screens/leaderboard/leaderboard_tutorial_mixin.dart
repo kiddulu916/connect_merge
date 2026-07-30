@@ -119,9 +119,8 @@ mixin LeaderboardTutorialMixin on State<LeaderboardScreen> {
           ),
         TutorialTarget.row => (
             'How rankings work',
-            !_rowFallbackLocked && _rowsAvailable == true
-                ? 'Each row shows a rank and best score. Your own row is marked You.'
-                : 'Scores appear here as ranked rows. Your own result is marked You when the board has entries.',
+            'Each row shows a rank and best score, with your own row marked '
+                'You once the board has entries.',
           ),
       };
 }
