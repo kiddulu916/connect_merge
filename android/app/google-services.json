@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "306868850236-onoe9n9bp9lsoe3fdbsblufmhon6kfhg.apps.googleusercontent.com",
+          "client_id": "306868850236-tvph7eilp4io0gi4uim7gqqttv0uev53.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.kidd.connect_merge",
-            "certificate_hash": "a0e6931d2024c1dd7bd5ef2654d57667285afe93"
+            "certificate_hash": "fcb5cd12eaba90a671f81846794f17b0d9e1e30f"
           }
         },
         {
