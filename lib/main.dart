@@ -103,9 +103,7 @@ Future<void> main() async {
     bool needsDisplayName = false;
     bool showAuthGate = false;
     bool recoveryRequired = storage.ownerRecordCorrupt ||
-        (storage.owner?.recoveryRequired ?? false);
-    recoveryRequired =
-        recoveryRequired || !(storage.owner?.restoreComplete ?? true);
+        (storage.owner?.writeBlockReason(null) != null);
     final superseded = ValueNotifier<bool>(false);
     if (await initSupabase()) {
       auth = AuthService(supabase);
@@ -117,10 +115,8 @@ Future<void> main() async {
       } catch (_) {
         final owner = storage.owner;
         final uid = auth.currentUserId;
-        final mustReconcile = uid != null &&
-            (owner?.recoveryRequired == true ||
-                owner?.restoreComplete == false ||
-                (owner != null && owner.uid != uid));
+        final mustReconcile =
+            uid != null && (owner?.writeBlockReason(uid) != null);
         if (!mustReconcile) {
           // Normal offline / auth failure keeps today's local-only behavior.
           auth = null;

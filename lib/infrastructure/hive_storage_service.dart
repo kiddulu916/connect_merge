@@ -121,23 +121,12 @@ class HiveStorageService implements StorageService {
     }
     final localOwner = owner;
     if (localOwner == null) return;
-    if (!localOwner.restoreComplete) {
-      throw const StorageWriteBlockedException(
-        StorageWriteBlockReason.restoreIncomplete,
-      );
-    }
-    if (localOwner.recoveryRequired) {
-      throw const StorageWriteBlockedException(
-        StorageWriteBlockReason.recoveryRequired,
-      );
-    }
-    final currentUserId = _currentUserId();
-    // No session means offline play against the last owner remains available.
-    if (currentUserId != null && currentUserId != localOwner.uid) {
-      throw const StorageWriteBlockedException(
-        StorageWriteBlockReason.ownerMismatch,
-      );
-    }
+    // Lazy session lookup (Codex R1 #1): restore/recovery block WITHOUT
+    // calling _currentUserId(), exactly as today. Only if those pass do we
+    // resolve the session for the ownerMismatch check.
+    final reason = localOwner.writeBlockReason(null) ??
+        localOwner.writeBlockReason(_currentUserId());
+    if (reason != null) throw StorageWriteBlockedException(reason);
   }
 
   @override
