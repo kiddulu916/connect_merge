@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../domain/constants.dart';
@@ -136,10 +137,6 @@ class GameCubit extends Cubit<GameState> {
   /// Whether an undo is available WITHOUT a rewarded ad (a free undo remains).
   bool get canUndoFree => canUndo && _undosUsed < kFreeUndosPerDay;
 
-  /// Rewarded-hint usage this cubit lifetime (one tier's day). Gates the
-  /// per-day cap on the reveal-next-drop hint.
-  int _hintsUsed = 0;
-
   /// Coins earned this run (golden chains + completion bonus). Tracked so the
   /// result screen can offer a rewarded "double coins" that credits the same
   /// amount again. Purely client-side bookkeeping — never affects score.
@@ -155,6 +152,14 @@ class GameCubit extends Cubit<GameState> {
 
   /// Whether the double-coins reward has already been claimed this run.
   bool get coinsDoubled => _coinsDoubled;
+
+  /// Observable total coins won this run (doubled-aware): the base earned, or
+  /// twice that once the double-coins reward is taken. Set when the run finishes
+  /// and updated by [doubleRunCoins]. Lives on the cubit (not the result
+  /// screen's State) so the reward the player watched an ad for is durable and
+  /// the end screen can reflect it reactively.
+  final ValueNotifier<int> _coinsWon = ValueNotifier<int>(0);
+  ValueListenable<int> get coinsWon => _coinsWon;
 
   /// Whether the objective reward has already been paid this run (idempotency).
   bool _objectiveMet = false;
@@ -402,6 +407,9 @@ class GameCubit extends Cubit<GameState> {
     }
     _undoStack.clear();
     await _fireCompletionHook(board);
+    // Seed the observable coins-won for the result screen (base amount; the
+    // double-coins ad updates it to 2x).
+    _coinsWon.value = _coinsEarnedThisRun;
     emit(GameOverShowScore(
         board: board, date: _date, difficulty: _difficulty, stats: stats));
     // Submit to the leaderboard (and fire the run_completed analytics event)
@@ -508,31 +516,6 @@ class GameCubit extends Cubit<GameState> {
     emit(GamePlaying(board: frame.board, difficulty: _difficulty));
   }
 
-  /// Whether another rewarded hint may be shown today (per-tier-day cap).
-  bool get canUseHint {
-    final s = state;
-    return s is GamePlaying && _hintsUsed < kMaxHintsPerDay;
-  }
-
-  /// The next drop tier the seed will deliver. READ-ONLY: peeked from the
-  /// on-demand stream without consuming it. Returns null if no live board.
-  int? peekNextDropTier() {
-    final s = state;
-    if (s is! GamePlaying) return null;
-    final tiers = peekDropTiers(1);
-    return tiers.isEmpty ? null : tiers.first;
-  }
-
-  /// Consume a rewarded-hint use and return the next drop tier. Call AFTER the
-  /// rewarded ad grants its reward. Returns null (and consumes nothing) if no
-  /// hint is available. FAIRNESS: this never mutates [BoardState]; it only reads
-  /// the seed-fixed drop schedule and bumps an ad-frequency counter.
-  int? revealNextDropAfterReward() {
-    if (!canUseHint) return null;
-    _hintsUsed++;
-    return peekNextDropTier();
-  }
-
   bool _completionFired = false;
 
   /// Fire the completion hook at most once per cubit lifetime, passing the
@@ -630,7 +613,12 @@ class GameCubit extends Cubit<GameState> {
     if (_coinsDoubled || _coinsEarnedThisRun <= 0) return 0;
     _coinsDoubled = true;
     final bonus = _coinsEarnedThisRun;
+    // Credit the wallet first, THEN publish the doubled total — so any listener
+    // woken by [coinsWon] reads an already-updated wallet balance too.
     await onCoinsEarned?.call(bonus);
+    // Reflect the doubled total on the observable so the end screen updates
+    // reactively (durably — not via the result screen's ephemeral setState).
+    _coinsWon.value = _coinsEarnedThisRun * 2;
     return bonus;
   }
 
@@ -671,5 +659,11 @@ class GameCubit extends Cubit<GameState> {
     );
     await storage.saveStats(_difficulty, updated);
     return updated;
+  }
+
+  @override
+  Future<void> close() {
+    _coinsWon.dispose();
+    return super.close();
   }
 }

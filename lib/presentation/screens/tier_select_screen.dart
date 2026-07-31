@@ -166,6 +166,12 @@ class _TierSelectScreenState extends State<TierSelectScreen>
 
   /// Loot cubit (provided, or created locally). Owned locally only when created.
   late final LootCubit _loot;
+
+  /// Drives the coin-pill count-up when returning from a run: [_coinReplayFrom]
+  /// is the balance before the run, and bumping [_coinReplayNonce] re-keys the
+  /// pill so it animates from that value up to the (already-credited) new total.
+  int? _coinReplayFrom;
+  int _coinReplayNonce = 0;
   bool _ownsLoot = false;
 
   /// Rivalry cubit (provided, or created locally). Owned locally only when made.
@@ -410,6 +416,10 @@ class _TierSelectScreenState extends State<TierSelectScreen>
     // Capture the messenger now so settling a duel after the game returns never
     // touches a possibly-defunct BuildContext across the async navigation gap.
     final messenger = ScaffoldMessenger.of(context);
+    // Snapshot the coin balance before the run so we can replay the winnings
+    // counting up when we return (coins are credited live during the run, so by
+    // the time this screen is visible again the pill already holds the total).
+    final coinsBeforeRun = _loot.state.coins;
     Navigator.of(context)
         .push(
       MaterialPageRoute<void>(
@@ -430,7 +440,16 @@ class _TierSelectScreenState extends State<TierSelectScreen>
       ),
     )
         .then((_) {
-      if (mounted) setState(() {}); // refresh "done today" badges
+      if (mounted) {
+        setState(() {
+          // refresh "done today" badges + replay the coin count-up if the run
+          // earned anything (bump the nonce to re-key the pill so it animates).
+          if (_loot.state.coins > coinsBeforeRun) {
+            _coinReplayFrom = coinsBeforeRun;
+            _coinReplayNonce++;
+          }
+        });
+      }
       _settleDuelIfMatched(messenger, difficulty);
       _rescheduleNotifications();
     });
@@ -659,6 +678,8 @@ class _TierSelectScreenState extends State<TierSelectScreen>
             const SizedBox(height: AppSpacing.md),
             LootLeaderboardRow(
               loot: _loot,
+              coinAnimateFrom: _coinReplayFrom,
+              coinBalanceKey: ValueKey<int>(_coinReplayNonce),
               onOpenLootChest: () => _openLootChest(context),
               onOpenLeaderboard: () => _openLeaderboardOrExplain(context),
             ),

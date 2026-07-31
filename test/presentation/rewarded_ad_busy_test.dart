@@ -37,8 +37,6 @@ void main() {
       ),
     ));
 
-    expect(tester.widget<OutlinedButton>(_button('hint-button')).onPressed,
-        isNull);
     expect(tester.widget<OutlinedButton>(_button('undo-button')).onPressed,
         isNull);
 

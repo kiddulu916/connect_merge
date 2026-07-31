@@ -66,6 +66,12 @@ class ScoreShareScreen extends StatefulWidget {
   /// Rewarded-ad "double coins" handler (Phase 2). Null hides the button.
   final VoidCallback? onDoubleCoins;
 
+  /// Observable total coins won this run (doubled-aware). When provided, a live
+  /// coins summary is shown and the double-coins button hides reactively once
+  /// the reward is taken — so the reward survives the fullscreen-ad round-trip
+  /// instead of relying on this screen's (ephemeral) setState.
+  final ValueListenable<int>? coinsWon;
+
   /// Seam: text-only native share, used by the [_invite] / [_challenge] flows.
   /// Production falls through to [_nativeShare]; tests inject a fake.
   final Future<void> Function(String text)? shareText;
@@ -125,6 +131,7 @@ class ScoreShareScreen extends StatefulWidget {
     this.coinsEarned = 0,
     this.coinsDoubled = false,
     this.onDoubleCoins,
+    this.coinsWon,
     this.shareText,
     this.sharer = const PlatformScoreSharer(),
     this.captureOverride,
@@ -161,6 +168,7 @@ class _ScoreShareScreenState extends State<ScoreShareScreen> {
   int get coinsEarned => widget.coinsEarned;
   bool get coinsDoubled => widget.coinsDoubled;
   VoidCallback? get onDoubleCoins => widget.onDoubleCoins;
+  ValueListenable<int>? get coinsWon => widget.coinsWon;
   Future<void> Function(String text)? get shareText => widget.shareText;
   ScoreSharer get sharer => widget.sharer;
   Future<Uint8List?> Function()? get captureOverride =>
@@ -251,7 +259,9 @@ class _ScoreShareScreenState extends State<ScoreShareScreen> {
                       _achievementsBanner(),
                     ],
                     const SizedBox(height: 24),
-                    if (coinsEarned > 0 &&
+                    if (coinsWon != null)
+                      _coinsSummary()
+                    else if (coinsEarned > 0 &&
                         !coinsDoubled &&
                         onDoubleCoins != null)
                       AdBusyGate(
@@ -402,6 +412,45 @@ class _ScoreShareScreenState extends State<ScoreShareScreen> {
   /// [shareText] seam is injected.
   static Future<void> _nativeShare(String text) => SharePlus.instance
       .share(ShareParams(text: text, subject: 'Connect Merge'));
+
+  /// Live coins summary (Phase 2): the run's winnings (doubling when the ad is
+  /// watched) and the player's current total. Driven by the cubit's [coinsWon]
+  /// observable so the reward the player watched an ad for is reflected reliably
+  /// — not lost with an ephemeral setState across the fullscreen-ad round-trip.
+  Widget _coinsSummary() => ValueListenableBuilder<int>(
+        valueListenable: coinsWon!,
+        builder: (context, won, _) {
+          // The base is [coinsEarned]; once doubled the winnings are twice that.
+          final doubled = won > coinsEarned;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Winnings flip from "+N" to "+2N" when the double-coins ad plays.
+              Text(
+                'Won: +$won coins',
+                key: const Key('coins-won-line'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.amberAccent,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800),
+              ),
+              if (coinsEarned > 0 && !doubled && onDoubleCoins != null) ...[
+                const SizedBox(height: 8),
+                AdBusyGate(
+                  busy: adBusy,
+                  onPressed: onDoubleCoins,
+                  builder: (context, onPressed) => FilledButton.tonal(
+                    key: const Key('double-coins-button'),
+                    onPressed: onPressed,
+                    child: const Text('Watch ad: double your coins'),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      );
 
   Widget _xpRow() => Row(
         key: const Key('xp-row'),

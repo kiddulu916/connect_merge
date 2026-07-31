@@ -16,8 +16,6 @@ import '../../infrastructure/notification_service.dart';
 import '../widgets/banner_slot.dart';
 import '../widgets/ad_busy_gate.dart';
 import '../widgets/board_widget.dart';
-import '../widgets/drop_queue_rail.dart';
-import '../widgets/hint_button.dart';
 import '../widgets/moves_counter.dart';
 import '../widgets/objective_banner.dart';
 import '../widgets/rewarded_dialog.dart';
@@ -59,9 +57,6 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  /// Last revealed next-drop tier (null until a hint is used). Read-only display.
-  int? _hintTier;
-
   /// Cached colorblind-mode setting (Phase 4). Read once from the profile; drives
   /// the per-tier pattern overlay on the board.
   bool _colorblind = false;
@@ -106,13 +101,6 @@ class _GameScreenState extends State<GameScreen> {
                         final cubit = context.read<GameCubit>();
                         if (cubit.canOfferAd) {
                           _promptRewarded(context, cubit);
-                        }
-                      }
-                      if (state is GamePlaying) {
-                        // A new board state has dropped the previously-hinted
-                        // tile; clear the stale reveal.
-                        if (_hintTier != null) {
-                          setState(() => _hintTier = null);
                         }
                       }
                     },
@@ -179,6 +167,7 @@ class _GameScreenState extends State<GameScreen> {
       leveledUp: leveledUp,
       coinsEarned: cubit.coinsEarnedThisRun,
       coinsDoubled: cubit.coinsDoubled,
+      coinsWon: cubit.coinsWon,
       onDoubleCoins: () => _watchDoubleCoins(context, cubit),
       canOfferAd: cubit.canOfferAd,
       onWatchAd: () => _watchRewarded(context, cubit),
@@ -194,12 +183,11 @@ class _GameScreenState extends State<GameScreen> {
   void _watchDoubleCoins(BuildContext context, GameCubit cubit) {
     adService.showRewarded(
       adType: 'double_coins',
+      // The reward updates the cubit's coinsWon observable (and refreshes the
+      // wallet via onCoinsEarned), so the end screen reflects it reactively and
+      // durably — no reliance on this screen's setState surviving the ad.
       onReward: () async {
-        final bonus = await cubit.doubleRunCoins();
-        if (bonus > 0) {
-          widget.engagement?.refreshWallet();
-          if (mounted) setState(() {}); // hide the button / reflect doubled
-        }
+        await cubit.doubleRunCoins();
       },
       onUnavailable: () {
         if (context.mounted) {
@@ -261,14 +249,6 @@ class _GameScreenState extends State<GameScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: adService.showing,
-                builder: (context, busy, _) => HintButton(
-                  enabled: cubit.canUseHint && !busy,
-                  onTap: () => _watchHint(context, cubit),
-                ),
-              ),
-              const SizedBox(width: 12),
               AdBusyGate(
                 busy: adService.showing,
                 onPressed: cubit.canUndo ? () => _undo(context, cubit) : null,
@@ -286,10 +266,6 @@ class _GameScreenState extends State<GameScreen> {
                 icon: const Icon(Icons.calendar_month, color: Colors.white70),
                 onPressed: () => _openStatsCalendar(context, difficulty),
               ),
-              if (_hintTier != null) ...[
-                const SizedBox(width: 12),
-                HintReveal(tier: _hintTier!),
-              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -306,8 +282,6 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          DropQueueRail(tiers: cubit.peekDropTiers(), cosmetic: _cosmetic),
         ],
       ),
     );
@@ -325,24 +299,6 @@ class _GameScreenState extends State<GameScreen> {
     adService.showRewarded(
       adType: 'undo',
       onReward: () => cubit.undoAfterReward(),
-      onUnavailable: () {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No ad available right now.')),
-          );
-        }
-      },
-    );
-  }
-
-  /// Show a rewarded ad; on reward, reveal the next drop tier (read-only).
-  void _watchHint(BuildContext context, GameCubit cubit) {
-    adService.showRewarded(
-      adType: 'hint',
-      onReward: () async {
-        final tier = cubit.revealNextDropAfterReward();
-        if (tier != null && mounted) setState(() => _hintTier = tier);
-      },
       onUnavailable: () {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

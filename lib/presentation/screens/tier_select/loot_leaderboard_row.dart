@@ -13,11 +13,19 @@ class LootLeaderboardRow extends StatelessWidget {
   final VoidCallback onOpenLootChest;
   final VoidCallback onOpenLeaderboard;
 
+  /// When set (with a changing [coinBalanceKey]), the coin pill replays a
+  /// count-up from this value to the current balance — used to show a run's
+  /// winnings tallying up when returning to tier-select.
+  final int? coinAnimateFrom;
+  final Key? coinBalanceKey;
+
   const LootLeaderboardRow({
     super.key,
     required this.loot,
     required this.onOpenLootChest,
     required this.onOpenLeaderboard,
+    this.coinAnimateFrom,
+    this.coinBalanceKey,
   });
 
   @override
@@ -45,7 +53,11 @@ class LootLeaderboardRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            CoinBalance(coins: loot.coins),
+            CoinBalance(
+              key: coinBalanceKey,
+              coins: loot.coins,
+              animateFrom: coinAnimateFrom,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: OutlinedButton.icon(
