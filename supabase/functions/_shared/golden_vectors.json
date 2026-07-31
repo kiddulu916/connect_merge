@@ -1,6 +1,6 @@
 {
   "_readme": "Regenerate ONLY for an intentional rule change, in the same commit as the kLeaderboardSeason bump in both Dart and TypeScript. Use UPDATE_GOLDENS_FORCE=1 only for a policy-only regeneration.",
-  "season": 2,
+  "season": 1,
   "baseDate": "2026-07-14",
   "vectors": [
     {

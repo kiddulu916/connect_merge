@@ -144,11 +144,11 @@ const int kObjectiveRewardCoins = 25;
 /// resets anyway). Bumped for the Long Chains Only starting-density change.
 const int kSnapshotVersion = 4;
 
-/// Reset to 1 for launch after the pre-launch database wipe (2026-07-11).
-/// Submitted with every score and used to filter leaderboard reads, so scores
-/// from a prior rule set never mix with the current season's. Bumped for the
-/// Long Chains Only deadlock-detection + starting-density change.
-const int kLeaderboardSeason = 2;
+/// Used to filter leaderboard reads and (server-side) stamp every submitted
+/// score, so scores from a prior rule set never mix with the current season's.
+/// Reset to 1 after the 2026-07-31 database wipe (fresh season). Bump this in
+/// lockstep with the TS copy on any future gameplay-rule change.
+const int kLeaderboardSeason = 1;
 
 /// Seed-placed wall cells per difficulty (block tiles, break paths). Scales up with difficulty. Tuning knob.
 int wallCountFor(Difficulty d) => switch (d) {
