@@ -21,11 +21,6 @@ const int kMovesPerDay = 30;
 const int kAdMoveReward = 3;
 const int kMaxAdContinuesPerDay = 3;
 
-/// Daily cap on the rewarded reveal-next-drop hint (Phase 4). The hint is
-/// read-only (it reveals seed-fixed info, never alters the board) so the cap is
-/// purely an ad-frequency control, not a fairness lever.
-const int kMaxHintsPerDay = 3;
-
 /// Phase 4 — undo. Free undos a player gets per tier-day before a rewarded ad is
 /// required for further undos. The undo only rewinds local board/PRNG/move-log
 /// state to keep the run replay-consistent; it never alters the seed-fixed drop

@@ -46,6 +46,9 @@ class GameSessionFactory {
           if (delta == 0) return;
           await storage.addCoins(delta);
           loot.load();
+          // Keep the wallet balance current independent of any widget, so the
+          // result screen's coin total reflects earnings/doubling reactively.
+          engagement.refreshWallet();
         },
         onSubmitRun: leaderboard == null ? null : _submitRun,
         onError: onError,
