@@ -1,7 +1,7 @@
 {
-  "name": "merge_count",
-  "version": "1.0.0",
-  "description": "# merge_count",
+  "name": "connect_merge",
+  "version": "1.1.0",
+  "description": "# connect_merge",
   "main": "index.js",
   "directories": {
     "doc": "docs",
@@ -13,16 +13,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kiddulu916/merge_count.git"
+    "url": "git+https://github.com/kiddulu916/connect_merge.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/kiddulu916/merge_count/issues"
+    "url": "https://github.com/kiddulu916/connect_merge/issues"
   },
-  "homepage": "https://github.com/kiddulu916/merge_count#readme",
+  "homepage": "https://github.com/kiddulu916/connect_merge#readme",
   "devDependencies": {
     "supabase": "^2.105.0"
   },

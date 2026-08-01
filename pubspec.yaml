@@ -1,7 +1,7 @@
 name: connect_merge
 description: A deterministic daily spatial merge puzzle.
 publish_to: "none"
-version: 1.0.0+5
+version: 1.1.0+6
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
