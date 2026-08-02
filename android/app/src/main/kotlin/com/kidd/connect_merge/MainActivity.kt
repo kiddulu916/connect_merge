@@ -64,7 +64,8 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 if (call.method == "shareImage") {
                     val bytes = call.argument<ByteArray>("bytes")
-                    result.success(if (bytes != null) shareToFacebook(bytes) else false)
+                    val text = call.argument<String>("text")
+                    result.success(if (bytes != null) shareToFacebook(bytes, text) else false)
                 } else {
                     result.notImplemented()
                 }
@@ -97,7 +98,7 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    private fun shareToFacebook(bytes: ByteArray): Boolean {
+    private fun shareToFacebook(bytes: ByteArray, text: String?): Boolean {
         return try {
             val dir = File(cacheDir, "shared").apply { mkdirs() }
             val file = File(dir, "score.png")
@@ -106,6 +107,7 @@ class MainActivity : FlutterActivity() {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_TEXT, text)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 setPackage("com.facebook.katana")
             }

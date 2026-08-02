@@ -60,7 +60,9 @@ String utcToday() => date_utils.utcToday();
 /// Hands a finalized day off to the online submit flow (Phase 2). Called once
 /// when a tier's day is locked. Decoupled from supabase_flutter so the cubit
 /// stays plugin-free and unit-testable.
-typedef SubmitRun = Future<void> Function({
+enum SubmitOutcome { success, retryableFailure, terminalRejection }
+
+typedef SubmitRun = Future<SubmitOutcome> Function({
   required String date,
   required Difficulty difficulty,
   required List<MoveEvent> moveLog,
@@ -214,6 +216,9 @@ class GameCubit extends Cubit<GameState> {
     _undoStack.clear();
     _undosUsed = 0;
     _objectiveMet = false;
+    final submitRecord = storage.loadSubmitStatus(_date, difficulty);
+    _submitGeneration = submitRecord.generation;
+    _submitted = submitRecord.status == SubmitStatus.settled;
 
     // Derive rule + generate board BEFORE snapshot check so a resumed challenge
     // game also has correct _activeRule / _targetFill when playChain is called.
@@ -260,6 +265,14 @@ class GameCubit extends Cubit<GameState> {
             date: _date,
             difficulty: difficulty,
             stats: storage.loadStats(difficulty)));
+        if (snap.completed &&
+            (submitRecord.status == SubmitStatus.pending ||
+                (submitRecord.status == SubmitStatus.none &&
+                    _isTerminal(snap.board)))) {
+          // This is intentionally a same-UTC-day retry only: init never loads
+          // prior-day snapshots, and submit-score rejects backfilled dates.
+          await _submit(snap.board);
+        }
       } else {
         emit(GamePlaying(board: snap.board, difficulty: difficulty));
       }
@@ -384,6 +397,14 @@ class GameCubit extends Cubit<GameState> {
   /// Shared completion tail: record stats, emit result screen, fire hooks.
   /// Called by [playChain] when the run terminates.
   Future<void> _finishRun(BoardState board) async {
+    _submitGeneration++;
+    _submitted = false;
+    await storage.saveSubmitStatus(
+      _date,
+      _difficulty,
+      SubmitStatus.none,
+      _submitGeneration,
+    );
     final firstCompletionToday =
         storage.loadStats(_difficulty).lastCompletedDate != _date;
     final stats = await _recordCompletion(board);
@@ -420,11 +441,7 @@ class GameCubit extends Cubit<GameState> {
     // Challenge mode has no ad-continue path at all (canOfferAd is hard-false
     // for it, matching the server's blanket ContinueEvent rejection), so any
     // non-playing Challenge board is terminal by construction.
-    final terminal = _difficulty == Difficulty.challenge ||
-        board.status == GameStatus.deadlocked ||
-        board.adContinuesUsed >= kMaxAdContinuesPerDay ||
-        !GameEngine.hasChainOfLength(board, _activeRule?.minChainLength ?? 2);
-    if (terminal) {
+    if (_isTerminal(board)) {
       onAnalyticsEvent?.call('run_completed', {
         'difficulty': _difficulty.name,
         'score': board.score,
@@ -434,6 +451,15 @@ class GameCubit extends Cubit<GameState> {
       await _submit(board);
     }
   }
+
+  bool _isTerminal(BoardState board) =>
+      _difficulty == Difficulty.challenge ||
+      board.status == GameStatus.deadlocked ||
+      board.adContinuesUsed >= kMaxAdContinuesPerDay ||
+      !GameEngine.hasChainOfLength(
+        board,
+        _activeRule?.minChainLength ?? 2,
+      );
 
   /// Deterministically rebuild the landing PRNG (stream B) and advance it to
   /// [draws] draws taken. This is the exact rewind technique [init] uses on
@@ -535,22 +561,115 @@ class GameCubit extends Cubit<GameState> {
   }
 
   bool _submitted = false;
+  int _submitGeneration = 0;
+  Future<void>? _submissionInFlight;
+  int? _submissionInFlightGeneration;
 
-  /// Fire the online submit hook at most once per cubit lifetime.
-  Future<void> _submit(BoardState board) async {
-    final hook = onSubmitRun;
-    if (hook == null || _submitted) return;
-    _submitted = true;
+  /// Submit once per completion generation, coalescing concurrent callers.
+  Future<void> _submit(BoardState board) {
+    if (_submitted) return Future.value();
+    final running = _submissionInFlight;
+    if (running != null && _submissionInFlightGeneration == _submitGeneration) {
+      return running;
+    }
+    final generation = _submitGeneration;
+    late final Future<void> attempt;
+    attempt = _submitOnce(board, generation).whenComplete(() {
+      if (identical(_submissionInFlight, attempt)) {
+        _submissionInFlight = null;
+        _submissionInFlightGeneration = null;
+      }
+    });
+    _submissionInFlight = attempt;
+    _submissionInFlightGeneration = generation;
+    return attempt;
+  }
+
+  Future<void> _submitOnce(BoardState board, int generation) async {
     try {
-      await hook(
-        date: _date,
-        difficulty: _difficulty,
-        moveLog: board.moveLog,
-        adContinues: board.adContinuesUsed,
+      await storage.saveSubmitStatus(
+        _date,
+        _difficulty,
+        SubmitStatus.pending,
+        generation,
       );
     } catch (e, st) {
-      // Submission is off the critical path; the result screen never blocks.
-      // Offline queue/retry is handled by the caller's service (future work).
+      _onError?.call(e, st);
+      return;
+    }
+    if (generation != _submitGeneration) return;
+    onAnalyticsEvent?.call('score_submit_attempt', {
+      'difficulty': _difficulty.name,
+    });
+
+    final hook = onSubmitRun;
+    SubmitOutcome outcome;
+    if (hook == null) {
+      outcome = SubmitOutcome.retryableFailure;
+    } else {
+      try {
+        outcome = await hook(
+          date: _date,
+          difficulty: _difficulty,
+          moveLog: board.moveLog,
+          adContinues: board.adContinuesUsed,
+        );
+      } catch (e, st) {
+        if (generation != _submitGeneration) return;
+        _onError?.call(e, st);
+        _reportSubmitResult(SubmitOutcome.retryableFailure);
+        return;
+      }
+    }
+    if (generation != _submitGeneration) return;
+    _reportSubmitResult(outcome);
+
+    switch (outcome) {
+      case SubmitOutcome.retryableFailure:
+        return;
+      case SubmitOutcome.success:
+        await _settleSubmission(generation);
+        return;
+      case SubmitOutcome.terminalRejection:
+        _onError?.call(
+          StateError('score_submit_terminal_rejection: invalid_run'),
+          null,
+          fatal: false,
+        );
+        await _settleSubmission(generation);
+        return;
+    }
+  }
+
+  void _reportSubmitResult(SubmitOutcome outcome) {
+    final label = switch (outcome) {
+      SubmitOutcome.success => 'success',
+      SubmitOutcome.retryableFailure => 'retryable-failure',
+      SubmitOutcome.terminalRejection => 'terminal-rejection',
+    };
+    onAnalyticsEvent?.call('score_submit_result', {
+      'difficulty': _difficulty.name,
+      'outcome': label,
+    });
+  }
+
+  Future<void> _settleSubmission(int generation) async {
+    // Re-checked here, not just by the caller: an ad continue can bump
+    // _submitGeneration during the network call this settles, and without
+    // this guard a stale write landing after that bump would overwrite the
+    // continued run's freshly-reset (none, newGeneration) status with a
+    // superseded (settled, oldGeneration) one — silently blocking the
+    // improved run's own future submission on the next resume.
+    if (generation != _submitGeneration) return;
+    try {
+      await storage.saveSubmitStatus(
+        _date,
+        _difficulty,
+        SubmitStatus.settled,
+        generation,
+      );
+      if (generation == _submitGeneration) _submitted = true;
+    } catch (e, st) {
       _onError?.call(e, st);
     }
   }
@@ -585,6 +704,14 @@ class GameCubit extends Cubit<GameState> {
     try {
       _grantingAd = true;
       final s = state as GameOverShowScore;
+      _submitGeneration++;
+      _submitted = false;
+      await storage.saveSubmitStatus(
+        _date,
+        _difficulty,
+        SubmitStatus.none,
+        _submitGeneration,
+      );
       final log = List<MoveEvent>.of(s.board.moveLog)
         ..add(const ContinueEvent());
       final board = s.board.copyWith(

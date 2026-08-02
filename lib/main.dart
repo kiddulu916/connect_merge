@@ -198,7 +198,6 @@ Future<void> main() async {
         return service.redeemCode(code);
       },
       onboardingReady: () => referralReady.value,
-      hasGoogleIdentity: () => auth?.hasGoogleIdentity ?? false,
       onAnalyticsEvent: (name, [parameters]) {
         analytics?.logEvent(name, parameters);
         if (name == 'referral_redeem_result') {

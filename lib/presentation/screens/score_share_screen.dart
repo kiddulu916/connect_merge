@@ -367,8 +367,9 @@ class _ScoreShareScreenState extends State<ScoreShareScreen> {
       await share(_textSummary());
       return;
     }
-    final reached = await sharer.shareToFacebook(png);
-    if (!reached) await sharer.shareToSheet(png);
+    final text = _textSummary();
+    final reached = await sharer.shareToFacebook(png, text: text);
+    if (!reached) await sharer.shareToSheet(png, text: text);
   }
 
   /// A plain-text fallback summary of the result, used when the rendered card

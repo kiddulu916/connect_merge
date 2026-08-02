@@ -85,6 +85,46 @@ void main() {
     expect(s.isCompletedFor('2026-06-08', Difficulty.easy), isFalse);
   });
 
+  test('submit status defaults to none and round-trips independently',
+      () async {
+    final s = InMemoryStorageService();
+
+    expect(
+      s.loadSubmitStatus('2026-06-08', Difficulty.easy),
+      const SubmitStatusRecord(SubmitStatus.none, generation: 0),
+    );
+
+    await s.saveSubmitStatus(
+      '2026-06-08',
+      Difficulty.easy,
+      SubmitStatus.pending,
+      3,
+    );
+
+    expect(
+      s.loadSubmitStatus('2026-06-08', Difficulty.easy),
+      const SubmitStatusRecord(SubmitStatus.pending, generation: 3),
+    );
+    expect(s.loadSnapshot('2026-06-08', Difficulty.easy), isNull);
+  });
+
+  test('account wipe clears submit status', () async {
+    final s = InMemoryStorageService();
+    await s.saveSubmitStatus(
+      '2026-06-08',
+      Difficulty.easy,
+      SubmitStatus.settled,
+      2,
+    );
+
+    await s.wipeAccountData();
+
+    expect(
+      s.loadSubmitStatus('2026-06-08', Difficulty.easy).status,
+      SubmitStatus.none,
+    );
+  });
+
   test('stats are per-tier and default to zero', () async {
     final s = InMemoryStorageService();
     await s.init();

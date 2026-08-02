@@ -56,8 +56,25 @@ void main() {
         moveLog: const [],
       );
       expect(result.valid, isFalse);
+      expect(result.reason, 'invalid_run');
       expect(result.score, 0);
       expect(result.rank, 0);
+    });
+
+    test('missing rejection reason stays null for safe caller fallback',
+        () async {
+      final service = LeaderboardService.withSeams(
+        invoke: (_, __) async => {'valid': false},
+        rpc: (_, __) async => const [],
+      );
+
+      final result = await service.submitRun(
+        date: '2026-06-07',
+        difficulty: Difficulty.easy,
+        moveLog: const [],
+      );
+
+      expect(result.reason, isNull);
     });
 
     test('propagates transport errors so callers can retry', () async {

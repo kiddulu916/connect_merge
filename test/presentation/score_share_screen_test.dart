@@ -34,16 +34,20 @@ class _FakeSharer implements ScoreSharer {
   final bool facebookSucceeds;
   int fbCalls = 0;
   int sheetCalls = 0;
+  String? facebookText;
+  String? sheetText;
 
   @override
-  Future<bool> shareToFacebook(Uint8List pngBytes) async {
+  Future<bool> shareToFacebook(Uint8List pngBytes, {String? text}) async {
     fbCalls++;
+    facebookText = text;
     return facebookSucceeds;
   }
 
   @override
-  Future<void> shareToSheet(Uint8List pngBytes) async {
+  Future<void> shareToSheet(Uint8List pngBytes, {String? text}) async {
     sheetCalls++;
+    sheetText = text;
   }
 }
 
@@ -145,6 +149,36 @@ void main() {
 
     expect(sharer.fbCalls, 1);
     expect(sharer.sheetCalls, 1);
+  });
+
+  testWidgets('image share sends the invite caption through both seams',
+      (tester) async {
+    final sharer = _FakeSharer(false);
+    await tester.pumpWidget(MaterialApp(
+      home: ScoreShareScreen(
+        adBusy: ValueNotifier(false),
+        board: _board(),
+        date: '2026-06-06',
+        stats: _stats,
+        canOfferAd: false,
+        onWatchAd: () {},
+        friendCode: 'ABCD2345',
+        sharer: sharer,
+        captureOverride: () async => Uint8List.fromList([1, 2, 3]),
+      ),
+    ));
+
+    final shareButton = find.byKey(const Key('share-card-button'));
+    await tester.ensureVisible(shareButton);
+    await tester.tap(shareButton);
+    await tester.pumpAndSettle();
+
+    expect(sharer.facebookText, contains('ABCD2345'));
+    expect(
+      sharer.facebookText,
+      contains('https://www.connectmerge.app/invite/ABCD2345'),
+    );
+    expect(sharer.sheetText, sharer.facebookText);
   });
 
   testWidgets('falls back to a TEXT share when the card render fails',

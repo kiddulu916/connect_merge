@@ -8,12 +8,14 @@ import '../domain/models/move.dart';
 /// Result of a score submission (mirrors the Edge Function response).
 class SubmitResult {
   final bool valid;
+  final String? reason;
   final int score;
   final int highestTier;
   final int rank;
 
   const SubmitResult({
     required this.valid,
+    this.reason,
     required this.score,
     required this.highestTier,
     required this.rank,
@@ -21,6 +23,7 @@ class SubmitResult {
 
   static SubmitResult fromJson(Map<String, dynamic> j) => SubmitResult(
         valid: (j['valid'] as bool?) ?? false,
+        reason: j['reason'] as String?,
         score: (j['score'] as num?)?.toInt() ?? 0,
         highestTier: (j['highestTier'] as num?)?.toInt() ?? 0,
         rank: (j['rank'] as num?)?.toInt() ?? 0,
@@ -77,10 +80,6 @@ class LeaderboardService {
       'moveLog': moveLog.map((e) => e.toJson()).toList(),
       'season': kLeaderboardSeason,
     });
-    assert(
-      data['valid'] == true || data.containsKey('reason'),
-      'submit-score returned unexpected shape: $data',
-    );
     return SubmitResult.fromJson(data);
   }
 

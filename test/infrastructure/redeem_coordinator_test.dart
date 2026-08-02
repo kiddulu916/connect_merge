@@ -26,7 +26,6 @@ void main() {
         return const RedeemResult(RedeemStatus.ok);
       },
       onboardingReady: () => true,
-      hasGoogleIdentity: () => false,
     );
 
     await coordinator.enqueueLiveLink('ABCD2345');
@@ -69,7 +68,6 @@ void main() {
       () async {
     final harness = _Harness(
       onboardingReady: false,
-      hasGoogleIdentity: false,
     );
 
     await harness.coordinator.enqueueInstallReferrer('AAAAAAAA');
@@ -87,7 +85,6 @@ void main() {
     await harness.coordinator.enqueueLiveLink('AAAAAAAA');
     await harness.coordinator.enqueueInstallReferrer('BBBBBBBB');
     harness.onboardingReady = true;
-    harness.googleReady = true;
     harness.results.add(const RedeemResult(RedeemStatus.ok));
 
     await harness.coordinator.retry();
@@ -201,7 +198,6 @@ void main() {
       },
       redeemCode: (_) async => const RedeemResult(RedeemStatus.ok),
       onboardingReady: () => true,
-      hasGoogleIdentity: () => true,
     );
 
     await expectLater(
@@ -216,9 +212,9 @@ void main() {
     expect(restored.snapshot.active, isNull);
   });
 
-  test('onboarding gates both sources and Google gates only referrers',
+  test('onboarding gates both sources and guests can redeem install referrers',
       () async {
-    final live = _Harness(onboardingReady: false, hasGoogleIdentity: false);
+    final live = _Harness(onboardingReady: false);
     await live.coordinator.enqueueLiveLink('AAAAAAAA');
     expect(live.calls, isEmpty);
     live.onboardingReady = true;
@@ -226,13 +222,8 @@ void main() {
     await live.coordinator.retry();
     expect(live.calls, ['AAAAAAAA']);
 
-    final referrer =
-        _Harness(onboardingReady: true, hasGoogleIdentity: false);
+    final referrer = _Harness(onboardingReady: true);
     await referrer.coordinator.enqueueInstallReferrer('BBBBBBBB');
-    expect(referrer.calls, isEmpty);
-    referrer.googleReady = true;
-    referrer.results.add(const RedeemResult(RedeemStatus.ok));
-    await referrer.coordinator.retry();
     expect(referrer.calls, ['BBBBBBBB']);
     expect(referrer.snapshot.handled, isTrue);
   });
@@ -279,7 +270,6 @@ void main() {
 class _Harness {
   String? stored;
   bool onboardingReady;
-  bool googleReady;
   final List<String> writes = [];
   final List<String> calls = [];
   final List<RedeemResult> results = [];
@@ -288,13 +278,12 @@ class _Harness {
   _Harness({
     this.stored,
     this.onboardingReady = true,
-    bool hasGoogleIdentity = true,
     Future<RedeemResult> Function(String code)? redeemCode,
     Future<void> Function(Duration duration)? delay,
     List<Duration> retryDelays = const [],
     void Function(String name, [Map<String, Object?>? params])?
         onAnalyticsEvent,
-  }) : googleReady = hasGoogleIdentity {
+  }) {
     coordinator = RedeemCoordinator(
       loadSnapshot: () => stored,
       saveSnapshot: (value) async {
@@ -309,7 +298,6 @@ class _Harness {
             : results.removeAt(0);
       },
       onboardingReady: () => onboardingReady,
-      hasGoogleIdentity: () => googleReady,
       delay: delay,
       retryDelays: retryDelays,
       onAnalyticsEvent: onAnalyticsEvent,

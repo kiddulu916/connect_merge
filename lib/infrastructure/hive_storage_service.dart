@@ -45,6 +45,9 @@ class HiveStorageService extends StorageService {
   static String _snapshotKey(String date, Difficulty difficulty) =>
       '$date:${difficulty.name}';
 
+  static String _submitStatusKey(String date, Difficulty difficulty) =>
+      'submit_status:$date:${difficulty.name}';
+
   static String _statsKey(Difficulty difficulty) => 'stats:${difficulty.name}';
 
   @override
@@ -296,6 +299,30 @@ class HiveStorageService extends StorageService {
     await _box.put(
       _snapshotKey(snapshot.date, snapshot.difficulty),
       jsonEncode(snapshot.toJson()),
+    );
+  }
+
+  @override
+  SubmitStatusRecord loadSubmitStatus(String date, Difficulty difficulty) =>
+      _tryDecode(
+        _submitStatusKey(date, difficulty),
+        (d) => SubmitStatusRecord.fromJson(
+          Map<String, dynamic>.from(d as Map),
+        ),
+      ) ??
+      const SubmitStatusRecord(SubmitStatus.none, generation: 0);
+
+  @override
+  Future<void> saveSubmitStatus(
+    String date,
+    Difficulty difficulty,
+    SubmitStatus status,
+    int generation,
+  ) async {
+    _guardWrite();
+    await _box.put(
+      _submitStatusKey(date, difficulty),
+      jsonEncode(SubmitStatusRecord(status, generation: generation).toJson()),
     );
   }
 

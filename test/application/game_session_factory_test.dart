@@ -114,7 +114,7 @@ void main() {
       ContinueEvent(),
     ];
 
-    await cubit.onSubmitRun!(
+    final outcome = await cubit.onSubmitRun!(
       date: date,
       difficulty: Difficulty.medium,
       moveLog: moves,
@@ -124,6 +124,46 @@ void main() {
     expect(submittedDate, date);
     expect(submittedDifficulty, Difficulty.medium);
     expect(submittedMoves, moves);
+    expect(outcome, SubmitOutcome.success);
+  });
+
+  test('submit hook maps only invalid_run to terminal rejection', () async {
+    final responses = <Map<String, dynamic>>[
+      {'valid': false, 'reason': 'invalid_run'},
+      {'valid': false, 'reason': 'submit_failed'},
+      {'valid': false, 'reason': 'future_reason'},
+      {'valid': false},
+    ];
+    final storage = InMemoryStorageService();
+    final engagement = EngagementCubit(storage: storage);
+    final loot = LootCubit(storage: storage);
+    addTearDown(engagement.close);
+    addTearDown(loot.close);
+    final leaderboard = LeaderboardService.withSeams(
+      invoke: (_, __) async => responses.removeAt(0),
+      rpc: (_, __) async => const [],
+    );
+    final cubit = GameSessionFactory(
+      storage: storage,
+      engagement: engagement,
+      loot: loot,
+      leaderboard: leaderboard,
+      todayProvider: () => date,
+    ).create(difficulty: Difficulty.medium);
+    addTearDown(cubit.close);
+    await _waitForInitialized(cubit);
+
+    Future<SubmitOutcome> submit() => cubit.onSubmitRun!(
+          date: date,
+          difficulty: Difficulty.medium,
+          moveLog: const [],
+          adContinues: 0,
+        );
+
+    expect(await submit(), SubmitOutcome.terminalRejection);
+    expect(await submit(), SubmitOutcome.retryableFailure);
+    expect(await submit(), SubmitOutcome.retryableFailure);
+    expect(await submit(), SubmitOutcome.retryableFailure);
   });
 
   test('submit hook is null when offline', () async {

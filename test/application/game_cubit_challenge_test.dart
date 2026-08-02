@@ -139,6 +139,7 @@ void main() {
         required int adContinues,
       }) async {
         submitted = true;
+        return SubmitOutcome.success;
       },
     );
     await c.init(

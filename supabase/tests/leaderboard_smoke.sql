@@ -258,6 +258,119 @@ select pg_temp.assert_raises(
 
 reset role;
 
+set local role service_role;
+
+select pg_temp.assert_true(
+  (select score = 100 and highest_tier = 4
+   from public.upsert_best_score(
+     '00000000-0000-0000-0000-000000000005',
+     current_date,
+     'easy',
+     44,
+     100,
+     4
+   )),
+  'upsert_best_score inserts the first season-scoped score'
+);
+select pg_temp.assert_true(
+  (select score = 100 and highest_tier = 4
+   from public.upsert_best_score(
+     '00000000-0000-0000-0000-000000000005',
+     current_date,
+     'easy',
+     44,
+     50,
+     9
+   )),
+  'upsert_best_score cannot replace the best score or its tier with a lower run'
+);
+select pg_temp.assert_true(
+  (select score = 150 and highest_tier = 7
+   from public.upsert_best_score(
+     '00000000-0000-0000-0000-000000000005',
+     current_date,
+     'easy',
+     44,
+     150,
+     7
+   )),
+  'upsert_best_score atomically replaces both fields for a higher run'
+);
+select pg_temp.assert_true(
+  exists (
+    select 1 from public.scores
+    where player_id = '00000000-0000-0000-0000-000000000005'
+      and utc_date = current_date
+      and difficulty = 'easy'
+      and season = 44
+      and score = 150
+      and highest_tier = 7
+  ),
+  'upsert_best_score persists the requested season'
+);
+
+reset role;
+
+select pg_temp.assert_true(
+  has_function_privilege(
+    'service_role',
+    'public.upsert_best_score(uuid,date,text,integer,integer,integer)',
+    'EXECUTE'
+  ),
+  'service_role can execute upsert_best_score'
+);
+select pg_temp.assert_true(
+  not has_function_privilege(
+    'anon',
+    'public.upsert_best_score(uuid,date,text,integer,integer,integer)',
+    'EXECUTE'
+  ) and not has_function_privilege(
+    'authenticated',
+    'public.upsert_best_score(uuid,date,text,integer,integer,integer)',
+    'EXECUTE'
+  ),
+  'anon and authenticated cannot execute upsert_best_score'
+);
+select pg_temp.assert_true(
+  not exists (
+    select 1
+    from pg_proc as p
+    cross join lateral aclexplode(
+      coalesce(p.proacl, acldefault('f', p.proowner))
+    ) as acl
+    where p.oid =
+      'public.upsert_best_score(uuid,date,text,integer,integer,integer)'::regprocedure
+      and acl.grantee = 0
+      and acl.privilege_type = 'EXECUTE'
+  ),
+  'PUBLIC cannot execute upsert_best_score'
+);
+select pg_temp.assert_true(
+  (select not p.prosecdef and 'search_path=public' = any(p.proconfig)
+   from pg_proc as p
+   where p.oid =
+     'public.upsert_best_score(uuid,date,text,integer,integer,integer)'::regprocedure),
+  'upsert_best_score is SECURITY INVOKER with a pinned public search_path'
+);
+select pg_temp.assert_true(
+  (select count(*) = 1
+   from pg_constraint
+   where conrelid = 'public.scores'::regclass
+     and contype = 'u'
+     and pg_get_constraintdef(oid) =
+       'UNIQUE (player_id, utc_date, difficulty)'),
+  'Phase 1 preserves the old conflict target for the deployed Edge Function'
+);
+select pg_temp.assert_true(
+  (select count(*) = 1
+   from pg_constraint
+   where conrelid = 'public.scores'::regclass
+     and contype = 'u'
+     and pg_get_constraintdef(oid) =
+       'UNIQUE (player_id, utc_date, difficulty, season)'),
+  'Phase 1 adds the season-scoped conflict target'
+);
+
 select pg_temp.assert_true(
   not has_function_privilege(
     'anon',

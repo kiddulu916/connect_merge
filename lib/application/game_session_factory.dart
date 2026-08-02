@@ -55,15 +55,20 @@ class GameSessionFactory {
         onAnalyticsEvent: onAnalyticsEvent,
       )..init(difficulty: difficulty);
 
-  Future<void> _submitRun({
+  Future<SubmitOutcome> _submitRun({
     required String date,
     required Difficulty difficulty,
     required List<MoveEvent> moveLog,
     required int adContinues,
-  }) =>
-      leaderboard!.submitRun(
-        date: date,
-        difficulty: difficulty,
-        moveLog: moveLog,
-      );
+  }) async {
+    final result = await leaderboard!.submitRun(
+      date: date,
+      difficulty: difficulty,
+      moveLog: moveLog,
+    );
+    if (result.valid) return SubmitOutcome.success;
+    return result.reason == 'invalid_run'
+        ? SubmitOutcome.terminalRejection
+        : SubmitOutcome.retryableFailure;
+  }
 }

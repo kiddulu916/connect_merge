@@ -11,10 +11,10 @@ abstract class ScoreSharer {
 
   /// Hand [pngBytes] to the Facebook app's composer. Returns true if Facebook
   /// handled it, false if it isn't installed (or the platform can't target it).
-  Future<bool> shareToFacebook(Uint8List pngBytes);
+  Future<bool> shareToFacebook(Uint8List pngBytes, {String? text});
 
   /// Fallback: share [pngBytes] via the OS share sheet.
-  Future<void> shareToSheet(Uint8List pngBytes);
+  Future<void> shareToSheet(Uint8List pngBytes, {String? text});
 }
 
 // Production sharer. Tries to open the Facebook app via a platform channel
@@ -26,10 +26,11 @@ class PlatformScoreSharer extends ScoreSharer {
       MethodChannel('connect_merge/facebook_share');
 
   @override
-  Future<bool> shareToFacebook(Uint8List pngBytes) async {
+  Future<bool> shareToFacebook(Uint8List pngBytes, {String? text}) async {
     try {
       final ok = await _channel.invokeMethod<bool>('shareImage', {
         'bytes': pngBytes,
+        'text': text,
       });
       return ok ?? false;
     } on PlatformException {
@@ -41,11 +42,15 @@ class PlatformScoreSharer extends ScoreSharer {
   }
 
   @override
-  Future<void> shareToSheet(Uint8List pngBytes) async {
+  Future<void> shareToSheet(Uint8List pngBytes, {String? text}) async {
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/connect_merge_score.png');
     await file.writeAsBytes(pngBytes, flush: true);
     await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path)], subject: 'Connect Merge'));
+        ShareParams(
+          files: [XFile(file.path)],
+          text: text,
+          subject: 'Connect Merge',
+        ));
   }
 }

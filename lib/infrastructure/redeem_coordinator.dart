@@ -99,7 +99,6 @@ class RedeemCoordinator {
   final SaveRedeemSnapshot _saveSnapshot;
   final RedeemCode _redeemCode;
   final bool Function() _onboardingReady;
-  final bool Function() _hasGoogleIdentity;
   final RedeemDelay _delay;
   final List<Duration> retryDelays;
   final RedeemAnalytics? _onAnalyticsEvent;
@@ -117,14 +116,12 @@ class RedeemCoordinator {
     required SaveRedeemSnapshot saveSnapshot,
     required RedeemCode redeemCode,
     required bool Function() onboardingReady,
-    required bool Function() hasGoogleIdentity,
     RedeemDelay? delay,
     this.retryDelays = defaultRetryDelays,
     RedeemAnalytics? onAnalyticsEvent,
   })  : _saveSnapshot = saveSnapshot,
         _redeemCode = redeemCode,
         _onboardingReady = onboardingReady,
-        _hasGoogleIdentity = hasGoogleIdentity,
         _delay = delay ?? Future<void>.delayed,
         _onAnalyticsEvent = onAnalyticsEvent {
     _snapshot = RedeemSnapshot.decode(loadSnapshot());
@@ -161,7 +158,7 @@ class RedeemCoordinator {
     if (changed) await _requestRun(resetBackoff: true);
   }
 
-  /// Triggered by identity readiness, foreground, and connectivity recovery.
+  /// Triggered by onboarding readiness, foreground, and connectivity recovery.
   /// It rearms the bounded retry series without allowing concurrent RPCs.
   Future<void> retry() => _requestRun(resetBackoff: true);
 
@@ -274,9 +271,7 @@ class RedeemCoordinator {
         return input;
       });
 
-  bool _isReady(RedeemInput input) =>
-      _onboardingReady() &&
-      (input.source == RedeemSource.liveLink || _hasGoogleIdentity());
+  bool _isReady(RedeemInput _) => _onboardingReady();
 
   Future<_AttemptDisposition> _completeAttempt(
     RedeemInput input,

@@ -70,7 +70,6 @@ void main() {
         saveSnapshot: (_) async {},
         redeemCode: (_) async => const RedeemResult(RedeemStatus.error),
         onboardingReady: () => false,
-        hasGoogleIdentity: () => false,
       ),
       referralReady: ValueNotifier<bool>(false),
       referralMessage: referralMessage ?? ValueNotifier<String?>(null),

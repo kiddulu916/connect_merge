@@ -153,6 +153,35 @@ class StorageWriteBlockedException implements Exception {
 
 typedef StorageChangeListener = void Function();
 
+enum SubmitStatus { none, pending, settled }
+
+class SubmitStatusRecord {
+  final SubmitStatus status;
+  final int generation;
+
+  const SubmitStatusRecord(this.status, {required this.generation});
+
+  Map<String, Object> toJson() => {
+        'status': status.name,
+        'generation': generation,
+      };
+
+  static SubmitStatusRecord fromJson(Map<String, dynamic> json) =>
+      SubmitStatusRecord(
+        SubmitStatus.values.byName(json['status'] as String),
+        generation: (json['generation'] as num).toInt(),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is SubmitStatusRecord &&
+      other.status == status &&
+      other.generation == generation;
+
+  @override
+  int get hashCode => Object.hash(status, generation);
+}
+
 /// Generates the install claim id as an RFC 4122 version-4 UUID without adding
 /// another dependency. It survives account-only wipes so a successful claim
 /// remains valid until another physical install claims the cloud row.
@@ -202,6 +231,13 @@ abstract class StorageService {
   void addChangeListener(StorageChangeListener listener);
   void removeChangeListener(StorageChangeListener listener);
   GameSnapshot? loadSnapshot(String date, Difficulty difficulty);
+  SubmitStatusRecord loadSubmitStatus(String date, Difficulty difficulty);
+  Future<void> saveSubmitStatus(
+    String date,
+    Difficulty difficulty,
+    SubmitStatus status,
+    int generation,
+  );
 
   /// Score in the persisted snapshot for [date]/[difficulty], or null if there
   /// is no snapshot yet. Callers apply their own default (some want 0, some
@@ -250,6 +286,7 @@ class InMemoryStorageService extends StorageService {
   final Set<StorageChangeListener> _listeners = {};
   String _deviceId;
   final Map<String, GameSnapshot> _snapshots = {};
+  final Map<String, SubmitStatusRecord> _submitStatuses = {};
   final Map<String, LifetimeStats> _stats = {};
   PlayerProfile _profile = PlayerProfile.empty;
   final List<DayResult> _history = [];
@@ -382,6 +419,23 @@ class InMemoryStorageService extends StorageService {
   }
 
   @override
+  SubmitStatusRecord loadSubmitStatus(String date, Difficulty difficulty) =>
+      _submitStatuses[_snapKey(date, difficulty)] ??
+      const SubmitStatusRecord(SubmitStatus.none, generation: 0);
+
+  @override
+  Future<void> saveSubmitStatus(
+    String date,
+    Difficulty difficulty,
+    SubmitStatus status,
+    int generation,
+  ) async {
+    _guardWrite();
+    _submitStatuses[_snapKey(date, difficulty)] =
+        SubmitStatusRecord(status, generation: generation);
+  }
+
+  @override
   LifetimeStats loadStats(Difficulty difficulty) =>
       _stats[difficulty.name] ?? LifetimeStats.empty;
 
@@ -476,6 +530,7 @@ class InMemoryStorageService extends StorageService {
   @override
   Future<void> wipeAccountData() async {
     _snapshots.clear();
+    _submitStatuses.clear();
     _stats.clear();
     _profile = PlayerProfile.empty;
     _history.clear();
@@ -487,6 +542,7 @@ class InMemoryStorageService extends StorageService {
   @override
   Future<void> wipeAll() async {
     _snapshots.clear();
+    _submitStatuses.clear();
     _stats.clear();
     _profile = PlayerProfile.empty;
     _history.clear();

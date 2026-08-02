@@ -10,11 +10,13 @@
 //   200 { valid, score, highestTier, rank }
 //   401 no/invalid auth
 //   422 { valid:false, reason:"invalid_run" }  (illegal log / wrong date / etc.)
+//   422 { valid:false, reason:"submit_failed" } (retryable database failure)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
 import { verifyRun, verifyRunChallenge } from "../_shared/engine.ts";
 import { isDifficulty, kLeaderboardSeason } from "../_shared/constants.ts";
 import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";
+import { upsertBestScore } from "./best_score.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,41 +77,28 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  // Ensure the player row exists (FK target). If the client hasn't set a name
-  // yet, we cannot enforce a leaderboard entry — but display name is required by
-  // the client flow before submitting. Read the existing best to keep the max.
-  const { data: existing } = await admin
-    .from("scores")
-    .select("score, highest_tier")
-    .eq("player_id", userId)
-    .eq("utc_date", date)
-    .eq("difficulty", difficulty)
-    .eq("season", kLeaderboardSeason)
-    .maybeSingle()
-    .returns<{ score: number; highest_tier: number }>();
-
-  // Keep the higher of the existing best vs this run.
-  const keepExisting = existing != null && existing.score >= result.score;
-  const keepScore = keepExisting ? existing!.score : result.score;
-  const keepTier = keepExisting ? existing!.highest_tier : result.highestTier;
-
-  if (!existing || result.score > existing.score) {
-    const { error: upsertErr } = await admin.from("scores").upsert(
-      {
-        player_id: userId,
-        utc_date: date,
-        difficulty,
-        season: kLeaderboardSeason,
-        score: result.score,
-        highest_tier: result.highestTier,
-      },
-      { onConflict: "player_id,utc_date,difficulty" },
-    );
-    if (upsertErr) {
-      // FK violation (no player row) or other DB error.
-      return json({ valid: false, reason: "submit_failed" }, 422);
-    }
+  // Atomically keep the best score for this player/date/tier/season. The RPC is
+  // service-role-only; replay verification above remains the trust boundary.
+  const best = await upsertBestScore(
+    async (fn, params) => {
+      const { data, error } = await admin.rpc(fn, params);
+      return { data, error };
+    },
+    {
+      playerId: userId,
+      date,
+      difficulty,
+      season: kLeaderboardSeason,
+      score: result.score,
+      highestTier: result.highestTier,
+    },
+  );
+  if (best == null) {
+    // FK violation (no player row) or other DB/RPC error.
+    return json({ valid: false, reason: "submit_failed" }, 422);
   }
+  const keepScore = best.score;
+  const keepTier = best.highestTier;
 
   // 5. Compute the player's rank for (date, difficulty) by their best score.
   const { count: higherCount } = await admin

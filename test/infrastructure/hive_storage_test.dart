@@ -65,6 +65,36 @@ void main() {
     expect(s.loadStats(Difficulty.easy).streak, 0);
   });
 
+  test('submit status defaults safely, persists, and rejects legacy data',
+      () async {
+    final storage = HiveStorageService();
+    await storage.init();
+    expect(
+      storage.loadSubmitStatus('2026-06-06', Difficulty.hard),
+      const SubmitStatusRecord(SubmitStatus.none, generation: 0),
+    );
+
+    await storage.saveSubmitStatus(
+      '2026-06-06',
+      Difficulty.hard,
+      SubmitStatus.pending,
+      4,
+    );
+    final reopened = HiveStorageService();
+    await reopened.init();
+    expect(
+      reopened.loadSubmitStatus('2026-06-06', Difficulty.hard),
+      const SubmitStatusRecord(SubmitStatus.pending, generation: 4),
+    );
+
+    final box = await Hive.openBox<String>('connect_merge');
+    await box.put('submit_status:2026-06-07:hard', '{"legacy":true}');
+    expect(
+      reopened.loadSubmitStatus('2026-06-07', Difficulty.hard),
+      const SubmitStatusRecord(SubmitStatus.none, generation: 0),
+    );
+  });
+
   test('json encoding is stable', () {
     const stats = LifetimeStats(
         streak: 1, lastCompletedDate: '2026-06-06', bestScore: 10, bestTier: 3);
@@ -166,6 +196,12 @@ void main() {
       const PlayerProfile(wallet: Wallet(coins: 8)),
     );
     await storage.saveStats(Difficulty.challenge, LifetimeStats.empty);
+    await storage.saveSubmitStatus(
+      '2026-06-06',
+      Difficulty.challenge,
+      SubmitStatus.settled,
+      1,
+    );
 
     await storage.wipeAccountData();
 
@@ -174,6 +210,10 @@ void main() {
     expect(storage.localRevision, 2);
     expect(storage.loadProfile(), PlayerProfile.empty);
     expect(storage.loadStats(Difficulty.challenge), LifetimeStats.empty);
+    expect(
+      storage.loadSubmitStatus('2026-06-06', Difficulty.challenge).status,
+      SubmitStatus.none,
+    );
   });
 
   test('referral snapshot survives reopen, adoption, restore, and account wipe',
