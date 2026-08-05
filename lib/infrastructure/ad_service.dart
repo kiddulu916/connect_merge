@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'ad_config.dart';
 import 'analytics_service.dart';
-import 'consent_service.dart';
+import 'consent_manager.dart';
 
 /// Isolates all google_mobile_ads lifecycle so the rest of the app never
 /// imports the plugin directly.
@@ -51,7 +53,16 @@ class AdService {
   /// If consent has not been granted yet this is a no-op — ads will be
   /// unavailable for this session and initialised on the next launch once
   /// the user has accepted the consent form shown by the native layer.
-  Future<void> init(ConsentService consent) async {
+  Future<void> init(ConsentManager consent) async {
+    final completer = Completer<void>();
+    consent.gatherConsent((error) {
+      if (error != null) {
+        debugPrint('Consent gathering error: ${error.message}');
+      }
+      completer.complete();
+    });
+    await completer.future;
+
     if (!await consent.canRequestAds()) return;
     await MobileAds.instance.initialize();
     _initialized = true;

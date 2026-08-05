@@ -2,7 +2,7 @@
 // caller auth. Pure transport helpers — no game-rule logic, so this file is
 // NOT part of the Dart/TS engine mirror (see engine.ts's own header comment).
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
+import { createClient } from "@supabase/supabase-js";
 
 export function corsHeaders(origin: string): Record<string, string> {
   return {

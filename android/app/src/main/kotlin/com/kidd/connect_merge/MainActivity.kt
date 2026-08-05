@@ -4,9 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import androidx.core.content.FileProvider
-import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentInformation
-import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -21,40 +19,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        gatherConsent()
-    }
-
-    private fun gatherConsent() {
-        val paramsBuilder = ConsentRequestParameters.Builder()
-        // Debug builds only: the AdMob account has no published consent message yet,
-        // so real devices get "Publisher misconfiguration" and canRequestAds() never
-        // becomes true. Force non-EEA geography locally so ads can still be tested
-        // while the console-side Privacy & messaging setup is pending.
-        if (BuildConfig.DEBUG) {
-            // The emulator auto-registers as a test device, so this geography
-            // override applies there with no device id listed. To force it on a
-            // physical device, register that device as a test device locally
-            // (add its hashed id here in your working copy — do NOT commit it).
-            val debugSettings = ConsentDebugSettings.Builder(this)
-                .setDebugGeography(ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_NOT_EEA)
-                .build()
-            paramsBuilder.setConsentDebugSettings(debugSettings)
-        }
-        val params = paramsBuilder.build()
         consentInformation = UserMessagingPlatform.getConsentInformation(this)
-        consentInformation.requestConsentInfoUpdate(
-            this,
-            params,
-            {
-                // Consent info updated — present the form if the user hasn't consented yet.
-                UserMessagingPlatform.loadAndShowConsentFormIfRequired(this) { _ ->
-                    // Form dismissed or not required — consent gathering complete.
-                }
-            },
-            { _ ->
-                // Failed to update consent info — allow the app to proceed.
-            },
-        )
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

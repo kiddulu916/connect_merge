@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../application/engagement_cubit.dart';
 import '../../infrastructure/auth_service.dart';
-import '../../infrastructure/consent_service.dart';
+import '../../infrastructure/consent_manager.dart';
 import '../../infrastructure/storage_service.dart';
 import '../theme/tokens.dart';
 import 'avatars_screen.dart';
@@ -28,7 +28,7 @@ class ProfileScreen extends StatefulWidget {
 
   /// UMP consent channel. Injected in tests; defaults to the real native seam.
   /// Drives the EEA/UK-only "Privacy options" tile.
-  final ConsentService? consent;
+  final ConsentManager? consent;
 
   /// Retention cubit — drives the Avatars picker. Null hides the Avatars tile
   /// (e.g. tests / offline construction).
@@ -60,7 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// never sees a control that would do nothing.
   bool _privacyOptionsRequired = false;
 
-  ConsentService get _consent => widget.consent ?? ConsentService();
+  ConsentManager get _consent => widget.consent ?? ConsentManager();
 
   @override
   void initState() {
@@ -299,7 +299,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               subtitle: const Text(
                   'Review or change your ad-personalisation consent.',
                   style: TextStyle(color: Colors.white38, fontSize: 12)),
-              onTap: _busy ? null : () => _consent.showPrivacyOptionsForm(),
+              onTap: _busy ? null : () => _consent.showPrivacyOptionsForm((error) {
+                if (error != null && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(error.message)),
+                  );
+                }
+              }),
             ),
           ],
           const SizedBox(height: 12),

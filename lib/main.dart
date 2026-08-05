@@ -21,7 +21,7 @@ import 'domain/models/friend.dart';
 import 'domain/models/player_level.dart';
 import 'infrastructure/ad_service.dart';
 import 'infrastructure/analytics_service.dart';
-import 'infrastructure/consent_service.dart';
+import 'infrastructure/consent_manager.dart';
 import 'infrastructure/auth_service.dart';
 import 'infrastructure/crash_reporting_service.dart';
 import 'infrastructure/deep_link_service.dart';
@@ -72,7 +72,7 @@ Future<void> main() async {
     await storage.init();
 
     final adService = AdService(analytics: analytics);
-    await adService.init(ConsentService());
+    await adService.init(ConsentManager());
 
     // Notifications are LOCAL only ($0, no FCM). Init the plugin + timezone here
     // but request OS permission lazily (after the first completion), never at cold launch.

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 typedef OnConsentGatheringCompleteListener = void Function(FormError? error);
@@ -21,10 +20,10 @@ class ConsentManager {
       OnConsentGatheringCompleteListener onConsentGatheringCompleteListener,
       ) {
     // For testing purposes, you can force a DebugGeography of Eea or NotEea.
-    ConsentDebugSettings debugSettings = ConsentDebugSettings(
+    final debugSettings = ConsentDebugSettings(
       // debugGeography: DebugGeography.debugGeographyEea,
     );
-    ConsentRequestParameters params = ConsentRequestParameters(
+    final params = ConsentRequestParameters(
       consentDebugSettings: debugSettings,
     );
 

@@ -12,7 +12,7 @@
 //   422 { valid:false, reason:"invalid_run" }  (illegal log / wrong date / etc.)
 //   422 { valid:false, reason:"submit_failed" } (retryable database failure)
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
+import { createClient } from "@supabase/supabase-js";
 import { verifyRun, verifyRunChallenge } from "../_shared/engine.ts";
 import { isDifficulty, kLeaderboardSeason } from "../_shared/constants.ts";
 import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";

@@ -538,7 +538,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'ad_config.dart';
 import 'analytics_service.dart';
-import 'consent_service.dart';
+import 'consent_manager.dart';
 
 /// Isolates all google_mobile_ads lifecycle so the rest of the app never
 /// imports the plugin directly.

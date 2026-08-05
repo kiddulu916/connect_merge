@@ -16,7 +16,7 @@
 //   400 { error:"bad_request" }   (malformed / too many hashes)
 //   401 { error:"unauthorized" }
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
+import { createClient } from "@supabase/supabase-js";
 import { sanitizeHashes } from "./sanitize.ts";
 import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";
 

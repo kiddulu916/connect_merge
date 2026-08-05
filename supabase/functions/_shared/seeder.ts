@@ -80,7 +80,7 @@ export class DailySeeder {
   }
 
   /** Seed-placed wall cells (port of DailySeeder.wallIndices), "walls" stream. */
-  async wallIndices(): Promise<Set<number>> {
+  wallIndices(): Promise<Set<number>> {
     return this.wallIndicesWithCount(WALL_COUNT[this.difficulty]);
   }
 

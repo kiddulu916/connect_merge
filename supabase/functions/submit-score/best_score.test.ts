@@ -11,13 +11,13 @@ function assertEquals(actual: unknown, expected: unknown): void {
 Deno.test("upsertBestScore calls the season-scoped RPC and returns its row", async () => {
   let calledFunction: string | undefined;
   let calledParams: Record<string, unknown> | undefined;
-  const best = await upsertBestScore(async (fn, params) => {
+  const best = await upsertBestScore((fn, params) => {
     calledFunction = fn;
     calledParams = params;
-    return {
+    return Promise.resolve({
       data: [{ score: 900, highest_tier: 7 }],
       error: null,
-    };
+    });
   }, {
     playerId: "player-1",
     date: "2026-07-18",
@@ -51,14 +51,14 @@ Deno.test("upsertBestScore rejects RPC errors and malformed rows", async () => {
 
   assertEquals(
     await upsertBestScore(
-      async () => ({ data: null, error: { message: "FK" } }),
+      () => Promise.resolve({ data: null, error: { message: "FK" } }),
       params,
     ),
     null,
   );
   assertEquals(
     await upsertBestScore(
-      async () => ({ data: [{ score: "900" }], error: null }),
+      () => Promise.resolve({ data: [{ score: "900" }], error: null }),
       params,
     ),
     null,

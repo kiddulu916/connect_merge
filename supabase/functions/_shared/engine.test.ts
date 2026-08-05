@@ -8,7 +8,7 @@
 //
 // Run: deno test supabase/functions/_shared/engine.test.ts
 
-import { assertEquals, assertFalse } from "jsr:@std/assert@1";
+import { assertEquals, assertFalse } from "@std/assert";
 import { Prng } from "./prng.ts";
 import { DailySeeder, seedForKey } from "./seeder.ts";
 import {

@@ -1,7 +1,7 @@
 // Unit tests for match-contacts request validation.
 // Run: deno test supabase/functions/match-contacts/sanitize.test.ts
 
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals } from "@std/assert";
 import { MAX_HASHES, sanitizeHashes } from "./sanitize.ts";
 
 const VALID = "a".repeat(64); // 64 hex chars

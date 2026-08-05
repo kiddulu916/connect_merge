@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals } from "@std/assert";
 import { type ChallengeRule, kLeaderboardSeason } from "./constants.ts";
 import { verifyRun, verifyRunChallenge } from "./engine.ts";
 import fixture from "./golden_vectors.json" with { type: "json" };

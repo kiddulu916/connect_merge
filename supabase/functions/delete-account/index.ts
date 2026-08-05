@@ -23,7 +23,7 @@
 // Responses: always 200 { ok: true } for well-formed requests, whether or not
 // the id existed. 400 only for malformed input, 405 wrong method.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0";
+import { createClient } from "@supabase/supabase-js";
 import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;

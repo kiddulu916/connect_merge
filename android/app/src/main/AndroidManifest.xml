@@ -41,16 +41,6 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Invite deep links: connectmerge://invite/<code> -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="connectmerge" android:host="invite"/>
-            </intent-filter>
-            <!-- App Links (https) fallback: https://www.connectmerge.app/invite/<code>.
-                 autoVerify requires a hosted assetlinks.json; left enabled so it
-                 can be verified once the domain is configured (see Open Items). -->
             <intent-filter
                 android:autoVerify="true"
                 android:order="0">
@@ -61,6 +51,7 @@
 
                 <data android:scheme="https" />
                 <data android:host="www.connectmerge.app" />
+                <data android:pathPrefix="/invite/" />
             </intent-filter>
             <intent-filter
                 android:autoVerify="true"

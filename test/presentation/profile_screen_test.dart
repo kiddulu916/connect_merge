@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:connect_merge/application/engagement_cubit.dart';
 import 'package:connect_merge/infrastructure/auth_service.dart';
-import 'package:connect_merge/infrastructure/consent_service.dart';
+import 'package:connect_merge/infrastructure/consent_manager.dart';
 import 'package:connect_merge/infrastructure/storage_service.dart';
 import 'package:connect_merge/presentation/screens/profile_screen.dart';
 
@@ -181,7 +182,7 @@ void main() {
 }
 
 /// Overrides the two UMP methods the screen calls so no native channel is hit.
-class _FakeConsentService extends ConsentService {
+class _FakeConsentService extends ConsentManager {
   _FakeConsentService({required this.required});
   final bool required;
   int formShown = 0;
@@ -190,7 +191,10 @@ class _FakeConsentService extends ConsentService {
   Future<bool> isPrivacyOptionsRequired() async => required;
 
   @override
-  Future<void> showPrivacyOptionsForm() async => formShown++;
+  void showPrivacyOptionsForm(OnConsentFormDismissedListener listener) {
+    formShown++;
+    listener(null);
+  }
 }
 
 /// Minimal fake mirroring display_name_screen_test's: the real [AuthService]
