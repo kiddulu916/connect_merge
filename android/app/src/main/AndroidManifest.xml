@@ -4,7 +4,7 @@
          and SHA256-hashed on-device, and only hashes are checked against
          opted-in players. Denying this permission keeps friend codes fully
          usable. -->
-    <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <application
         android:label="Connect Merge"
         android:name="${applicationName}"
@@ -16,7 +16,8 @@
             android:resource="@string/asset_statements" />
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-4807961095325796~2005349795"/>
+            android:value="ca-app-pub-4807961095325796~2005349795" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -28,18 +29,18 @@
             android:windowSoftInputMode="adjustResize">
             <meta-data
                 android:name="flutter_deeplinking_enabled"
-                android:value="false"/>
+                android:value="false" />
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues
                  to determine the Window background behind the Flutter UI. -->
             <meta-data
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <intent-filter
                 android:autoVerify="true"
@@ -50,20 +51,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:scheme="https" />
-                <data android:host="www.connectmerge.app" />
-                <data android:pathPrefix="/invite/" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:order="1">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="https" />
-                <data android:host="www.connectmerge.app" />
-                <data android:path="/.well-known/assetlinks.json" />
+                <data android:host="connectmerge.app" />
+                <data android:pathEmpty="/*" />
             </intent-filter>
         </activity>
         <provider
@@ -88,8 +77,8 @@
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
         <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT"/>
-            <data android:mimeType="text/plain"/>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
         </intent>
         <package android:name="com.facebook.katana" />
     </queries>
