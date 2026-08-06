@@ -3,6 +3,7 @@ package com.kidd.connect_merge
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.UserMessagingPlatform
@@ -14,12 +15,20 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private val facebookShareChannel = "connect_merge/facebook_share"
     private val consentChannel = "connect_merge/consent"
+    private val TAG = "ConnectMergeMainActivity"
 
     private lateinit var consentInformation: ConsentInformation
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "onCreate: intent=${intent?.data}")
         consentInformation = UserMessagingPlatform.getConsentInformation(this)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Log.d(TAG, "onNewIntent: intent=${intent.data}")
+        setIntent(intent)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

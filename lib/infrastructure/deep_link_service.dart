@@ -83,8 +83,7 @@ class DeepLinkService {
       return null;
     }
     final code = uri.pathSegments.last;
-    return uri.toString() ==
-                'https://www.connectmerge.app/invite/$code' &&
+    return uri.toString() == 'https://www.connectmerge.app/invite/$code' &&
             _friendCodePattern.hasMatch(code)
         ? code
         : null;
