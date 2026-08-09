@@ -565,6 +565,16 @@ class GameCubit extends Cubit<GameState> {
   Future<void>? _submissionInFlight;
   int? _submissionInFlightGeneration;
 
+  /// True when the local owner is unchanged since [capturedUid] was read at
+  /// an attempt's start — mirrors the existing `generation != _submitGeneration`
+  /// staleness check, but for account identity: `HiveStorageService._guardWrite`
+  /// only compares the CURRENT owner against the CURRENT session, which can't
+  /// detect a write whose origin is a superseded account (by the time a stale
+  /// attempt resolves post-switch, both "current" values already agree with
+  /// each other, just not with who actually started the attempt).
+  bool _ownerUnchangedSince(String? capturedUid) =>
+      storage.owner?.uid == capturedUid;
+
   /// Submit once per completion generation, coalescing concurrent callers.
   Future<void> _submit(BoardState board) {
     if (_submitted) return Future.value();
@@ -586,6 +596,8 @@ class GameCubit extends Cubit<GameState> {
   }
 
   Future<void> _submitOnce(BoardState board, int generation) async {
+    final capturedUid = storage.owner?.uid;
+    if (!_ownerUnchangedSince(capturedUid)) return;
     try {
       await storage.saveSubmitStatus(
         _date,
@@ -628,7 +640,7 @@ class GameCubit extends Cubit<GameState> {
       case SubmitOutcome.retryableFailure:
         return;
       case SubmitOutcome.success:
-        await _settleSubmission(generation);
+        await _settleSubmission(generation, capturedUid);
         return;
       case SubmitOutcome.terminalRejection:
         _onError?.call(
@@ -636,7 +648,7 @@ class GameCubit extends Cubit<GameState> {
           null,
           fatal: false,
         );
-        await _settleSubmission(generation);
+        await _settleSubmission(generation, capturedUid);
         return;
     }
   }
@@ -653,7 +665,7 @@ class GameCubit extends Cubit<GameState> {
     });
   }
 
-  Future<void> _settleSubmission(int generation) async {
+  Future<void> _settleSubmission(int generation, String? capturedUid) async {
     // Re-checked here, not just by the caller: an ad continue can bump
     // _submitGeneration during the network call this settles, and without
     // this guard a stale write landing after that bump would overwrite the
@@ -661,6 +673,10 @@ class GameCubit extends Cubit<GameState> {
     // superseded (settled, oldGeneration) one — silently blocking the
     // improved run's own future submission on the next resume.
     if (generation != _submitGeneration) return;
+    // Same idea, for account identity instead of generation: a write whose
+    // origin account no longer matches the current owner is discarded, not
+    // persisted under the new account's record.
+    if (!_ownerUnchangedSince(capturedUid)) return;
     try {
       await storage.saveSubmitStatus(
         _date,

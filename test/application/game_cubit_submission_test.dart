@@ -345,6 +345,70 @@ void main() {
         const SubmitStatusRecord(SubmitStatus.settled, generation: 3));
     await second.close();
   });
+
+  test('a submission that outlives an account switch does not settle under the new account',
+      () async {
+    final storage = InMemoryStorageService();
+    await storage.rebindOwner('account-a');
+    await _saveCompleted(storage, _terminalBoard());
+    final called = Completer<void>();
+    final release = Completer<void>();
+    final cubit = GameCubit(
+      storage: storage,
+      todayProvider: () => _date,
+      onSubmitRun: ({
+        required date,
+        required difficulty,
+        required moveLog,
+        required adContinues,
+      }) async {
+        called.complete();
+        await release.future;
+        return SubmitOutcome.success;
+      },
+    );
+
+    final init = cubit.init(difficulty: _difficulty);
+    await called.future;
+    expect(storage.loadSubmitStatus(_date, _difficulty).status,
+        SubmitStatus.pending);
+
+    // Simulate an account switch happening while the submission is in
+    // flight, after the "pending" write already landed under account A.
+    await storage.rebindOwner('account-b');
+
+    release.complete();
+    await init;
+
+    // The stale attempt must NOT have settled under account B's record.
+    expect(storage.loadSubmitStatus(_date, _difficulty).status,
+        SubmitStatus.pending);
+    await cubit.close();
+  });
+
+  test('a submission that completes before any account change settles normally',
+      () async {
+    final storage = InMemoryStorageService();
+    await storage.rebindOwner('account-a');
+    await _saveCompleted(storage, _terminalBoard());
+    final cubit = GameCubit(
+      storage: storage,
+      todayProvider: () => _date,
+      onSubmitRun: ({
+        required date,
+        required difficulty,
+        required moveLog,
+        required adContinues,
+      }) async =>
+          SubmitOutcome.success,
+    );
+
+    await cubit.init(difficulty: _difficulty);
+
+    expect(storage.loadSubmitStatus(_date, _difficulty).status,
+        SubmitStatus.settled);
+    await cubit.close();
+  });
 }
 
 SubmitRun _submitWith(SubmitOutcome outcome) => ({
