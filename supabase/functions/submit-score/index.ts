@@ -9,14 +9,17 @@
 // Responses:
 //   200 { valid, score, highestTier, rank }
 //   401 no/invalid auth
-//   422 { valid:false, reason:"invalid_run" }  (illegal log / wrong date / etc.)
-//   422 { valid:false, reason:"submit_failed" } (retryable database failure)
+//   422 { valid:false, reason:"malformed_request" } (unparseable/invalid shape)
+//   422 { valid:false, reason:"stale_date" }        (not the server's UTC today)
+//   422 { valid:false, reason:"invalid_run" }       (replay verification failed)
+//   422 { valid:false, reason:"submit_failed" }     (retryable database failure)
 
 import { createClient } from "@supabase/supabase-js";
 import { verifyRun, verifyRunChallenge } from "../_shared/engine.ts";
-import { isDifficulty, kLeaderboardSeason } from "../_shared/constants.ts";
+import { kLeaderboardSeason } from "../_shared/constants.ts";
 import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";
 import { upsertBestScore } from "./best_score.ts";
+import { validateSubmitRequest } from "./validate_request.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,23 +49,17 @@ Deno.serve(async (req) => {
   if (userId == null) return json({ error: "unauthorized" }, 401);
 
   // 2. Parse + validate the request shape.
-  let payload: { date?: unknown; difficulty?: unknown; moveLog?: unknown };
+  let payload: unknown;
   try {
     payload = await req.json();
   } catch {
-    return json({ valid: false, reason: "invalid_run" }, 422);
+    return json({ valid: false, reason: "malformed_request" }, 422);
   }
-  const { date, difficulty, moveLog } = payload;
-  if (typeof date !== "string" || typeof difficulty !== "string") {
-    return json({ valid: false, reason: "invalid_run" }, 422);
+  const validated = validateSubmitRequest(payload, utcToday());
+  if (!validated.ok) {
+    return json({ valid: false, reason: validated.reason }, 422);
   }
-  if (!isDifficulty(difficulty)) {
-    return json({ valid: false, reason: "invalid_run" }, 422);
-  }
-  // No backfilling other days: the submitted date must be the server's UTC today.
-  if (date !== utcToday()) {
-    return json({ valid: false, reason: "invalid_run" }, 422);
-  }
+  const { date, difficulty, moveLog } = validated;
 
   // 3. Replay-verify. The server is the only score authority.
   const result = difficulty === "challenge"
