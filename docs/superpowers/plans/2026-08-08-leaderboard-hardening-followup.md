@@ -19,16 +19,16 @@
 
 ---
 
-### Task 1: Handle `FunctionsHttpException` in the production `LeaderboardService` transport
+### Task 1: Handle `FunctionException` in the production `LeaderboardService` transport
 
-**Why this is first:** `LeaderboardService`'s production `_invoke` closure (`lib/infrastructure/leaderboard_service.dart:51-57`) assumes `client.functions.invoke()` always returns a value — it never catches an exception. The pinned `functions_client` (2.6.4, confirmed via `pubspec.lock:435` and Supabase's own SDK source) throws `FunctionsHttpException` on any non-2xx HTTP response, with the decoded response body on `.details`. `submit-score/index.ts` always responds 422 for a rejection (never 200 with `valid:false`). So today, every real rejection from `submit-score` propagates as a thrown exception all the way to `GameCubit._submitOnce`'s generic `catch` (`lib/application/game_cubit.dart:617-622`), which unconditionally maps ANY exception to `SubmitOutcome.retryableFailure` — meaning `SubmitOutcome.terminalRejection` and its loud `_onError` "possible tampering/parity bug" report are dead code in production today. A genuine replay rejection currently retries silently forever instead of settling and raising the alarm this feature exists to raise.
+**Why this is first:** `LeaderboardService`'s production `_invoke` closure (`lib/infrastructure/leaderboard_service.dart:51-57`) assumes `client.functions.invoke()` always returns a value — it never catches an exception. The pinned `functions_client` (2.6.4, confirmed via `pubspec.lock:435` and Supabase's own SDK source) throws `FunctionException` on any non-2xx HTTP response, with the decoded response body on `.details`. `submit-score/index.ts` always responds 422 for a rejection (never 200 with `valid:false`). So today, every real rejection from `submit-score` propagates as a thrown exception all the way to `GameCubit._submitOnce`'s generic `catch` (`lib/application/game_cubit.dart:617-622`), which unconditionally maps ANY exception to `SubmitOutcome.retryableFailure` — meaning `SubmitOutcome.terminalRejection` and its loud `_onError` "possible tampering/parity bug" report are dead code in production today. A genuine replay rejection currently retries silently forever instead of settling and raising the alarm this feature exists to raise.
 
 **Files:**
 - Modify: `lib/infrastructure/leaderboard_service.dart:51-57`
 - Test: `test/infrastructure/leaderboard_service_test.dart`
 
 **Interfaces:**
-- Consumes: `FunctionsHttpException` (from `package:supabase_flutter/supabase_flutter.dart`, already imported at line 1) — verified shape: `class FunctionsHttpException extends FunctionException { final int status; final dynamic details; final String? reasonPhrase; }`. `FunctionResponse` — verified shape: constructible as `FunctionResponse(data: ..., status: ...)`.
+- Consumes: `FunctionException` — verified directly against the actually-installed `functions_client-2.6.4` package source (`lib/src/types.dart`), reached transitively via `leaderboard_service.dart`'s existing `import 'package:supabase_flutter/supabase_flutter.dart';` (chain: `supabase_flutter.dart` exports `package:supabase/supabase.dart`, which exports `package:functions_client/functions_client.dart`, which exports `src/types.dart` — no new import needed). Real shape: `class FunctionException implements Exception { final int status; final dynamic details; final String? reasonPhrase; const FunctionException({required this.status, this.details, this.reasonPhrase}); }`. There is only this one exception class in 2.6.4 — no `FunctionsHttpException`/`FunctionsRelayException` subtype split (that hierarchy exists only in a newer, unpinned package version; an earlier draft of this plan assumed it incorrectly). `FunctionsClient.invoke()` (`lib/src/functions_client.dart:206-213`) throws this `FunctionException` on any non-2xx status, `return`s a `FunctionResponse` otherwise — confirmed by reading the method directly. `FunctionResponse` — verified shape: `const FunctionResponse({this.data, required this.status})`.
 - Produces: `_invokeSubmitScore(Future<FunctionResponse> Function())` and `_asJsonMap(dynamic)` — private top-level functions in `leaderboard_service.dart`, directly unit-testable without a real `SupabaseClient`. No public API changes — `LeaderboardService`'s constructor signature and `submitRun`'s signature are unchanged.
 
 - [ ] **Step 1: Write the failing tests**
@@ -37,7 +37,7 @@ Dart private (`_`-prefixed) top-level members are visible only within their own 
 
 ```dart
 /// Maps a raw Functions invocation outcome to the JSON map [SubmitResult.fromJson]
-/// expects. A caught 422 [FunctionsHttpException] is treated the same as a normal
+/// expects. A caught 422 [FunctionException] is treated the same as a normal
 /// 2xx submit-score response — its decoded body lives on `.details` — since
 /// `submit-score` always responds 422 for an application-level rejection, never
 /// 200 with `valid:false`. Any other HTTP status (401, 403, 500, etc.) means the
@@ -49,7 +49,7 @@ Future<Map<String, dynamic>> invokeSubmitScore(
   try {
     final res = await invoke();
     return asJsonMap(res.data);
-  } on FunctionsHttpException catch (e) {
+  } on FunctionException catch (e) {
     if (e.status != 422) rethrow;
     return asJsonMap(e.details);
   }
@@ -64,7 +64,7 @@ Map<String, dynamic> asJsonMap(dynamic data) {
 }
 ```
 
-Now write the failing tests. Add this new group to `test/infrastructure/leaderboard_service_test.dart` (add `import 'package:supabase_flutter/supabase_flutter.dart';` and `import 'package:connect_merge/infrastructure/leaderboard_service.dart' show LeaderboardService, invokeSubmitScore, asJsonMap;` — note `leaderboard_service.dart` already has `import 'package:supabase_flutter/supabase_flutter.dart';`, so no export ambiguity; the test file needs its own import for the `FunctionsHttpException`/`FunctionResponse` types it constructs directly):
+Now write the failing tests. Add this new group to `test/infrastructure/leaderboard_service_test.dart` (add `import 'package:supabase_flutter/supabase_flutter.dart';` and `import 'package:connect_merge/infrastructure/leaderboard_service.dart' show LeaderboardService, invokeSubmitScore, asJsonMap;` — note `leaderboard_service.dart` already has `import 'package:supabase_flutter/supabase_flutter.dart';`, so no export ambiguity; the test file needs its own import for the `FunctionException`/`FunctionResponse` types it constructs directly):
 
 ```dart
   group('invokeSubmitScore (production transport, Task 1 hardening)', () {
@@ -81,41 +81,41 @@ Now write the failing tests. Add this new group to `test/infrastructure/leaderbo
       });
     });
 
-    test('a caught 422 FunctionsHttpException is parsed as a verdict body',
+    test('a caught 422 FunctionException is parsed as a verdict body',
         () async {
       final result = await invokeSubmitScore(() async => throw
-          const FunctionsHttpException(
+          const FunctionException(
             status: 422,
             details: {'valid': false, 'reason': 'invalid_run'},
           ));
       expect(result, {'valid': false, 'reason': 'invalid_run'});
     });
 
-    test('a non-422 FunctionsHttpException rethrows instead of being parsed',
+    test('a non-422 FunctionException rethrows instead of being parsed',
         () async {
       expect(
         () => invokeSubmitScore(() async => throw
-            const FunctionsHttpException(status: 401, details: null)),
-        throwsA(isA<FunctionsHttpException>()),
+            const FunctionException(status: 401, details: null)),
+        throwsA(isA<FunctionException>()),
       );
     });
 
-    test('a 500 FunctionsHttpException with a JSON-decodable body still rethrows',
+    test('a 500 FunctionException with a JSON-decodable body still rethrows',
         () async {
       // Not every JSON-shaped exception body is a submit-score verdict — a
       // server error can also return a JSON body, and must not be
       // misclassified as an application rejection.
       expect(
         () => invokeSubmitScore(() async => throw
-            const FunctionsHttpException(
+            const FunctionException(
               status: 500,
               details: {'error': 'internal'},
             )),
-        throwsA(isA<FunctionsHttpException>()),
+        throwsA(isA<FunctionException>()),
       );
     });
 
-    test('a non-FunctionsHttpException transport error still propagates',
+    test('a non-FunctionException transport error still propagates',
         () async {
       expect(
         () => invokeSubmitScore(() async => throw Exception('network down')),
@@ -176,10 +176,10 @@ Also run: `flutter analyze` — expected clean.
 
 ```bash
 git add lib/infrastructure/leaderboard_service.dart test/infrastructure/leaderboard_service_test.dart
-git commit -m "fix(leaderboard): catch 422 FunctionsHttpException in production transport
+git commit -m "fix(leaderboard): catch 422 FunctionException in production transport
 
 The production _invoke closure never caught the real Supabase client's
-FunctionsHttpException on a non-2xx response, so every genuine submit-score
+FunctionException on a non-2xx response, so every genuine submit-score
 rejection propagated as a thrown exception instead of a normal SubmitResult
 — making SubmitOutcome.terminalRejection and its tampering/parity-bug alert
 dead code in production. Now catches a 422 specifically (submit-score's own
