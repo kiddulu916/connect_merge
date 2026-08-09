@@ -87,45 +87,59 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                Expanded(
-                  child: BlocConsumer<GameCubit, GameState>(
-                    listener: (context, state) {
-                      if (state is GameOverShowScore) {
-                        final cubit = context.read<GameCubit>();
-                        if (cubit.canOfferAd) {
-                          _promptRewarded(context, cubit);
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) return;
+        // Fire-and-forget, matching how a resume-triggered retry already
+        // runs independent of any screen's lifecycle: submitIfPending()
+        // itself no-ops unless the cubit is in GameOverShowScore, and its
+        // own first step (persisting `pending`) is fast, local Hive I/O —
+        // blocking the pop on it would reintroduce the "never blocks
+        // navigation" violation an earlier draft of this fix had.
+        context.read<GameCubit>().submitIfPending();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  Expanded(
+                    child: BlocConsumer<GameCubit, GameState>(
+                      listener: (context, state) {
+                        if (state is GameOverShowScore) {
+                          final cubit = context.read<GameCubit>();
+                          if (cubit.canOfferAd) {
+                            _promptRewarded(context, cubit);
+                          }
                         }
-                      }
-                    },
-                    builder: (context, state) {
-                      return switch (state) {
-                        GameInitial() =>
-                          const Center(child: CircularProgressIndicator()),
-                        GameAdRewardGranted(:final board, :final difficulty) ||
-                        GamePlaying(:final board, :final difficulty) =>
-                          _buildPlaying(context, board, difficulty),
-                        GameOverShowScore(
-                          :final board,
-                          :final date,
-                          :final stats,
-                          :final difficulty
-                        ) =>
-                          _buildResult(context, board, date, stats, difficulty),
-                      };
-                    },
+                      },
+                      builder: (context, state) {
+                        return switch (state) {
+                          GameInitial() =>
+                            const Center(child: CircularProgressIndicator()),
+                          GameAdRewardGranted(:final board, :final difficulty) ||
+                          GamePlaying(:final board, :final difficulty) =>
+                            _buildPlaying(context, board, difficulty),
+                          GameOverShowScore(
+                            :final board,
+                            :final date,
+                            :final stats,
+                            :final difficulty
+                          ) =>
+                            _buildResult(
+                                context, board, date, stats, difficulty),
+                        };
+                      },
+                    ),
                   ),
-                ),
-                BannerSlot(adService: adService),
-              ],
-            ),
-          ],
+                  BannerSlot(adService: adService),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
