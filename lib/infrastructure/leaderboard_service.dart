@@ -5,6 +5,33 @@ import '../domain/models/difficulty.dart';
 import '../domain/models/leaderboard_entry.dart';
 import '../domain/models/move.dart';
 
+/// Maps a raw Functions invocation outcome to the JSON map [SubmitResult.fromJson]
+/// expects. A caught 422 [FunctionException] is treated the same as a normal
+/// 2xx submit-score response — its decoded body lives on `.details` — since
+/// `submit-score` always responds 422 for an application-level rejection, never
+/// 200 with `valid:false`. Any other HTTP status (401, 403, 500, etc.) means the
+/// exception is a transport/auth/server failure, not a submit-score verdict, and
+/// is rethrown so callers can retry instead of misreading it as a rejection.
+Future<Map<String, dynamic>> invokeSubmitScore(
+  Future<FunctionResponse> Function() invoke,
+) async {
+  try {
+    final res = await invoke();
+    return asJsonMap(res.data);
+  } on FunctionException catch (e) {
+    if (e.status != 422) rethrow;
+    return asJsonMap(e.details);
+  }
+}
+
+/// Coerces a decoded response body to a JSON map, falling back to an explicit
+/// `{'valid': false}` when the body isn't a map (matches [SubmitResult.fromJson]'s
+/// existing safe-default behavior for a malformed response shape).
+Map<String, dynamic> asJsonMap(dynamic data) {
+  if (data is Map) return Map<String, dynamic>.from(data);
+  return <String, dynamic>{'valid': false};
+}
+
 /// Result of a score submission (mirrors the Edge Function response).
 class SubmitResult {
   final bool valid;
@@ -49,12 +76,8 @@ class LeaderboardService {
 
   /// Production constructor: wires the seams to [client].
   LeaderboardService(SupabaseClient client)
-      : _invoke = ((fn, body) async {
-          final res = await client.functions.invoke(fn, body: body);
-          final data = res.data;
-          if (data is Map) return Map<String, dynamic>.from(data);
-          return <String, dynamic>{'valid': false};
-        }),
+      : _invoke = ((fn, body) =>
+            invokeSubmitScore(() => client.functions.invoke(fn, body: body))),
         _rpc = ((fn, params) async {
           final res = await client.rpc(fn, params: params);
           return (res as List?) ?? const [];

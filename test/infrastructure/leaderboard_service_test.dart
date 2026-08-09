@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:connect_merge/domain/constants.dart';
 import 'package:connect_merge/domain/models/difficulty.dart';
 import 'package:connect_merge/domain/models/move.dart';
-import 'package:connect_merge/infrastructure/leaderboard_service.dart';
+import 'package:connect_merge/infrastructure/leaderboard_service.dart'
+    show LeaderboardService, invokeSubmitScore, asJsonMap;
 
 void main() {
   group('LeaderboardService.submitRun', () {
@@ -301,6 +303,74 @@ void main() {
       );
 
       expect(capturedParams!['p_season'], kLeaderboardSeason);
+    });
+  });
+
+  group('invokeSubmitScore (production transport, Task 1 hardening)', () {
+    test('returns the response data unchanged on success', () async {
+      final result = await invokeSubmitScore(() async => const FunctionResponse(
+            data: {'valid': true, 'score': 500, 'highestTier': 5, 'rank': 1},
+            status: 200,
+          ));
+      expect(result, {
+        'valid': true,
+        'score': 500,
+        'highestTier': 5,
+        'rank': 1,
+      });
+    });
+
+    test('a caught 422 FunctionException is parsed as a verdict body',
+        () async {
+      final result = await invokeSubmitScore(() async => throw
+          const FunctionException(
+            status: 422,
+            details: {'valid': false, 'reason': 'invalid_run'},
+          ));
+      expect(result, {'valid': false, 'reason': 'invalid_run'});
+    });
+
+    test('a non-422 FunctionException rethrows instead of being parsed',
+        () async {
+      expect(
+        () => invokeSubmitScore(() async => throw
+            const FunctionException(status: 401, details: null)),
+        throwsA(isA<FunctionException>()),
+      );
+    });
+
+    test('a 500 FunctionException with a JSON-decodable body still rethrows',
+        () async {
+      // Not every JSON-shaped exception body is a submit-score verdict — a
+      // server error can also return a JSON body, and must not be
+      // misclassified as an application rejection.
+      expect(
+        () => invokeSubmitScore(() async => throw
+            const FunctionException(
+              status: 500,
+              details: {'error': 'internal'},
+            )),
+        throwsA(isA<FunctionException>()),
+      );
+    });
+
+    test('a non-FunctionException transport error still propagates',
+        () async {
+      expect(
+        () => invokeSubmitScore(() async => throw Exception('network down')),
+        throwsException,
+      );
+    });
+  });
+
+  group('asJsonMap', () {
+    test('passes a map through', () {
+      expect(asJsonMap({'valid': true}), {'valid': true});
+    });
+
+    test('falls back to valid:false for a non-map body', () {
+      expect(asJsonMap('not a map'), {'valid': false});
+      expect(asJsonMap(null), {'valid': false});
     });
   });
 }
