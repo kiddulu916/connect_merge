@@ -409,6 +409,70 @@ void main() {
         SubmitStatus.settled);
     await cubit.close();
   });
+
+  test(
+      'an account switch during the pending-status write itself blocks the '
+      'attempt from proceeding under the new account', () async {
+    final storage = _PendingWriteBlockingStorage();
+    await storage.rebindOwner('account-a');
+    await _saveCompleted(storage, _terminalBoard());
+    var hookCalled = false;
+    final cubit = GameCubit(
+      storage: storage,
+      todayProvider: () => _date,
+      onSubmitRun: ({
+        required date,
+        required difficulty,
+        required moveLog,
+        required adContinues,
+      }) async {
+        hookCalled = true;
+        return SubmitOutcome.success;
+      },
+    );
+
+    final init = cubit.init(difficulty: _difficulty);
+    await storage.pendingWriteStarted.future;
+
+    // Simulate an account switch landing while the pending-status write
+    // (the very first persist point of the attempt) is still in flight.
+    await storage.rebindOwner('account-b');
+    storage.releasePendingWrite.complete();
+    await init;
+
+    // The stale attempt must not proceed past the pending write under the
+    // new account: the submit hook is never invoked, and status is neither
+    // settled nor otherwise mutated beyond the pending write that was
+    // already in flight when the switch happened.
+    expect(hookCalled, isFalse);
+    expect(storage.loadSubmitStatus(_date, _difficulty).status,
+        SubmitStatus.pending);
+    await cubit.close();
+  });
+}
+
+/// Blocks the first `pending`-status write until the test releases it, so a
+/// test can simulate an account switch landing mid-await on that very write
+/// — the persist point [_submitOnce] itself performs before any hook call.
+class _PendingWriteBlockingStorage extends InMemoryStorageService {
+  final Completer<void> pendingWriteStarted = Completer<void>();
+  final Completer<void> releasePendingWrite = Completer<void>();
+  bool _intercepted = false;
+
+  @override
+  Future<void> saveSubmitStatus(
+    String date,
+    Difficulty difficulty,
+    SubmitStatus status,
+    int generation,
+  ) async {
+    if (!_intercepted && status == SubmitStatus.pending) {
+      _intercepted = true;
+      pendingWriteStarted.complete();
+      await releasePendingWrite.future;
+    }
+    await super.saveSubmitStatus(date, difficulty, status, generation);
+  }
 }
 
 SubmitRun _submitWith(SubmitOutcome outcome) => ({

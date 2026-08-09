@@ -571,7 +571,10 @@ class GameCubit extends Cubit<GameState> {
   /// only compares the CURRENT owner against the CURRENT session, which can't
   /// detect a write whose origin is a superseded account (by the time a stale
   /// attempt resolves post-switch, both "current" values already agree with
-  /// each other, just not with who actually started the attempt).
+  /// each other, just not with who actually started the attempt). Only
+  /// meaningful when checked after an `await` — checked in [_submitOnce]
+  /// right after the pending-status write resolves, and in
+  /// [_settleSubmission] right after the settled-status write resolves.
   bool _ownerUnchangedSince(String? capturedUid) =>
       storage.owner?.uid == capturedUid;
 
@@ -597,7 +600,6 @@ class GameCubit extends Cubit<GameState> {
 
   Future<void> _submitOnce(BoardState board, int generation) async {
     final capturedUid = storage.owner?.uid;
-    if (!_ownerUnchangedSince(capturedUid)) return;
     try {
       await storage.saveSubmitStatus(
         _date,
@@ -610,6 +612,7 @@ class GameCubit extends Cubit<GameState> {
       return;
     }
     if (generation != _submitGeneration) return;
+    if (!_ownerUnchangedSince(capturedUid)) return;
     onAnalyticsEvent?.call('score_submit_attempt', {
       'difficulty': _difficulty.name,
     });
