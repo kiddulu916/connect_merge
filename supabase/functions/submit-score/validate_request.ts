@@ -5,23 +5,37 @@
 // directly).
 //
 // Distinguishes causes that were previously conflated under one
-// "invalid_run" reason: a malformed/unrecognized request (client bug, may be
-// fixed by a later client update) and a stale date (clock skew or a genuine
-// backfill attempt) are both classified separately from "invalid_run",
-// which this module never returns — that reason is reserved exclusively for
-// an actual replay-verification failure, decided later in index.ts after
-// this validation passes.
+// "invalid_run" reason: malformed requests and stale dates remain separately
+// classified. A missing/mismatched leaderboard season is intentionally
+// returned as the existing external "invalid_run" reason while carrying the
+// internal-only `stale_season` stage used by server observability.
 
-import { Difficulty, isDifficulty } from "../_shared/constants.ts";
+import {
+  Difficulty,
+  isDifficulty,
+  kLeaderboardSeason,
+} from "../_shared/constants.ts";
 
 export type ValidatedRequest =
-  | { ok: true; date: string; difficulty: Difficulty; moveLog: unknown }
-  | { ok: false; reason: "malformed_request" | "stale_date" };
+  | {
+    ok: true;
+    date: string;
+    difficulty: Difficulty;
+    moveLog: unknown;
+    season: number;
+  }
+  | { ok: false; reason: "malformed_request" | "stale_date" }
+  | {
+    ok: false;
+    reason: "invalid_run";
+    stage: "stale_season";
+    suppliedSeason: number | null;
+    difficulty: Difficulty;
+  };
 
 /** Validates and classifies a submit-score request body against the
- * server's own notion of "today" ([utcToday]). Never returns
- * "invalid_run" — that reason belongs solely to replay-verification
- * failure, decided in index.ts after this function returns `ok: true`. */
+ * server's own notion of "today" ([utcToday]). A season mismatch returns the
+ * existing external `invalid_run` reason with an internal-only stage tag. */
 export function validateSubmitRequest(
   payload: unknown,
   utcToday: string,
@@ -29,10 +43,11 @@ export function validateSubmitRequest(
   if (payload === null || typeof payload !== "object") {
     return { ok: false, reason: "malformed_request" };
   }
-  const { date, difficulty, moveLog } = payload as {
+  const { date, difficulty, moveLog, season } = payload as {
     date?: unknown;
     difficulty?: unknown;
     moveLog?: unknown;
+    season?: unknown;
   };
   if (typeof date !== "string" || typeof difficulty !== "string") {
     return { ok: false, reason: "malformed_request" };
@@ -40,11 +55,20 @@ export function validateSubmitRequest(
   if (!isDifficulty(difficulty)) {
     return { ok: false, reason: "malformed_request" };
   }
+  if (season !== kLeaderboardSeason) {
+    return {
+      ok: false,
+      reason: "invalid_run",
+      stage: "stale_season",
+      suppliedSeason: typeof season === "number" ? season : null,
+      difficulty,
+    };
+  }
   // No backfilling other days: the submitted date must be the server's UTC
   // today. This is a stale_date, not a malformed_request — the request
   // shape is fine, only its timing is wrong (clock skew or backfill).
   if (date !== utcToday) {
     return { ok: false, reason: "stale_date" };
   }
-  return { ok: true, date, difficulty, moveLog };
+  return { ok: true, date, difficulty, moveLog, season };
 }

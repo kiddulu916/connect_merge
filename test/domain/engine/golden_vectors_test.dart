@@ -60,6 +60,11 @@ void main() {
     final rejections = _recordList(fixture['rejections']);
     expect(_namesOf(vectors), _requiredVectorNames);
     expect(_namesOf(rejections), _requiredRejectionNames);
+    expect(
+      vectors.any(_hasAllDiagonalChain),
+      isTrue,
+      reason: 'fixture must exercise at least one all-diagonal chain',
+    );
 
     for (final rejection in rejections) {
       expect(_expectedOf(rejection)['valid'], isFalse,
@@ -185,16 +190,6 @@ Future<void> _generateFixture({required bool force}) async {
       noContinues.board.adContinuesUsed != 0) {
     missing.add('standard-no-continues');
   }
-  final initialBoardsByScenario = <String, BoardState>{
-    for (final entry in standardRuns.entries)
-      'standard-${entry.key.name}': entry.value.boardsAfterPrefix.first,
-    for (final entry in challengeRuns.entries)
-      'challenge-${entry.key.name}': entry.value.boardsAfterPrefix.first,
-  };
-  if (!initialBoardsByScenario.values
-      .any(_hasAscendPairAndNoSameTierPair)) {
-    missing.add('ascend-only-initial-board');
-  }
   if (missing.isNotEmpty) {
     throw StateError(
       'Missing required golden-vector scenarios: ${missing.join(', ')}',
@@ -254,11 +249,7 @@ Future<void> _generateFixture({required bool force}) async {
   expect(legacySentinel, isNotNull,
       reason: 'legacy merge needs a mid-run playing board and legal pair');
   final legacyPath = legacySentinel!.chain;
-  expect(
-    GameEngine.canMerge(
-        legacySentinel.board, legacyPath.first, legacyPath.last),
-    isTrue,
-  );
+  expect(GameEngine.isValidChain(legacySentinel.board, legacyPath), isTrue);
 
   final rejections = <Map<String, dynamic>>[
     _rejection(
@@ -436,12 +427,19 @@ List<int>? _firstLegalChain(BoardState board, int length) {
       }
       return GameEngine.isValidChain(board, path) ? List<int>.of(path) : null;
     }
-    for (var candidate = 0; candidate < board.cells.length; candidate++) {
+    final candidates = [
+      for (var candidate = 0; candidate < board.cells.length; candidate++)
+        if (GameEngine.areAdjacent(path.last, candidate, board.gridSize))
+          candidate,
+    ]..sort((a, b) {
+        final aDiagonal = _isDiagonalStep(path.last, a, board.gridSize);
+        final bDiagonal = _isDiagonalStep(path.last, b, board.gridSize);
+        return aDiagonal == bDiagonal ? a.compareTo(b) : (aDiagonal ? -1 : 1);
+      });
+    for (final candidate in candidates) {
       if (path.contains(candidate) ||
           board.cells[candidate] == null ||
-          board.walls.contains(candidate) ||
-          !GameEngine.areOrthogonallyAdjacent(
-              path.last, candidate, board.gridSize)) {
+          board.walls.contains(candidate)) {
         continue;
       }
       final found = search([...path, candidate]);
@@ -458,26 +456,31 @@ List<int>? _firstLegalChain(BoardState board, int length) {
   return null;
 }
 
-bool _hasAscendPairAndNoSameTierPair(BoardState board) {
-  var hasAscendPair = false;
-  final gridSize = board.gridSize;
-  for (var i = 0; i < board.cells.length; i++) {
-    final tile = board.cells[i];
-    if (tile == null) continue;
-    final row = i ~/ gridSize;
-    final col = i % gridSize;
-    for (final candidate in [
-      if (col + 1 < gridSize) i + 1,
-      if (row + 1 < gridSize) i + gridSize,
-    ]) {
-      final other = board.cells[candidate];
-      if (other == null) continue;
-      final difference = (other.tier - tile.tier).abs();
-      if (difference == 0) return false;
-      if (difference == 1) hasAscendPair = true;
+bool _hasAllDiagonalChain(Map<String, dynamic> vector) {
+  final difficulty = Difficulty.values.byName(vector['difficulty'] as String);
+  final moveLog = vector['moveLog'] as List<dynamic>;
+  for (final raw in moveLog) {
+    final event = Map<String, dynamic>.from(raw as Map);
+    if (event['type'] != ChainEvent.type) continue;
+    final path = (event['path'] as List<dynamic>).cast<int>();
+    if (path.length >= 2 &&
+        List.generate(path.length - 1, (i) => i).every(
+          (i) => _isDiagonalStep(
+            path[i],
+            path[i + 1],
+            difficulty.gridSize,
+          ),
+        )) {
+      return true;
     }
   }
-  return hasAscendPair;
+  return false;
+}
+
+bool _isDiagonalStep(int a, int b, int gridSize) {
+  final rowDelta = ((a ~/ gridSize) - (b ~/ gridSize)).abs();
+  final columnDelta = ((a % gridSize) - (b % gridSize)).abs();
+  return rowDelta == 1 && columnDelta == 1;
 }
 
 List<int> _requiredLegalChain(

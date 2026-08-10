@@ -19,6 +19,8 @@ List<int> _findChain(BoardState b) {
     for (final neighbor in [
       if (col + 1 < b.gridSize) i + 1,
       if (row + 1 < b.gridSize) i + b.gridSize,
+      if (row + 1 < b.gridSize && col + 1 < b.gridSize) i + b.gridSize + 1,
+      if (row + 1 < b.gridSize && col - 1 >= 0) i + b.gridSize - 1,
     ]) {
       for (final path in [
         [i, neighbor],
@@ -53,7 +55,9 @@ void main() {
 
   test('longChainsOnly rule rejects 2-tile chains', () async {
     // Override the rule for a deterministic test.
-    await cubit.init(difficulty: Difficulty.challenge, ruleOverride: ChallengeRule.longChainsOnly);
+    await cubit.init(
+        difficulty: Difficulty.challenge,
+        ruleOverride: ChallengeRule.longChainsOnly);
     if (cubit.state is! GamePlaying) return;
     final board = (cubit.state as GamePlaying).board;
     // Find any adjacent pair (length-2 path).
@@ -66,7 +70,8 @@ void main() {
       if (right < board.cells.length &&
           right % gs != 0 &&
           board.cells[right]?.tier == t.tier) {
-        a = i; b = right;
+        a = i;
+        b = right;
       }
     }
     if (a == null) return; // no adjacent pair on this seed; vacuous pass
@@ -79,7 +84,9 @@ void main() {
   });
 
   test('budgetCut rule sets movesRemaining = 15', () async {
-    await cubit.init(difficulty: Difficulty.challenge, ruleOverride: ChallengeRule.budgetCut);
+    await cubit.init(
+        difficulty: Difficulty.challenge,
+        ruleOverride: ChallengeRule.budgetCut);
     if (cubit.state is! GamePlaying) return;
     expect((cubit.state as GamePlaying).board.movesRemaining, equals(15));
   });
@@ -96,16 +103,19 @@ void main() {
     final outOfMoves =
         seeded.copyWith(movesRemaining: 0, status: GameStatus.outOfMoves);
     expect(GameEngine.hasMergeAvailable(outOfMoves), isTrue,
-        reason: 'test board must actually have a mergeable pair to be meaningful');
+        reason:
+            'test board must actually have a mergeable pair to be meaningful');
     await storage.saveSnapshot(GameSnapshot(
         date: '2026-06-23',
         difficulty: Difficulty.challenge,
         board: outOfMoves,
         completed: true));
 
-    final resumed = GameCubit(storage: storage, todayProvider: () => '2026-06-23');
+    final resumed =
+        GameCubit(storage: storage, todayProvider: () => '2026-06-23');
     await resumed.init(
-        difficulty: Difficulty.challenge, ruleOverride: ChallengeRule.comboRush);
+        difficulty: Difficulty.challenge,
+        ruleOverride: ChallengeRule.comboRush);
     expect(resumed.state, isA<GameOverShowScore>());
     expect(resumed.canOfferAd, isFalse);
     await resumed.close();
@@ -143,7 +153,8 @@ void main() {
       },
     );
     await c.init(
-        difficulty: Difficulty.challenge, ruleOverride: ChallengeRule.comboRush);
+        difficulty: Difficulty.challenge,
+        ruleOverride: ChallengeRule.comboRush);
     await c.playChain(path);
     expect(c.state, isA<GameOverShowScore>());
     expect((c.state as GameOverShowScore).board.status, GameStatus.outOfMoves);

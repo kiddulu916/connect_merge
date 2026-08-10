@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../domain/constants.dart';
 import '../../domain/engine/game_engine.dart';
 import '../../domain/models/board_state.dart';
 import '../../domain/models/cosmetic.dart';
 import 'grid_cell_widget.dart';
 
-/// Renders the 5×5 board as a static slot grid with live tiles floating above
+/// Renders the board as a static slot grid with live tiles floating above
 /// as AnimatedPositioned widgets keyed by tile id, so merges slide and drops
-/// fall smoothly. Draw a connected path across matching tiles to chain-merge;
-/// [onChain] is invoked with the ordered list of cell indices when the gesture
-/// ends with a valid path (length >= 2).
+/// fall smoothly. Draw an 8-directionally connected, non-descending path across
+/// compatible tiles to chain-merge; [onChain] is invoked with the ordered cell
+/// indices when the gesture ends with a valid path (length >= 2).
 class BoardWidget extends StatefulWidget {
   final BoardState board;
   final void Function(List<int> path) onChain;
@@ -45,8 +44,8 @@ class _BoardWidgetState extends State<BoardWidget> {
     final gs = widget.board.gridSize;
     for (var i = 0; i < count; i++) {
       final row = i ~/ gs, col = i % gs;
-      final rect = Rect.fromLTWH(
-          _gap + col * step, _gap + row * step, _cell, _cell);
+      final rect =
+          Rect.fromLTWH(_gap + col * step, _gap + row * step, _cell, _cell);
       if (rect.contains(local)) return i;
     }
     return null;
@@ -55,12 +54,12 @@ class _BoardWidgetState extends State<BoardWidget> {
   bool _canExtend(int idx) {
     if (widget.board.walls.contains(idx)) return false;
     final t = widget.board.cells[idx];
-    if (t == null || t.tier >= kMaxTier) return false;
+    if (t == null) return false;
     if (_path.isEmpty) return true;
     if (_path.contains(idx)) return false;
     final lastTier = widget.board.cells[_path.last]!.tier;
     if (!GameEngine.canFollow(lastTier, t.tier)) return false;
-    return GameEngine.areOrthogonallyAdjacent(_path.last, idx, widget.board.gridSize);
+    return GameEngine.areAdjacent(_path.last, idx, widget.board.gridSize);
   }
 
   void _onStart(Offset local) {

@@ -7,7 +7,6 @@
 // the BEST case a perfect player could achieve — if even that deadlocks fast,
 // the balance is broken.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:connect_merge/domain/constants.dart';
 import 'package:connect_merge/domain/engine/daily_seeder.dart';
 import 'package:connect_merge/domain/engine/game_engine.dart';
 import 'package:connect_merge/domain/engine/prng.dart';
@@ -15,14 +14,14 @@ import 'package:connect_merge/domain/models/board_state.dart';
 import 'package:connect_merge/domain/models/difficulty.dart';
 import 'package:connect_merge/domain/models/game_status.dart';
 
-/// Find the longest same-tier orthogonally-adjacent simple path on the board,
+/// Find the longest same-tier 8-directionally adjacent simple path on the board,
 /// via greedy DFS from every live tile. Returns [] if no chain (length>=2).
 List<int> longestChain(BoardState s) {
   final gs = s.gridSize;
   List<int> best = const [];
   for (var start = 0; start < s.cells.length; start++) {
     final t = s.cells[start];
-    if (t == null || t.tier >= kMaxTier) continue;
+    if (t == null) continue;
     final path = <int>[start];
     final seen = <int>{start};
     void dfs(int cur) {
@@ -33,6 +32,10 @@ List<int> longestChain(BoardState s) {
         if (col - 1 >= 0) cur - 1,
         if (row + 1 < gs) cur + gs,
         if (row - 1 >= 0) cur - gs,
+        if (row + 1 < gs && col + 1 < gs) cur + gs + 1,
+        if (row + 1 < gs && col - 1 >= 0) cur + gs - 1,
+        if (row - 1 >= 0 && col + 1 < gs) cur - gs + 1,
+        if (row - 1 >= 0 && col - 1 >= 0) cur - gs - 1,
       ]) {
         final nt = s.cells[n];
         if (nt == null || nt.tier != t.tier || seen.contains(n)) continue;
@@ -43,6 +46,7 @@ List<int> longestChain(BoardState s) {
         seen.remove(n);
       }
     }
+
     dfs(start);
   }
   return best.length >= 2 ? best : const [];

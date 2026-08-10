@@ -11,7 +11,7 @@
 //   401 no/invalid auth
 //   422 { valid:false, reason:"malformed_request" } (unparseable/invalid shape)
 //   422 { valid:false, reason:"stale_date" }        (not the server's UTC today)
-//   422 { valid:false, reason:"invalid_run" }       (replay verification failed)
+//   422 { valid:false, reason:"invalid_run" }       (season/replay validation failed)
 //   422 { valid:false, reason:"submit_failed" }     (retryable database failure)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -20,6 +20,7 @@ import { kLeaderboardSeason } from "../_shared/constants.ts";
 import { corsHeaders, getAuthedUserId, jsonResponse } from "../_shared/http.ts";
 import { upsertBestScore } from "./best_score.ts";
 import { validateSubmitRequest } from "./validate_request.ts";
+import { logInvalidRun } from "./invalid_run.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -57,16 +58,33 @@ Deno.serve(async (req) => {
   }
   const validated = validateSubmitRequest(payload, utcToday());
   if (!validated.ok) {
+    if (validated.reason === "invalid_run") {
+      return json(
+        logInvalidRun({
+          stage: validated.stage,
+          suppliedSeason: validated.suppliedSeason,
+          difficulty: validated.difficulty,
+        }),
+        422,
+      );
+    }
     return json({ valid: false, reason: validated.reason }, 422);
   }
-  const { date, difficulty, moveLog } = validated;
+  const { date, difficulty, moveLog, season } = validated;
 
   // 3. Replay-verify. The server is the only score authority.
   const result = difficulty === "challenge"
     ? await verifyRunChallenge(date, moveLog)
     : await verifyRun(date, difficulty, moveLog);
   if (!result.valid) {
-    return json({ valid: false, reason: "invalid_run" }, 422);
+    return json(
+      logInvalidRun({
+        stage: result.stage,
+        suppliedSeason: season,
+        difficulty,
+      }),
+      422,
+    );
   }
 
   // 4. Upsert best score for (player, date, difficulty) using the service role.

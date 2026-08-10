@@ -12,33 +12,55 @@ import { assertEquals, assertFalse } from "@std/assert";
 import { Prng } from "./prng.ts";
 import { DailySeeder, seedForKey } from "./seeder.ts";
 import {
-  areOrthogonallyAdjacent,
+  areAdjacent,
   type BoardState,
   collapseChain,
-  comboScore,
   evaluateStatus,
   hasMergeAvailable,
   isValidChain,
+  mergedTierFromSum,
   type MoveEvent,
   refillBoard,
+  type RejectionStage,
   type Tile,
+  type VerifyResult,
   verifyRun,
+  verifyRunChallenge,
 } from "./engine.ts";
 import {
   ascendBonus,
   canFollow,
-  comboRushMultiplier,
   comboMultiplier,
+  comboRushMultiplier,
+  dropCap,
+  GRID_SIZE,
   hasChainOfLength,
+  kAdMoveReward,
   kCellCount,
   kChallengeDenseFill,
+  kMaxAdContinuesPerDay,
+  kMaxPlayableTier,
+  kMaxPlayableValueMass,
   kMaxTier,
+  kMovesPerDay,
   pairMergeable,
+  STARTING_FILL,
+  WALL_COUNT,
 } from "./constants.ts";
 
 // ---- Captured Dart vectors (PRNG/seedForKey unchanged by the redesign) ----
 
 const DART_SEED_KEY_2026_06_07_LEGENDARY = 550419188;
+
+function assertRejectedStage(
+  result: VerifyResult,
+  stage: RejectionStage,
+): void {
+  assertFalse(result.valid);
+  if (result.valid) return;
+  assertEquals(result.reason, "invalid_run");
+  assertEquals(result.stage, stage);
+}
 
 Deno.test("canFollow: accepts equal/ascend and rejects descend/skip", () => {
   assertEquals(canFollow(3, 3), true);
@@ -47,39 +69,103 @@ Deno.test("canFollow: accepts equal/ascend and rejects descend/skip", () => {
   assertFalse(canFollow(3, 5));
 });
 
-Deno.test("pairMergeable: symmetric tier rule with max-tier cap", () => {
+Deno.test("pairMergeable: symmetric tier rule without a cosmetic milestone cap", () => {
   assertEquals(pairMergeable(3, 3), true);
   assertEquals(pairMergeable(3, 4), true);
   assertEquals(pairMergeable(4, 3), true);
   assertFalse(pairMergeable(3, 5));
-  assertFalse(pairMergeable(kMaxTier - 1, kMaxTier));
-  assertFalse(pairMergeable(kMaxTier, kMaxTier));
+  assertEquals(pairMergeable(kMaxTier - 1, kMaxTier), true);
+  assertEquals(pairMergeable(kMaxTier, kMaxTier), true);
 });
 
 const DART_PRNG: Record<string, number[]> = {
   "1": [
-    2693262067, 11749833, 2265367787, 4213581821, 4159151403, 1207330352,
-    2632122864, 3095568220, 1828783984, 4272732017, 1955374602, 2099329838,
-    596715197, 1734070562, 1063107040, 663542962, 2100857034, 289351446,
-    1694877057, 3294703884,
+    2693262067,
+    11749833,
+    2265367787,
+    4213581821,
+    4159151403,
+    1207330352,
+    2632122864,
+    3095568220,
+    1828783984,
+    4272732017,
+    1955374602,
+    2099329838,
+    596715197,
+    1734070562,
+    1063107040,
+    663542962,
+    2100857034,
+    289351446,
+    1694877057,
+    3294703884,
   ],
   "42": [
-    2581720956, 1925393290, 3661312704, 2876485805, 750819978, 2261697747,
-    1173505300, 2683257857, 3717185310, 2028586305, 1073414265, 3788413843,
-    3202918453, 1318561460, 847198783, 2150616774, 2948976162, 2622596789,
-    16505353, 2021992966,
+    2581720956,
+    1925393290,
+    3661312704,
+    2876485805,
+    750819978,
+    2261697747,
+    1173505300,
+    2683257857,
+    3717185310,
+    2028586305,
+    1073414265,
+    3788413843,
+    3202918453,
+    1318561460,
+    847198783,
+    2150616774,
+    2948976162,
+    2622596789,
+    16505353,
+    2021992966,
   ],
   "0x9E3779B9": [
-    1541420728, 454851044, 2900350524, 3942498910, 436270539, 1292797714,
-    107332754, 2003106812, 1860262629, 2351451603, 2189223826, 1319006189,
-    3858527959, 1458065988, 439542631, 1065433749, 1124176789, 3650098597,
-    824228062, 2846529103,
+    1541420728,
+    454851044,
+    2900350524,
+    3942498910,
+    436270539,
+    1292797714,
+    107332754,
+    2003106812,
+    1860262629,
+    2351451603,
+    2189223826,
+    1319006189,
+    3858527959,
+    1458065988,
+    439542631,
+    1065433749,
+    1124176789,
+    3650098597,
+    824228062,
+    2846529103,
   ],
   "keyHash": [
-    4278839893, 1416147163, 1509739711, 3814287932, 3837562946, 3501279784,
-    1635852863, 2569168105, 2576248468, 2155669214, 853677039, 3297811397,
-    4082003367, 3270720374, 1308521369, 3090506910, 624426149, 2081899626,
-    3346979326, 656422535,
+    4278839893,
+    1416147163,
+    1509739711,
+    3814287932,
+    3837562946,
+    3501279784,
+    1635852863,
+    2569168105,
+    2576248468,
+    2155669214,
+    853677039,
+    3297811397,
+    4082003367,
+    3270720374,
+    1308521369,
+    3090506910,
+    624426149,
+    2081899626,
+    3346979326,
+    656422535,
   ],
 };
 
@@ -89,21 +175,21 @@ const DART_PRNG: Record<string, number[]> = {
 const DART_LEGENDARY_WALLS = [0, 1, 5, 6, 17, 26];
 const DART_LEGENDARY_CELLS: (Tile | null)[] = (() => {
   const c: (Tile | null)[] = new Array(36).fill(null);
-  c[3]  = { id: 4,  tier: 2 };
-  c[7]  = { id: 1,  tier: 1 };
+  c[3] = { id: 4, tier: 2 };
+  c[7] = { id: 1, tier: 1 };
   c[12] = { id: 11, tier: 1 };
-  c[15] = { id: 5,  tier: 1 };
-  c[16] = { id: 3,  tier: 1 };
+  c[15] = { id: 5, tier: 1 };
+  c[16] = { id: 3, tier: 1 };
   c[20] = { id: 10, tier: 2 };
   c[23] = { id: 13, tier: 1 };
   c[24] = { id: 12, tier: 1 };
-  c[25] = { id: 0,  tier: 2 };
+  c[25] = { id: 0, tier: 2 };
   c[27] = { id: 14, tier: 1 };
-  c[28] = { id: 2,  tier: 2 };
-  c[29] = { id: 6,  tier: 1 };
-  c[30] = { id: 9,  tier: 1 };
-  c[32] = { id: 8,  tier: 1 };
-  c[34] = { id: 7,  tier: 2 };
+  c[28] = { id: 2, tier: 2 };
+  c[29] = { id: 6, tier: 1 };
+  c[30] = { id: 9, tier: 1 };
+  c[32] = { id: 8, tier: 1 };
+  c[34] = { id: 7, tier: 2 };
   return c;
 })();
 const DART_LEGENDARY_NEXT_TILE_ID = 15;
@@ -120,12 +206,12 @@ const DART_LEGIT_LEGENDARY_TIER = 3;
 const DART_EASY_SEED = 628821332;
 const DART_EASY_CELLS: (Tile | null)[] = (() => {
   const c: (Tile | null)[] = new Array(64).fill(null);
-  c[0]  = { id: 13, tier: 1 };
-  c[1]  = { id: 12, tier: 1 };
-  c[4]  = { id: 37, tier: 1 };
-  c[5]  = { id: 5,  tier: 1 };
-  c[6]  = { id: 4,  tier: 2 };
-  c[9]  = { id: 1,  tier: 2 };
+  c[0] = { id: 13, tier: 1 };
+  c[1] = { id: 12, tier: 1 };
+  c[4] = { id: 37, tier: 1 };
+  c[5] = { id: 5, tier: 1 };
+  c[6] = { id: 4, tier: 2 };
+  c[9] = { id: 1, tier: 2 };
   c[11] = { id: 11, tier: 2 };
   c[13] = { id: 36, tier: 2 };
   c[14] = { id: 16, tier: 1 };
@@ -140,25 +226,25 @@ const DART_EASY_CELLS: (Tile | null)[] = (() => {
   c[30] = { id: 39, tier: 1 };
   c[31] = { id: 25, tier: 1 };
   c[32] = { id: 17, tier: 1 };
-  c[33] = { id: 8,  tier: 1 };
+  c[33] = { id: 8, tier: 1 };
   c[34] = { id: 32, tier: 1 };
   c[35] = { id: 27, tier: 2 };
-  c[36] = { id: 2,  tier: 2 };
-  c[38] = { id: 6,  tier: 2 };
+  c[36] = { id: 2, tier: 2 };
+  c[38] = { id: 6, tier: 2 };
   c[40] = { id: 26, tier: 1 };
   c[41] = { id: 10, tier: 1 };
   c[44] = { id: 31, tier: 1 };
-  c[45] = { id: 7,  tier: 2 };
-  c[46] = { id: 0,  tier: 1 };
+  c[45] = { id: 7, tier: 2 };
+  c[46] = { id: 0, tier: 1 };
   c[47] = { id: 14, tier: 2 };
   c[49] = { id: 33, tier: 1 };
   c[50] = { id: 24, tier: 2 };
   c[52] = { id: 34, tier: 1 };
   c[54] = { id: 21, tier: 2 };
   c[56] = { id: 29, tier: 1 };
-  c[57] = { id: 3,  tier: 1 };
+  c[57] = { id: 3, tier: 1 };
   c[58] = { id: 38, tier: 1 };
-  c[59] = { id: 9,  tier: 2 };
+  c[59] = { id: 9, tier: 2 };
   c[62] = { id: 28, tier: 2 };
   return c;
 })();
@@ -188,12 +274,19 @@ Deno.test("PRNG matches Dart vectors byte-for-byte", () => {
   for (const [label, seed] of cases) {
     const p = new Prng(seed);
     const got = Array.from({ length: 20 }, () => p.nextU32());
-    assertEquals(got, DART_PRNG[label], `PRNG sequence mismatch for seed ${label}`);
+    assertEquals(
+      got,
+      DART_PRNG[label],
+      `PRNG sequence mismatch for seed ${label}`,
+    );
   }
 });
 
 Deno.test("seedForKey matches Dart byte-order reduction", async () => {
-  assertEquals(await seedForKey("2026-06-07:legendary"), DART_SEED_KEY_2026_06_07_LEGENDARY);
+  assertEquals(
+    await seedForKey("2026-06-07:legendary"),
+    DART_SEED_KEY_2026_06_07_LEGENDARY,
+  );
   assertEquals(await seedForKey("2026-06-07:easy"), DART_EASY_SEED);
 });
 
@@ -203,7 +296,10 @@ Deno.test("legendary board for 2026-06-07 matches Dart (walls + re-roll)", async
   const start = await new DailySeeder("2026-06-07", "legendary").generate();
   assertEquals(start.board.cells, DART_LEGENDARY_CELLS);
   assertEquals(start.board.nextTileId, DART_LEGENDARY_NEXT_TILE_ID);
-  assertEquals([...start.board.walls].sort((a, b) => a - b), DART_LEGENDARY_WALLS);
+  assertEquals(
+    [...start.board.walls].sort((a, b) => a - b),
+    DART_LEGENDARY_WALLS,
+  );
   // A re-rolled board is, by construction, never born-deadlocked.
   assertEquals(hasMergeAvailable(start.board), true);
 });
@@ -268,20 +364,29 @@ Deno.test("rejects an illegal chain (wall cells, always empty)", async () => {
     ...DART_LEGIT_LEGENDARY,
     { type: "chain", path: [0, 1] }, // wall cells — always empty
   ];
-  assertFalse((await verifyRun("2026-06-07", "legendary", tampered)).valid);
+  assertRejectedStage(
+    await verifyRun("2026-06-07", "legendary", tampered),
+    "illegal_chain",
+  );
 });
 
 Deno.test("accepts an ascending chain (adjacent tiles one tier apart)", async () => {
   // easy initial: cell 5 (tier1) is orthogonally adjacent to cell 6 (tier2) —
   // this is now a legal ascend-by-1 chain, not a rejection case.
-  const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [5, 6] }]);
+  const r = await verifyRun("2026-06-07", "easy", [{
+    type: "chain",
+    path: [5, 6],
+  }]);
   assertEquals(r.valid, true);
-  assertEquals(r.score, comboScore(2, 2) + ascendBonus(2));
+  assertEquals(r.score, (2 ** 2) * comboMultiplier(2) + ascendBonus(2));
 });
 
 Deno.test("rejects a non-adjacent chain", async () => {
   // easy initial: cells 9 and 11 share tier 2 and are in the same row but not adjacent (gap=2).
-  const r = await verifyRun("2026-06-07", "easy", [{ type: "chain", path: [9, 11] }]);
+  const r = await verifyRun("2026-06-07", "easy", [{
+    type: "chain",
+    path: [9, 11],
+  }]);
   assertFalse(r.valid);
 });
 
@@ -290,17 +395,52 @@ Deno.test("rejects a continue while still playing (not out of moves)", async () 
     { type: "chain", path: [0, 1] }, // valid first move
     { type: "continue" }, // illegal: board is still playing
   ]);
-  assertFalse(r.valid);
+  assertRejectedStage(r, "continue_wrong_status");
 });
 
 Deno.test("rejects an invalid difficulty", async () => {
-  assertFalse((await verifyRun("2026-06-07", "impossible", DART_LEGIT_LEGENDARY)).valid);
+  assertRejectedStage(
+    await verifyRun("2026-06-07", "impossible", DART_LEGIT_LEGENDARY),
+    "invalid_difficulty",
+  );
 });
 
 Deno.test("rejects a malformed move log", async () => {
-  assertFalse((await verifyRun("2026-06-07", "legendary", [{ type: "teleport" }])).valid);
-  assertFalse((await verifyRun("2026-06-07", "legendary", [{ type: "chain" }])).valid);
-  assertFalse((await verifyRun("2026-06-07", "legendary", [{ type: "chain", path: [1] }])).valid);
+  assertRejectedStage(
+    await verifyRun("2026-06-07", "legendary", null),
+    "malformed_log",
+  );
+  assertRejectedStage(
+    await verifyRun("2026-06-07", "legendary", [{ type: "teleport" }]),
+    "malformed_event",
+  );
+  assertRejectedStage(
+    await verifyRun("2026-06-07", "legendary", [{ type: "chain" }]),
+    "malformed_event",
+  );
+  assertRejectedStage(
+    await verifyRun("2026-06-07", "legendary", [{ type: "chain", path: [1] }]),
+    "illegal_chain",
+  );
+});
+
+Deno.test("challenge verifier tags malformed, short-chain, and continue stages", async () => {
+  assertRejectedStage(
+    await verifyRunChallenge("2026-07-24", null),
+    "challenge_malformed_log",
+  );
+  assertRejectedStage(
+    await verifyRunChallenge("2026-07-24", [{ type: "teleport" }]),
+    "challenge_malformed_event",
+  );
+  assertRejectedStage(
+    await verifyRunChallenge("2026-07-24", [{ type: "chain", path: [0, 1] }]),
+    "challenge_chain_too_short",
+  );
+  assertRejectedStage(
+    await verifyRunChallenge("2026-07-18", [{ type: "continue" }]),
+    "challenge_continue_forbidden",
+  );
 });
 
 // ---- Pure unit tests (formula-pinned, no Dart capture needed) ----
@@ -356,10 +496,10 @@ Deno.test("refillBoard: tops up beyond target until full without a merge", () =>
   const board = smallBoard([
     { id: 1, tier: 1 },
     { id: 2, tier: 3 },
-    { id: 3, tier: 3 },
+    { id: 3, tier: 5 },
     null,
   ]);
-  const result = refillBoard(board, 3, () => 5, new Prng(1));
+  const result = refillBoard(board, 3, () => 7, new Prng(1));
   assertEquals(result.cells.filter((tile) => tile !== null).length, 4);
   assertEquals(result.dropIndex, 1);
   assertFalse(hasMergeAvailable(result));
@@ -407,20 +547,45 @@ Deno.test("refillBoard: reads current dropIndex for every applied drop", () => {
   assertEquals(result.dropIndex, 9);
 });
 
-Deno.test("comboScore: 2-chain equals legacy single-merge; superlinear beyond", () => {
-  assertEquals(comboScore(3, 2), 1 << 4); // legacy parity
-  assertEquals(comboScore(2, 2), 8);
-  assertEquals(comboScore(2, 3), 16);
-  assertEquals(comboScore(2, 4), 32);
-  assertEquals(comboScore(2, 5), 56);
-  assertEquals(comboScore(2, 6), 88);
+Deno.test("mergedTierFromSum: exact powers stay exact and lossy sums round down", () => {
+  assertEquals(mergedTierFromSum(2 + 2), 2);
+  assertEquals(mergedTierFromSum(2 + 2 + 2 + 2), 3);
+  assertEquals(mergedTierFromSum(4 + 4 + 4 + 4), 4);
+  assertEquals(mergedTierFromSum(2 + 4), 2);
 });
 
-Deno.test("areOrthogonallyAdjacent: N/S/E/W only, no diagonal/wrap", () => {
-  assertEquals(areOrthogonallyAdjacent(0, 1, 5), true);
-  assertEquals(areOrthogonallyAdjacent(0, 5, 5), true);
-  assertEquals(areOrthogonallyAdjacent(0, 6, 5), false);
-  assertEquals(areOrthogonallyAdjacent(4, 5, 5), false); // row wrap
+Deno.test("mergedTierFromSum: integer boundaries cover and exceed the play bound", () => {
+  const maxMoves = kMovesPerDay + kMaxAdContinuesPerDay * kAdMoveReward;
+  const maxRefillsPerMove = GRID_SIZE.easy ** 2 - WALL_COUNT.easy - 1;
+  const maxDropValue = 2 ** dropCap(maxMoves * maxRefillsPerMove - 1);
+  const maxInitialMass = STARTING_FILL.easy * 2 ** dropCap(0);
+  const derivedMass = maxMoves * maxRefillsPerMove * maxDropValue +
+    maxInitialMass;
+  assertEquals(derivedMass, kMaxPlayableValueMass);
+  assertEquals(mergedTierFromSum(2 ** 17), kMaxPlayableTier);
+  assertEquals(mergedTierFromSum(2 ** 18 - 1), 17);
+  assertEquals(mergedTierFromSum(2 ** 18), 18);
+  assertEquals(kMaxPlayableValueMass, 152416);
+  assertEquals(mergedTierFromSum(kMaxPlayableValueMass), kMaxPlayableTier);
+  assertEquals(mergedTierFromSum(Number.MAX_SAFE_INTEGER), 52);
+});
+
+Deno.test("a real-bound sum can collapse to tier 17 without a legality cap", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 16 },
+    1: { id: 2, tier: 16 },
+  });
+  assertEquals(isValidChain(b, [0, 1]), true);
+  assertEquals(collapseChain(b, [0, 1]).cells[1]?.tier, kMaxPlayableTier);
+});
+
+Deno.test("areAdjacent: all eight neighbors, but no row wrap or gaps", () => {
+  assertEquals(areAdjacent(0, 1, 5), true);
+  assertEquals(areAdjacent(0, 5, 5), true);
+  assertEquals(areAdjacent(0, 6, 5), true);
+  assertEquals(areAdjacent(1, 5, 5), true);
+  assertEquals(areAdjacent(4, 5, 5), false); // row wrap
+  assertEquals(areAdjacent(0, 2, 5), false); // gap
 });
 
 Deno.test("isValidChain: accepts a connected same-tier run, rejects bad paths", () => {
@@ -458,12 +623,12 @@ Deno.test("isValidChain: accepts a run-then-ascend-then-run chain", () => {
   assertEquals(isValidChain(b, [0, 1, 6, 7, 8, 13]), true);
 });
 
-Deno.test("isValidChain: rejects an ascend chain whose peak sits at max tier", () => {
+Deno.test("isValidChain: accepts an ascend chain beyond the 2048 milestone", () => {
   const b = boardWith({
     0: { id: 1, tier: kMaxTier - 1 },
     1: { id: 2, tier: kMaxTier },
   });
-  assertFalse(isValidChain(b, [0, 1]));
+  assertEquals(isValidChain(b, [0, 1]), true);
 });
 
 Deno.test("isValidChain: rejects a path onto a wall cell", () => {
@@ -471,7 +636,15 @@ Deno.test("isValidChain: rejects a path onto a wall cell", () => {
   assertFalse(isValidChain(b, [0, 1])); // cell 1 is a wall (no tile)
 });
 
-Deno.test("collapseChain: endpoint +1 keeps id, others empty, scores combo", () => {
+Deno.test("isValidChain: diagonal steps may cross two walled flanking cells", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 2 },
+    6: { id: 2, tier: 2 },
+  }, [1, 5]);
+  assertEquals(isValidChain(b, [0, 6]), true);
+});
+
+Deno.test("collapseChain: endpoint uses floor-power-of-two sum and keeps id", () => {
   const b = boardWith({
     0: { id: 10, tier: 2 },
     1: { id: 11, tier: 2 },
@@ -481,7 +654,7 @@ Deno.test("collapseChain: endpoint +1 keeps id, others empty, scores combo", () 
   assertEquals(r.cells[0], null);
   assertEquals(r.cells[1], null);
   assertEquals(r.cells[6], { id: 12, tier: 3 });
-  assertEquals(r.score, comboScore(2, 3)); // 16
+  assertEquals(r.score, (2 ** 3) * comboMultiplier(3)); // 16
   assertEquals(r.movesRemaining, 29);
 });
 
@@ -495,7 +668,10 @@ Deno.test("collapseChain: ascending chain scores base combo PLUS an ascend bonus
   });
   const r = collapseChain(b, [0, 1, 6, 7, 8]);
   assertEquals(r.cells[8], { id: 14, tier: 4 });
-  assertEquals(r.score, comboScore(3, 5) + ascendBonus(2) + ascendBonus(3));
+  assertEquals(
+    r.score,
+    (2 ** 4) * comboMultiplier(5) + ascendBonus(2) + ascendBonus(3),
+  );
 });
 
 Deno.test("collapseChain: a flat (same-tier) chain has zero ascend bonus", () => {
@@ -504,13 +680,48 @@ Deno.test("collapseChain: a flat (same-tier) chain has zero ascend bonus", () =>
     1: { id: 11, tier: 2 },
   });
   const r = collapseChain(b, [0, 1]);
-  assertEquals(r.score, comboScore(2, 2));
+  assertEquals(r.score, (2 ** 3) * comboMultiplier(2));
+});
+
+Deno.test("collapseChain: lossy 2+4 sum floors to tier 2 and still scores", () => {
+  const b = boardWith({
+    0: { id: 10, tier: 1 },
+    1: { id: 11, tier: 2 },
+  });
+  const r = collapseChain(b, [0, 1]);
+  assertEquals(r.cells[1], { id: 11, tier: 2 });
+  assertEquals(r.score, (2 ** 2) * comboMultiplier(2) + ascendBonus(2));
+});
+
+Deno.test("collapseChain: four twos pin default and Combo Rush scores", () => {
+  const b = boardWith({
+    0: { id: 10, tier: 1 },
+    1: { id: 11, tier: 1 },
+    6: { id: 12, tier: 1 },
+    7: { id: 13, tier: 1 },
+  });
+  const regular = collapseChain(b, [0, 1, 6, 7]);
+  const rush = collapseChain(b, [0, 1, 6, 7], comboRushMultiplier);
+  assertEquals(regular.cells[7], { id: 13, tier: 3 });
+  assertEquals(regular.score, (2 ** 3) * comboMultiplier(4));
+  assertEquals(rush.score, (2 ** 3) * comboRushMultiplier(4));
+});
+
+Deno.test("collapseChain: uses exponentiation beyond bitwise shift range", () => {
+  const b = boardWith({
+    0: { id: 1, tier: 31 },
+    1: { id: 2, tier: 31 },
+  });
+  const r = collapseChain(b, [0, 1]);
+  assertEquals(r.cells[1], { id: 2, tier: 32 });
+  assertEquals(r.score, 2 ** 32);
+  assertFalse(r.score === (1 << 32));
 });
 
 Deno.test("hasMergeAvailable: needs ADJACENT equal tiles (spatial deadlock)", () => {
   const apart = boardWith({ 0: { id: 1, tier: 1 }, 2: { id: 2, tier: 1 } });
   assertFalse(hasMergeAvailable(apart));
-  const together = boardWith({ 0: { id: 1, tier: 1 }, 1: { id: 2, tier: 1 } });
+  const together = boardWith({ 0: { id: 1, tier: 1 }, 6: { id: 2, tier: 1 } });
   assertEquals(hasMergeAvailable(together), true);
 });
 
@@ -559,25 +770,25 @@ Deno.test("hasChainOfLength: a real 3-chain (straight line) satisfies length 3",
   assertEquals(isValidChain(b, [0, 1, 2]), true);
 });
 
-Deno.test("hasChainOfLength: a real 3-chain (L-shape) satisfies length 3", () => {
+Deno.test("hasChainOfLength: a diagonal-only chain satisfies length 3", () => {
   const b = boardWith({
     0: { id: 1, tier: 2 },
-    1: { id: 2, tier: 2 },
-    6: { id: 3, tier: 2 },
+    6: { id: 2, tier: 2 },
+    12: { id: 3, tier: 2 },
   });
   assertEquals(hasChainOfLength(b.cells, b.gridSize, 3), true);
-  assertEquals(isValidChain(b, [0, 1, 6]), true);
+  assertEquals(isValidChain(b, [0, 6, 12]), true);
 });
 
 Deno.test(
-  "hasChainOfLength: a 3-in-a-row whose peak sits at the tier cap does NOT count",
+  "hasChainOfLength: a chain beyond the 2048 milestone still counts",
   () => {
     const b = boardWith({
       0: { id: 1, tier: kMaxTier - 2 },
       1: { id: 2, tier: kMaxTier - 1 },
       2: { id: 3, tier: kMaxTier },
     });
-    assertFalse(hasChainOfLength(b.cells, b.gridSize, 3));
+    assertEquals(hasChainOfLength(b.cells, b.gridSize, 3), true);
   },
 );
 
@@ -612,9 +823,9 @@ Deno.test(
   "refillBoard: stops at a full board even if minChainLength is never satisfied",
   () => {
     const board = smallBoard([{ id: 1, tier: 1 }, null, null, null]);
-    const result = refillBoard(board, 1, () => kMaxTier, new Prng(1), 3);
+    const result = refillBoard(board, 1, () => kMaxTier, new Prng(1), 5);
     assertEquals(result.cells.every((c) => c !== null), true);
-    assertFalse(hasChainOfLength(result.cells, result.gridSize, 3));
+    assertFalse(hasChainOfLength(result.cells, result.gridSize, 5));
   },
 );
 

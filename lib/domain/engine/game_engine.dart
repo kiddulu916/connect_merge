@@ -14,18 +14,6 @@ class GameEngine {
   static bool canFollow(int prevTier, int nextTier) =>
       nextTier >= prevTier && nextTier <= prevTier + 1;
 
-  /// Legacy pair predicate retained only for the golden-vector rejection-
-  /// sentinel generator. Live chain validation uses [canFollow] directly.
-  /// Both cells must hold tiles, be distinct, and ascend by at most one tier
-  /// into a destination below the cap.
-  static bool canMerge(BoardState s, int fromIndex, int toIndex) {
-    if (fromIndex == toIndex) return false;
-    final from = s.cells[fromIndex];
-    final to = s.cells[toIndex];
-    if (from == null || to == null) return false;
-    return canFollow(from.tier, to.tier) && to.tier < kMaxTier;
-  }
-
   /// Drop a tile of [tier] into a deterministically-chosen empty cell. The
   /// landing index is drawn from [landing] (stream B) mapped onto current
   /// empties, so the item is global but the position adapts to this board.
@@ -91,18 +79,18 @@ class GameEngine {
     return board;
   }
 
-  /// True if any two orthogonally-adjacent live tiles could legally merge in
-  /// SOME direction (a legal Connect-Merge of length 2): their tiers differ by
-  /// at most one, and the higher of the two is below the cap. Position matters:
-  /// a mergeable pair that is not adjacent does NOT count, so a player can
-  /// strand tiles into a deadlock.
+  /// True if any two 8-directionally adjacent live tiles could legally merge
+  /// in SOME direction (a legal Connect-Merge of length 2): their tiers differ
+  /// by at most one. Position matters: a mergeable pair that is not adjacent
+  /// does NOT count, so a player can strand tiles into a deadlock.
+  /// Must stay in lockstep with TypeScript `hasAnyMergeablePair`.
   static bool hasMergeAvailable(BoardState s) {
     final gs = s.gridSize;
     for (var i = 0; i < s.cells.length; i++) {
       final t = s.cells[i];
       if (t == null) continue;
       final row = i ~/ gs, col = i % gs;
-      // Check east and south neighbours only (covers every adjacency once).
+      // Check east, south, southeast, and southwest (each adjacency once).
       if (col + 1 < gs) {
         final e = s.cells[i + 1];
         if (e != null && _pairMergeable(t.tier, e.tier)) return true;
@@ -110,18 +98,27 @@ class GameEngine {
       if (row + 1 < gs) {
         final so = s.cells[i + gs];
         if (so != null && _pairMergeable(t.tier, so.tier)) return true;
+        if (col + 1 < gs) {
+          final se = s.cells[i + gs + 1];
+          if (se != null && _pairMergeable(t.tier, se.tier)) return true;
+        }
+        if (col - 1 >= 0) {
+          final sw = s.cells[i + gs - 1];
+          if (sw != null && _pairMergeable(t.tier, sw.tier)) return true;
+        }
       }
     }
     return false;
   }
 
   /// True if two adjacent tiles could legally merge in SOME direction: their
-  /// tiers differ by at most one, and the higher of the two is below the cap
-  /// (a valid direction always runs from the lower tile to the higher tile).
+  /// tiers differ by at most one (a valid direction always runs from the lower
+  /// tile to the higher tile). Must stay in lockstep with TypeScript
+  /// `pairMergeable`.
   static bool _pairMergeable(int aTier, int bTier) {
     final lower = aTier < bTier ? aTier : bTier;
     final higher = aTier > bTier ? aTier : bTier;
-    return canFollow(lower, higher) && higher < kMaxTier;
+    return canFollow(lower, higher);
   }
 
   /// True if a legal Connect-Merge chain of at least [minLength] tiles exists
@@ -136,7 +133,8 @@ class GameEngine {
   /// every longer one. Must stay in lockstep with TypeScript `hasChainOfLength`
   /// in `constants.ts`.
   static bool hasChainOfLength(BoardState s, int minLength) {
-    assert(minLength >= 2, 'a chain shorter than 2 tiles is never a legal move');
+    assert(
+        minLength >= 2, 'a chain shorter than 2 tiles is never a legal move');
     if (minLength <= 2) return hasMergeAvailable(s);
     for (var i = 0; i < s.cells.length; i++) {
       final t = s.cells[i];
@@ -148,7 +146,7 @@ class GameEngine {
 
   static bool _searchChain(BoardState s, int idx, Set<int> visited, int tier,
       int length, int minLength) {
-    if (length == minLength) return tier < kMaxTier;
+    if (length == minLength) return true;
     final gs = s.gridSize;
     final row = idx ~/ gs, col = idx % gs;
     final neighbours = <int>[
@@ -156,6 +154,10 @@ class GameEngine {
       if (col - 1 >= 0) idx - 1,
       if (row + 1 < gs) idx + gs,
       if (row - 1 >= 0) idx - gs,
+      if (row + 1 < gs && col + 1 < gs) idx + gs + 1,
+      if (row + 1 < gs && col - 1 >= 0) idx + gs - 1,
+      if (row - 1 >= 0 && col + 1 < gs) idx - gs + 1,
+      if (row - 1 >= 0 && col - 1 >= 0) idx - gs - 1,
     ];
     for (final n in neighbours) {
       if (visited.contains(n)) continue;
@@ -185,22 +187,23 @@ class GameEngine {
     return s.copyWith(status: GameStatus.playing);
   }
 
-  /// True when cells [a] and [b] are orthogonal neighbours on the grid (no
-  /// diagonals, no row wrap-around).
-  static bool areOrthogonallyAdjacent(int a, int b, int gridSize) {
+  /// True when cells [a] and [b] are any of the eight neighboring cells on the
+  /// grid, with no row wrap-around. Must stay in lockstep with TypeScript
+  /// `areAdjacent`.
+  static bool areAdjacent(int a, int b, int gridSize) {
     final ra = a ~/ gridSize, ca = a % gridSize;
     final rb = b ~/ gridSize, cb = b % gridSize;
     final dr = (ra - rb).abs(), dc = (ca - cb).abs();
-    return (dr + dc) == 1;
+    return dr <= 1 && dc <= 1 && (dr != 0 || dc != 0);
   }
 
   /// A legal Connect-Merge path: length >= 2, no repeated cells, each cell
-  /// holds a live tile, consecutive cells are orthogonally adjacent, and each
+  /// holds a live tile, consecutive cells are 8-directionally adjacent, and each
   /// step's tier is either equal to or exactly one higher than the previous
   /// tile's tier (never descends, never skips a tier). Since the path is thus
-  /// non-decreasing, [path.last] is always the peak tile, and it alone must
-  /// sit below the cap. Walls hold no tile, so they are rejected by the
-  /// null-cell check, but we never index a wall as a tile.
+  /// non-decreasing, [path.last] is always the peak tile. Walls hold no tile,
+  /// so they are rejected by the null-cell check, but diagonal steps may pass
+  /// between two orthogonally flanking walls. There is no gameplay tier cap.
   static bool isValidChain(BoardState s, List<int> path) {
     if (path.length < 2) return false;
     final seen = <int>{};
@@ -214,25 +217,27 @@ class GameEngine {
       if (t == null) return false;
       if (prevTile != null) {
         if (!canFollow(prevTile.tier, t.tier)) return false;
-        if (!areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) {
+        if (!areAdjacent(path[i - 1], idx, s.gridSize)) {
           return false;
         }
       }
       prevTile = t;
     }
-    if (prevTile!.tier >= kMaxTier) return false; // peak tile must be below cap
     return true;
   }
 
-  /// Points for collapsing a chain of [chainLength] tiles of [mergedTier]. The
-  /// base is the legacy `2^(mergedTier+1)` (so a 2-chain matches the old merge),
-  /// scaled by the superlinear [comboMultiplier].
-  static int comboScore(int mergedTier, int chainLength) =>
-      (1 << (mergedTier + 1)) * comboMultiplier(chainLength);
+  /// Returns floor(log2([sum])) using integer-only arithmetic. [sum] must be
+  /// positive. Must stay behaviorally identical to TypeScript
+  /// `mergedTierFromSum`.
+  static int mergedTierFromSum(int sum) {
+    assert(sum > 0, 'a collapsed chain always has positive value mass');
+    return sum.bitLength - 1;
+  }
 
   /// Collapse a validated Connect-Merge [path] onto its endpoint (`path.last`):
-  /// the endpoint becomes tier+1 (keeping its id for animation continuity), all
-  /// other path cells empty, score gains the combo total PLUS an
+  /// the endpoint becomes the floor-power-of-two tier of the path's total value
+  /// (keeping its id for animation continuity), all other path cells empty,
+  /// score gains the combo total PLUS an
   /// [ascendBonus] for every ascend transition in the path, one move is spent.
   /// Caller must have checked [isValidChain]. This performs no refill and
   /// records no log (the cubit applies the refill and records the [ChainEvent]).
@@ -246,9 +251,12 @@ class GameEngine {
   }) {
     final endIdx = path.last;
     final endTile = s.cells[endIdx]!;
-    final mergedTier = endTile.tier;
-    final newTier = mergedTier + 1;
+    var sum = 0;
     var ascendTotal = 0;
+    for (final idx in path) {
+      sum += 1 << s.cells[idx]!.tier;
+    }
+    final resultTier = mergedTierFromSum(sum);
     for (var i = 1; i < path.length; i++) {
       final prevTier = s.cells[path[i - 1]]!.tier;
       final curTier = s.cells[path[i]]!.tier;
@@ -260,11 +268,11 @@ class GameEngine {
     for (final idx in path) {
       cells[idx] = null;
     }
-    cells[endIdx] = Tile(id: endTile.id, tier: newTier);
+    cells[endIdx] = Tile(id: endTile.id, tier: resultTier);
     final fn = comboMultiplierFn ?? comboMultiplier;
     return s.copyWith(
       cells: cells,
-      score: s.score + (1 << (mergedTier + 1)) * fn(path.length) + ascendTotal,
+      score: s.score + (1 << resultTier) * fn(path.length) + ascendTotal,
       movesRemaining: s.movesRemaining - 1,
       movesMade: s.movesMade + 1,
     );

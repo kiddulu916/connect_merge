@@ -85,7 +85,8 @@ void main() {
     expect(reported, [0, 1]);
   });
 
-  testWidgets('dragging from a lower tier onto an adjacent higher tier extends the path (ascend)',
+  testWidgets(
+      'dragging from a lower tier onto an adjacent higher tier extends the path (ascend)',
       (tester) async {
     final cells = List<Tile?>.filled(kCellCount, null);
     cells[0] = const Tile(id: 1, tier: 2);
@@ -134,7 +135,8 @@ void main() {
     expect(reported, [0, 1]);
   });
 
-  testWidgets('dragging from a higher tier onto an adjacent lower tier does NOT extend (descend)',
+  testWidgets(
+      'dragging from a higher tier onto an adjacent lower tier does NOT extend (descend)',
       (tester) async {
     final cells = List<Tile?>.filled(kCellCount, null);
     cells[0] = const Tile(id: 1, tier: 3);
@@ -235,10 +237,12 @@ void main() {
       // .first, not .single: GridCellWidget's Container also lowers to an
       // internal DecoratedBox, so the explicit glow wrapper (outer, found
       // first in tree order) isn't the only DecoratedBox descendant here.
-      final decoratedBox = tester.widget<DecoratedBox>(find.descendant(
-        of: find.byKey(ValueKey(tileId)),
-        matching: find.byType(DecoratedBox),
-      ).first);
+      final decoratedBox = tester.widget<DecoratedBox>(find
+          .descendant(
+            of: find.byKey(ValueKey(tileId)),
+            matching: find.byType(DecoratedBox),
+          )
+          .first);
       final decoration = decoratedBox.decoration as BoxDecoration;
       return decoration.boxShadow!.single;
     }
@@ -248,5 +252,62 @@ void main() {
 
     await g.up();
     await tester.pump();
+  });
+
+  testWidgets(
+      'diagonal drag supports selection, mid-path backtracking, and collapse callback',
+      (tester) async {
+    final cells = List<Tile?>.filled(kCellCount, null);
+    cells[0] = const Tile(id: 1, tier: 2);
+    cells[6] = const Tile(id: 2, tier: 2);
+    cells[12] = const Tile(id: 3, tier: 2);
+    final board = BoardState(
+      cells: cells,
+      movesRemaining: 30,
+      score: 0,
+      nextTileId: 4,
+      dropIndex: 0,
+      adContinuesUsed: 0,
+      movesMade: 0,
+      status: GameStatus.playing,
+    );
+
+    List<int>? reported;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: 350,
+            height: 350,
+            child: BoardWidget(board: board, onChain: (p) => reported = p),
+          ),
+        ),
+      ),
+    ));
+
+    final box = tester.getRect(find.byType(BoardWidget));
+    const gap = 8.0;
+    final cell = (box.width - gap * (kGridSize + 1)) / kGridSize;
+    Offset centerOf(int i) {
+      final row = i ~/ kGridSize, col = i % kGridSize;
+      return box.topLeft +
+          Offset(gap + col * (cell + gap) + cell / 2,
+              gap + row * (cell + gap) + cell / 2);
+    }
+
+    final gesture = await tester.startGesture(centerOf(0));
+    await tester.pump();
+    await gesture.moveTo(centerOf(6));
+    await tester.pump();
+    await gesture.moveTo(centerOf(12));
+    await tester.pump();
+    await gesture.moveTo(centerOf(6)); // backtrack from 12
+    await tester.pump();
+    await gesture.moveTo(centerOf(12));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(reported, [0, 6, 12]);
   });
 }

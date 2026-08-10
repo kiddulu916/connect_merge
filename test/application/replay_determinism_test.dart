@@ -9,7 +9,8 @@ GameCubit freshCubit() => GameCubit(
     storage: InMemoryStorageService(), todayProvider: () => '2026-06-20');
 
 void main() {
-  test('same date+difficulty yields identical boards and identical play results',
+  test(
+      'same date+difficulty yields identical boards and identical play results',
       () async {
     final a = freshCubit();
     final b = freshCubit();
@@ -30,12 +31,21 @@ void main() {
     int? from, to;
     for (var i = 0; i < kCellCount && from == null; i++) {
       final t = ba.cells[i];
-      if (t == null || t.tier >= kMaxTier) continue;
-      for (final n in [i + 1, i + kGridSize]) {
-        if (n >= kCellCount) continue;
-        if (n == i + 1 && (i % kGridSize) == kGridSize - 1) continue;
+      if (t == null) continue;
+      final row = i ~/ ba.gridSize;
+      final col = i % ba.gridSize;
+      for (final n in [
+        if (col + 1 < ba.gridSize) i + 1,
+        if (row + 1 < ba.gridSize) i + ba.gridSize,
+        if (row + 1 < ba.gridSize && col + 1 < ba.gridSize) i + ba.gridSize + 1,
+        if (row + 1 < ba.gridSize && col - 1 >= 0) i + ba.gridSize - 1,
+      ]) {
         final u = ba.cells[n];
-        if (u != null && u.tier == t.tier) { from = i; to = n; break; }
+        if (u != null && u.tier == t.tier) {
+          from = i;
+          to = n;
+          break;
+        }
       }
     }
     await a.playChain([from!, to!]);

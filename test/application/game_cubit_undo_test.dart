@@ -56,7 +56,7 @@ BoardState replay(String date, Difficulty difficulty, List<MoveEvent> log) {
   return board;
 }
 
-/// Finds an oriented, orthogonally-adjacent 2-cell chain. When [avoid] is
+/// Finds an oriented, 8-directionally adjacent 2-cell chain. When [avoid] is
 /// supplied, skips that undirected pair so undo tests can replay differently.
 List<int> _findChain(BoardState b, {List<int>? avoid}) {
   for (var i = 0; i < b.cells.length; i++) {
@@ -65,6 +65,8 @@ List<int> _findChain(BoardState b, {List<int>? avoid}) {
     for (final neighbor in [
       if (col + 1 < b.gridSize) i + 1,
       if (row + 1 < b.gridSize) i + b.gridSize,
+      if (row + 1 < b.gridSize && col + 1 < b.gridSize) i + b.gridSize + 1,
+      if (row + 1 < b.gridSize && col - 1 >= 0) i + b.gridSize - 1,
     ]) {
       if (avoid != null &&
           avoid.length == 2 &&

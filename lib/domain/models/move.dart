@@ -51,9 +51,10 @@ class MergeEvent extends MoveEvent {
   String toString() => 'MergeEvent(from: $from, to: $to)';
 }
 
-/// An accepted Connect-Merge collapse: an ordered run of orthogonally-adjacent
-/// same-tier cells, collapsed onto the LAST cell (the release endpoint). A
-/// 2-element path is exactly the legacy pairwise merge. This is the authoritative
+/// An accepted Connect-Merge collapse: an ordered run of 8-directionally
+/// adjacent cells whose tiers stay equal or rise exactly one step, collapsed
+/// onto the LAST cell (the release endpoint). Its result is the largest power
+/// of two no greater than the path's total value. This is the authoritative
 /// replay input; the server re-validates the path geometry against the seeded
 /// board, so a forged path is rejected.
 class ChainEvent extends MoveEvent {

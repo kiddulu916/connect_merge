@@ -1,6 +1,6 @@
 {
   "_readme": "Regenerate ONLY for an intentional rule change, in the same commit as the kLeaderboardSeason bump in both Dart and TypeScript. Use UPDATE_GOLDENS_FORCE=1 only for a policy-only regeneration.",
-  "season": 1,
+  "season": 2,
   "baseDate": "2026-07-14",
   "vectors": [
     {
@@ -11,21 +11,28 @@
         {
           "type": "chain",
           "path": [
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             4,
-            3
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
             6,
-            7
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
-            12,
+            11,
             20
           ]
         },
@@ -33,42 +40,35 @@
           "type": "chain",
           "path": [
             12,
-            20
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            19
           ]
         },
         {
           "type": "chain",
           "path": [
             13,
-            21
+            20
           ]
         },
         {
           "type": "chain",
           "path": [
             15,
-            23
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
             22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
           ]
         },
         {
@@ -81,36 +81,36 @@
         {
           "type": "chain",
           "path": [
-            11,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            22
+            9,
+            16
           ]
         },
         {
           "type": "chain",
           "path": [
             16,
-            17
+            24
           ]
         },
         {
           "type": "chain",
           "path": [
-            24,
-            32
+            17,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            19
           ]
         },
         {
@@ -118,55 +118,6 @@
           "path": [
             9,
             1
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            1
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            26,
-            34
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            14,
-            22
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            27,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
           ]
         },
         {
@@ -186,6 +137,20 @@
         {
           "type": "chain",
           "path": [
+            3,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             19,
             11
           ]
@@ -193,36 +158,71 @@
         {
           "type": "chain",
           "path": [
-            20,
-            21
+            4,
+            5
           ]
         },
         {
           "type": "chain",
           "path": [
-            17,
-            18
+            21,
+            28
           ]
         },
         {
           "type": "chain",
           "path": [
             22,
-            14
+            29
           ]
         },
         {
           "type": "chain",
           "path": [
-            24,
+            3,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
             32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            26,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            29
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 1040,
-        "highestTier": 7,
+        "score": 536,
+        "highestTier": 6,
         "status": "outOfMoves"
       }
     },
@@ -249,140 +249,42 @@
           "type": "chain",
           "path": [
             4,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            12,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            14
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            22,
-            29
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            24,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            18,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            27,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            2
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            9
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
             5,
-            12
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            2
           ]
         },
         {
           "type": "chain",
           "path": [
             10,
-            3
+            2
           ]
         },
         {
           "type": "chain",
           "path": [
-            11,
-            12
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            14
           ]
         },
         {
@@ -395,6 +297,97 @@
         {
           "type": "chain",
           "path": [
+            9,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             14,
             15
           ]
@@ -402,50 +395,57 @@
         {
           "type": "chain",
           "path": [
-            12,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            10
+            15,
+            9
           ]
         },
         {
           "type": "chain",
           "path": [
             9,
-            10
+            15
           ]
         },
         {
           "type": "chain",
           "path": [
-            25,
-            26
+            7,
+            15
           ]
         },
         {
           "type": "chain",
           "path": [
-            26,
-            19
+            22,
+            30
           ]
         },
         {
           "type": "chain",
           "path": [
-            30,
-            29
+            24,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            1
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 1032,
-        "highestTier": 7,
+        "score": 612,
+        "highestTier": 6,
         "status": "outOfMoves"
       }
     },
@@ -465,251 +465,42 @@
           "type": "chain",
           "path": [
             3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            7,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            7,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            11,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            18,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            13,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            7,
-            6
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            18,
-            24
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            7,
-            6
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            22,
-            23
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            22,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            26,
-            32
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
             4,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            27,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            17,
-            23
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            17,
-            23
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            26,
-            32
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            29,
-            35
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            30,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            33,
-            34
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            34,
-            35
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            34,
-            35
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
             9
           ]
-        }
-      ],
-      "expected": {
-        "valid": true,
-        "score": 792,
-        "highestTier": 6,
-        "status": "outOfMoves"
-      }
-    },
-    {
-      "name": "standard-legendary",
-      "date": "2026-07-14",
-      "difficulty": "legendary",
-      "moveLog": [
+        },
         {
           "type": "chain",
           "path": [
-            1,
-            7
+            4,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
             2,
-            8
+            9
           ]
         },
         {
           "type": "chain",
           "path": [
-            2,
-            8
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            6,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            7
+            7,
+            13
           ]
         },
         {
@@ -722,15 +513,8 @@
         {
           "type": "chain",
           "path": [
-            5,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            9,
-            10
+            7,
+            13
           ]
         },
         {
@@ -738,132 +522,20 @@
           "path": [
             11,
             17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            12,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            28,
-            34
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            2
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            29,
-            23
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            11,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            6,
-            12
           ]
         },
         {
           "type": "chain",
           "path": [
             13,
-            12
+            6
           ]
         },
         {
           "type": "chain",
           "path": [
-            5,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            11,
-            17
+            14,
+            19
           ]
         },
         {
@@ -876,43 +548,43 @@
         {
           "type": "chain",
           "path": [
-            7,
-            1
+            4,
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
-            11,
-            17
-          ]
-        }
-      ],
-      "expected": {
-        "valid": true,
-        "score": 1008,
-        "highestTier": 7,
-        "status": "outOfMoves"
-      }
-    },
-    {
-      "name": "challenge-budgetCut",
-      "date": "2026-07-16",
-      "difficulty": "challenge",
-      "rule": "budgetCut",
-      "moveLog": [
-        {
-          "type": "chain",
-          "path": [
-            32,
-            33
+            6,
+            7
           ]
         },
         {
           "type": "chain",
           "path": [
-            35,
-            29
+            14,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            19
           ]
         },
         {
@@ -925,57 +597,147 @@
         {
           "type": "chain",
           "path": [
-            15,
-            21
+            10,
+            17
           ]
         },
         {
           "type": "chain",
           "path": [
-            4,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            6,
+            7,
             12
           ]
         },
         {
           "type": "chain",
           "path": [
-            25,
-            31
+            20,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            7
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 512,
+        "highestTier": 5,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "standard-legendary",
+      "date": "2026-07-14",
+      "difficulty": "legendary",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            1,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
             8,
-            14
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
-            32,
-            31
+            9,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
           ]
         },
         {
@@ -988,29 +750,267 @@
         {
           "type": "chain",
           "path": [
-            7,
-            8
+            3,
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
-            5,
-            4
+            12,
+            19
           ]
         },
         {
           "type": "chain",
           "path": [
             4,
-            3
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            5
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            28
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            31
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 296,
-        "highestTier": 5,
+        "score": 448,
+        "highestTier": 6,
+        "status": "outOfMoves"
+      }
+    },
+    {
+      "name": "challenge-budgetCut",
+      "date": "2026-07-16",
+      "difficulty": "challenge",
+      "rule": "budgetCut",
+      "moveLog": [
+        {
+          "type": "chain",
+          "path": [
+            25,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            32,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            3
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            25
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            35
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            29,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            6,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            23
+          ]
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "score": 164,
+        "highestTier": 4,
         "status": "outOfMoves"
       }
     },
@@ -1024,167 +1024,95 @@
           "type": "chain",
           "path": [
             0,
-            1,
-            7
+            7,
+            1
           ]
         },
         {
           "type": "chain",
           "path": [
-            9,
             3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            11,
-            17,
-            23
+            4,
+            11
           ]
         },
         {
           "type": "chain",
           "path": [
             12,
-            13,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            15,
-            21,
-            27
+            19,
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
             9,
+            15,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
             8,
-            7
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            6,
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
             20,
+            27,
+            34
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            21,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            17,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
             19,
-            18
+            26
           ]
         },
         {
           "type": "chain",
           "path": [
-            9,
-            15,
-            16
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            11,
-            10,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            15,
-            21,
-            22
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            6,
-            12,
-            18
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            31,
-            25,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            24,
-            30,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            15,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            30,
-            24,
-            18
+            27,
+            26,
+            25
           ]
         },
         {
           "type": "chain",
           "path": [
             8,
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            0,
-            1,
-            2
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            1,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
             9,
-            8,
-            2
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            15,
-            9,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            9,
-            10,
             16
           ]
         },
@@ -1192,32 +1120,152 @@
           "type": "chain",
           "path": [
             5,
-            4,
+            10,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            16,
             10
           ]
         },
         {
           "type": "chain",
           "path": [
+            2,
+            1,
+            0
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
             10,
-            11,
             17
           ]
         },
         {
           "type": "chain",
           "path": [
-            10,
+            25,
+            19,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            20,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            35,
+            28,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            25,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            30,
+            31,
+            32
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            32,
+            27,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            2,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            8,
+            7
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            21,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            18,
+            24,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            31,
+            26,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
             11,
-            5
+            4
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            8,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            25,
+            32
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 2900,
-        "highestTier": 8,
-        "status": "deadlocked"
+        "score": 3004,
+        "highestTier": 7,
+        "status": "outOfMoves"
       }
     },
     {
@@ -1229,8 +1277,57 @@
         {
           "type": "chain",
           "path": [
+            7,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             8,
-            7
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            6
           ]
         },
         {
@@ -1243,22 +1340,71 @@
         {
           "type": "chain",
           "path": [
-            8,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            15,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
             19,
-            20
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            16
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            16
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            23
           ]
         },
         {
@@ -1271,176 +1417,78 @@
         {
           "type": "chain",
           "path": [
-            11,
-            17
+            23,
+            29
           ]
         },
         {
           "type": "chain",
           "path": [
-            1,
-            0
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            16
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            9
           ]
         },
         {
           "type": "chain",
           "path": [
             23,
-            17
+            28
           ]
         },
         {
           "type": "chain",
           "path": [
-            24,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            4,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            2
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            2
+            7,
+            1
           ]
         },
         {
           "type": "chain",
           "path": [
             26,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            34,
-            33
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            4,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            20
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            31,
             32
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            14,
-            20
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            15
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            0
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            24,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            31
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 1356,
-        "highestTier": 8,
+        "score": 560,
+        "highestTier": 6,
         "status": "outOfMoves"
       }
     },
@@ -1467,104 +1515,20 @@
         {
           "type": "chain",
           "path": [
-            8,
-            14
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            14,
-            15
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            15
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            15
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            17,
-            16
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            15
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            34,
-            35
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            27,
-            33
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            29,
-            23
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            14
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            29
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            26,
+            32,
             27
           ]
         },
         {
           "type": "chain",
           "path": [
+            22,
+            16
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             27,
             33
           ]
@@ -1572,15 +1536,71 @@
         {
           "type": "chain",
           "path": [
-            25,
+            19,
             24
           ]
         },
         {
           "type": "chain",
           "path": [
+            30,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            31,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             23,
-            29
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            29,
+            35
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            32,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            2
           ]
         },
         {
@@ -1593,36 +1613,85 @@
         {
           "type": "chain",
           "path": [
-            9,
+            13,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            34,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
             10
           ]
         },
         {
           "type": "chain",
           "path": [
-            10,
-            11
+            20,
+            25
           ]
         },
         {
           "type": "chain",
           "path": [
-            11,
+            34,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
             5
           ]
         },
         {
           "type": "chain",
           "path": [
-            14,
-            8
+            17,
+            22
           ]
         },
         {
           "type": "chain",
           "path": [
-            22,
-            28
+            7,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            29
           ]
         },
         {
@@ -1635,36 +1704,15 @@
         {
           "type": "chain",
           "path": [
-            25,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            18,
+            12,
             19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            31
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 1348,
-        "highestTier": 7,
+        "score": 808,
+        "highestTier": 6,
         "status": "outOfMoves"
       }
     },
@@ -1678,7 +1726,7 @@
           "type": "chain",
           "path": [
             2,
-            3
+            7
           ]
         },
         {
@@ -1691,85 +1739,22 @@
         {
           "type": "chain",
           "path": [
-            9,
-            15
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            20
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            31,
-            32
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            24,
-            30
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            26,
-            20
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            13,
+            7,
             12
           ]
         },
         {
           "type": "chain",
           "path": [
-            0,
-            1
+            9,
+            3
           ]
         },
         {
           "type": "chain",
           "path": [
-            7,
-            1
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            1
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            30,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            27
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            28,
-            27
+            15,
+            20
           ]
         },
         {
@@ -1783,7 +1768,7 @@
           "type": "chain",
           "path": [
             24,
-            30
+            31
           ]
         },
         {
@@ -1796,57 +1781,50 @@
         {
           "type": "chain",
           "path": [
-            11,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            7,
-            6
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
+            30,
             31
           ]
         },
         {
           "type": "chain",
           "path": [
-            28,
-            34
+            3,
+            9
           ]
         },
         {
           "type": "chain",
           "path": [
-            19,
-            25
+            26,
+            27
           ]
         },
         {
           "type": "chain",
           "path": [
-            17,
-            11
+            27,
+            20
           ]
         },
         {
           "type": "chain",
           "path": [
-            25,
-            24
+            7,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            12,
+            19
           ]
         },
         {
@@ -1859,57 +1837,143 @@
         {
           "type": "chain",
           "path": [
-            15,
-            21
+            9,
+            15
           ]
         },
         {
           "type": "chain",
           "path": [
-            27,
-            21
+            24,
+            19
           ]
         },
         {
           "type": "chain",
           "path": [
-            26,
-            25
+            25,
+            31
           ]
         },
         {
           "type": "chain",
           "path": [
-            13,
-            7
+            30,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            33,
+            34
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            19,
+            24
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            14,
+            15
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 1164,
-        "highestTier": 7,
+        "score": 572,
+        "highestTier": 6,
         "status": "outOfMoves"
       }
     },
     {
       "name": "challenge-comboRush",
-      "date": "2026-07-29",
+      "date": "2026-07-15",
       "difficulty": "challenge",
       "rule": "comboRush",
       "moveLog": [
         {
           "type": "chain",
           "path": [
-            30,
-            31,
-            32
+            2,
+            7,
+            0
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            26,
+            27
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            29,
+            22,
+            27
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 32,
+        "score": 116,
         "highestTier": 3,
         "status": "playing"
       }
@@ -1922,21 +1986,28 @@
         {
           "type": "chain",
           "path": [
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             4,
-            3
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
             6,
-            7
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
-            12,
+            11,
             20
           ]
         },
@@ -1944,42 +2015,35 @@
           "type": "chain",
           "path": [
             12,
-            20
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            19
           ]
         },
         {
           "type": "chain",
           "path": [
             13,
-            21
+            20
           ]
         },
         {
           "type": "chain",
           "path": [
             15,
-            23
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
             22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
           ]
         },
         {
@@ -1992,36 +2056,36 @@
         {
           "type": "chain",
           "path": [
-            11,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            22
+            9,
+            16
           ]
         },
         {
           "type": "chain",
           "path": [
             16,
-            17
+            24
           ]
         },
         {
           "type": "chain",
           "path": [
-            24,
-            32
+            17,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            19
           ]
         },
         {
@@ -2029,55 +2093,6 @@
           "path": [
             9,
             1
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            1
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            26,
-            34
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            14,
-            22
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            27,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
           ]
         },
         {
@@ -2097,6 +2112,20 @@
         {
           "type": "chain",
           "path": [
+            3,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             19,
             11
           ]
@@ -2104,52 +2133,63 @@
         {
           "type": "chain",
           "path": [
-            20,
-            21
+            4,
+            5
           ]
         },
         {
           "type": "chain",
           "path": [
-            17,
-            18
+            21,
+            28
           ]
         },
         {
           "type": "chain",
           "path": [
             22,
-            14
+            29
           ]
         },
         {
           "type": "chain",
           "path": [
-            24,
+            3,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
             32
           ]
         },
         {
-          "type": "continue"
-        },
-        {
           "type": "chain",
           "path": [
-            28,
-            20
+            16,
+            17
           ]
         },
         {
           "type": "chain",
           "path": [
-            13,
-            14
+            26,
+            33
           ]
         },
         {
           "type": "chain",
           "path": [
-            30,
+            22,
             29
           ]
         },
@@ -2159,32 +2199,15 @@
         {
           "type": "chain",
           "path": [
-            35,
-            36
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            37,
-            36
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            39,
-            31
-          ]
-        },
-        {
-          "type": "continue"
-        },
-        {
-          "type": "chain",
-          "path": [
-            41,
+            24,
             33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            12
           ]
         },
         {
@@ -2195,17 +2218,58 @@
           ]
         },
         {
+          "type": "continue"
+        },
+        {
           "type": "chain",
           "path": [
             7,
             6
           ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            25
+          ]
+        },
+        {
+          "type": "continue"
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            36
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            19
+          ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 1564,
-        "highestTier": 8,
+        "score": 1124,
+        "highestTier": 7,
         "status": "outOfMoves"
       }
     },
@@ -2232,140 +2296,42 @@
           "type": "chain",
           "path": [
             4,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            12,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            14
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            22,
-            29
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            24,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            18,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            27,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            2
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            9
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
             5,
-            12
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            2
           ]
         },
         {
           "type": "chain",
           "path": [
             10,
-            3
+            2
           ]
         },
         {
           "type": "chain",
           "path": [
-            11,
-            12
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            14
           ]
         },
         {
@@ -2378,6 +2344,97 @@
         {
           "type": "chain",
           "path": [
+            9,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             14,
             15
           ]
@@ -2385,50 +2442,57 @@
         {
           "type": "chain",
           "path": [
-            12,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            10
+            15,
+            9
           ]
         },
         {
           "type": "chain",
           "path": [
             9,
-            10
+            15
           ]
         },
         {
           "type": "chain",
           "path": [
-            25,
-            26
+            7,
+            15
           ]
         },
         {
           "type": "chain",
           "path": [
-            26,
-            19
+            22,
+            30
           ]
         },
         {
           "type": "chain",
           "path": [
-            30,
-            29
+            24,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            1
           ]
         }
       ],
       "expected": {
         "valid": true,
-        "score": 1032,
-        "highestTier": 7,
+        "score": 612,
+        "highestTier": 6,
         "status": "outOfMoves"
       }
     }
@@ -2442,21 +2506,28 @@
         {
           "type": "chain",
           "path": [
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             4,
-            3
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
             6,
-            7
+            13
           ]
         },
         {
           "type": "chain",
           "path": [
-            12,
+            11,
             20
           ]
         },
@@ -2464,42 +2535,35 @@
           "type": "chain",
           "path": [
             12,
-            20
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            10,
+            19
           ]
         },
         {
           "type": "chain",
           "path": [
             13,
-            21
+            20
           ]
         },
         {
           "type": "chain",
           "path": [
             15,
-            23
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
             22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            3
           ]
         },
         {
@@ -2512,36 +2576,36 @@
         {
           "type": "chain",
           "path": [
-            11,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            4
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            23,
-            22
+            9,
+            16
           ]
         },
         {
           "type": "chain",
           "path": [
             16,
-            17
+            24
           ]
         },
         {
           "type": "chain",
           "path": [
-            24,
-            32
+            17,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            22
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            19
           ]
         },
         {
@@ -2549,55 +2613,6 @@
           "path": [
             9,
             1
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            1
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            26,
-            34
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            14,
-            22
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            27,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
           ]
         },
         {
@@ -2617,6 +2632,20 @@
         {
           "type": "chain",
           "path": [
+            3,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             19,
             11
           ]
@@ -2624,52 +2653,63 @@
         {
           "type": "chain",
           "path": [
-            20,
-            21
+            4,
+            5
           ]
         },
         {
           "type": "chain",
           "path": [
-            17,
-            18
+            21,
+            28
           ]
         },
         {
           "type": "chain",
           "path": [
             22,
-            14
+            29
           ]
         },
         {
           "type": "chain",
           "path": [
-            24,
+            3,
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
             32
           ]
         },
         {
-          "type": "continue"
-        },
-        {
           "type": "chain",
           "path": [
-            28,
-            20
+            16,
+            17
           ]
         },
         {
           "type": "chain",
           "path": [
-            13,
-            14
+            26,
+            33
           ]
         },
         {
           "type": "chain",
           "path": [
-            30,
+            22,
             29
           ]
         },
@@ -2679,32 +2719,15 @@
         {
           "type": "chain",
           "path": [
-            35,
-            36
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            37,
-            36
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            39,
-            31
-          ]
-        },
-        {
-          "type": "continue"
-        },
-        {
-          "type": "chain",
-          "path": [
-            41,
+            24,
             33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            12
           ]
         },
         {
@@ -2715,10 +2738,51 @@
           ]
         },
         {
+          "type": "continue"
+        },
+        {
           "type": "chain",
           "path": [
             7,
             6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            25
+          ]
+        },
+        {
+          "type": "continue"
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            31
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            36
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            19
           ]
         },
         {
@@ -2752,140 +2816,42 @@
           "type": "chain",
           "path": [
             4,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            12,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            13
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            10,
-            11
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            14
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            16,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            22,
-            29
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            24,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            18,
-            17
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            27,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            2
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            9
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
             5,
-            12
+            11
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            2
           ]
         },
         {
           "type": "chain",
           "path": [
             10,
-            3
+            2
           ]
         },
         {
           "type": "chain",
           "path": [
-            11,
-            12
+            12,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            14
           ]
         },
         {
@@ -2898,6 +2864,97 @@
         {
           "type": "chain",
           "path": [
+            9,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            11,
+            17
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            29
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            7,
+            14
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            2
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            2,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             14,
             15
           ]
@@ -2905,50 +2962,57 @@
         {
           "type": "chain",
           "path": [
-            12,
-            19
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            3,
-            10
+            15,
+            9
           ]
         },
         {
           "type": "chain",
           "path": [
             9,
-            10
+            15
           ]
         },
         {
           "type": "chain",
           "path": [
-            25,
-            26
+            7,
+            15
           ]
         },
         {
           "type": "chain",
           "path": [
-            26,
-            19
+            22,
+            30
           ]
         },
         {
           "type": "chain",
           "path": [
-            30,
+            24,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            8
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            23,
             29
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            34,
-            27
           ]
         }
       ],
@@ -2965,6 +3029,20 @@
         {
           "type": "chain",
           "path": [
+            25,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            28,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             32,
             33
           ]
@@ -2972,106 +3050,92 @@
         {
           "type": "chain",
           "path": [
-            35,
-            29
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            15,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            4,
+            9,
             3
           ]
         },
         {
           "type": "chain",
           "path": [
-            1,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            7
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            6,
-            12
+            18,
+            25
           ]
         },
         {
           "type": "chain",
           "path": [
             25,
-            31
+            30
           ]
         },
         {
           "type": "chain",
           "path": [
-            8,
-            14
+            3,
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
-            32,
-            31
+            15,
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
-            2,
-            3
+            17,
+            10
           ]
         },
         {
           "type": "chain",
           "path": [
-            7,
-            8
+            28,
+            35
           ]
         },
         {
           "type": "chain",
           "path": [
-            5,
-            4
+            29,
+            23
           ]
         },
         {
           "type": "chain",
           "path": [
-            4,
-            3
+            1,
+            6
           ]
         },
         {
           "type": "chain",
           "path": [
-            19,
-            25
+            6,
+            13
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            27,
+            33
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            22,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            13,
+            18
           ]
         }
       ],
@@ -3088,8 +3152,57 @@
         {
           "type": "chain",
           "path": [
+            7,
+            12
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
             8,
-            7
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            8,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            15
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            20
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            1,
+            6
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            4,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            6
           ]
         },
         {
@@ -3102,22 +3215,71 @@
         {
           "type": "chain",
           "path": [
-            8,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            15,
-            9
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
             19,
-            20
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            3,
+            9
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            20,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            0,
+            1
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            9,
+            16
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            17,
+            16
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            21
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            23
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            21,
+            26
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            23
           ]
         },
         {
@@ -3130,176 +3292,78 @@
         {
           "type": "chain",
           "path": [
-            11,
-            17
+            23,
+            29
           ]
         },
         {
           "type": "chain",
           "path": [
-            1,
-            0
+            3,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            5,
+            10
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            24,
+            19
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            15,
+            16
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            25,
+            30
+          ]
+        },
+        {
+          "type": "chain",
+          "path": [
+            16,
+            9
           ]
         },
         {
           "type": "chain",
           "path": [
             23,
-            17
+            28
           ]
         },
         {
           "type": "chain",
           "path": [
-            24,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            4,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            26
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            2
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            8,
-            2
+            7,
+            1
           ]
         },
         {
           "type": "chain",
           "path": [
             26,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            34,
-            33
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            4,
-            5
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            20
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            31,
             32
           ]
         },
         {
           "type": "chain",
           "path": [
-            14,
-            20
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            20,
-            21
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            19,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            21,
-            15
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            2,
-            3
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            1,
-            0
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            24,
-            25
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            25,
-            31
-          ]
-        },
-        {
-          "type": "chain",
-          "path": [
-            29,
-            35
+            13,
+            19
           ]
         }
       ],
@@ -3317,8 +3381,8 @@
           "type": "chain",
           "path": [
             0,
-            1,
-            7
+            7,
+            1
           ]
         },
         {
@@ -3341,14 +3405,14 @@
         {
           "type": "chain",
           "path": [
-            4,
-            3
+            3,
+            10
           ]
         },
         {
           "type": "merge",
-          "from": 6,
-          "to": 7
+          "from": 4,
+          "to": 13
         }
       ],
       "expected": {

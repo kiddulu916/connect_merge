@@ -3,6 +3,7 @@ import 'package:connect_merge/domain/constants.dart';
 import 'package:connect_merge/domain/engine/game_engine.dart';
 import 'package:connect_merge/domain/engine/prng.dart';
 import 'package:connect_merge/domain/models/board_state.dart';
+import 'package:connect_merge/domain/models/difficulty.dart';
 import 'package:connect_merge/domain/models/game_status.dart';
 import 'package:connect_merge/domain/models/tile.dart';
 
@@ -42,25 +43,6 @@ void main() {
   });
 
   test(
-      'canMerge: same tier or ascend-by-1 into a higher-tier destination, below max tier',
-      () {
-    final b = boardWith({
-      0: const Tile(id: 1, tier: 3),
-      1: const Tile(id: 2, tier: 3),
-      2: const Tile(id: 3, tier: 4),
-      3: const Tile(id: 4, tier: kMaxTier),
-      4: const Tile(id: 5, tier: kMaxTier),
-      5: const Tile(id: 6, tier: 6),
-    });
-    expect(GameEngine.canMerge(b, 0, 1), isTrue); // same tier
-    expect(GameEngine.canMerge(b, 0, 2), isTrue); // ascend by 1 (3 -> 4)
-    expect(GameEngine.canMerge(b, 2, 0), isFalse); // descend (4 -> 3)
-    expect(GameEngine.canMerge(b, 0, 5), isFalse); // skips a tier (3 -> 6)
-    expect(GameEngine.canMerge(b, 0, 0), isFalse); // same cell
-    expect(GameEngine.canMerge(b, 3, 4), isFalse); // at max tier
-  });
-
-  test(
       'applyDrop: places dropped tier at a deterministic empty cell, advances dropIndex',
       () {
     final b = boardWith({0: const Tile(id: 1, tier: 1)});
@@ -94,13 +76,13 @@ void main() {
       final board = smallBoard([
         const Tile(id: 1, tier: 1),
         const Tile(id: 2, tier: 3),
-        const Tile(id: 3, tier: 3),
+        const Tile(id: 3, tier: 5),
         null,
       ]);
       final result = GameEngine.refill(
         board,
         targetFill: 3,
-        tierAt: (_) => 5,
+        tierAt: (_) => 7,
         landing: Prng(1),
       );
       expect(result.filledCount, 4);
@@ -171,8 +153,8 @@ void main() {
     });
   });
 
-  test('hasMergeAvailable: needs ADJACENT equal tiers, not just any pair', () {
-    // Two tier-1 tiles exist but are NOT orthogonally adjacent => deadlock.
+  test('hasMergeAvailable: needs 8-directionally adjacent equal tiers', () {
+    // Two tier-1 tiles exist but are not neighboring cells => deadlock.
     final apart = boardWith({
       0: const Tile(id: 1, tier: 1),
       2: const Tile(id: 2, tier: 1), // same row, gap at index 1
@@ -181,10 +163,10 @@ void main() {
     expect(GameEngine.hasMergeAvailable(apart), isFalse);
     expect(GameEngine.evaluateStatus(apart).status, GameStatus.deadlocked);
 
-    // Make them adjacent => a merge is available again.
+    // Make them diagonal neighbors => a merge is available again.
     final together = boardWith({
       0: const Tile(id: 1, tier: 1),
-      1: const Tile(id: 2, tier: 1),
+      6: const Tile(id: 2, tier: 1),
     });
     expect(GameEngine.hasMergeAvailable(together), isTrue);
     expect(GameEngine.evaluateStatus(together).status, GameStatus.playing);
@@ -210,13 +192,12 @@ void main() {
     expect(GameEngine.evaluateStatus(b).status, GameStatus.deadlocked);
   });
 
-  test('hasMergeAvailable: an ascend pair sitting at the cap is NOT available',
-      () {
+  test('hasMergeAvailable: a pair above the 2048 milestone is available', () {
     final b = boardWith({
       0: const Tile(id: 1, tier: kMaxTier - 1),
       1: const Tile(id: 2, tier: kMaxTier),
     });
-    expect(GameEngine.hasMergeAvailable(b), isFalse);
+    expect(GameEngine.hasMergeAvailable(b), isTrue);
   });
 
   group('hasChainOfLength (Long Chains Only deadlock fix)', () {
@@ -256,23 +237,23 @@ void main() {
       expect(GameEngine.isValidChain(b, [0, 1, 2]), isTrue);
     });
 
-    test('a real 3-chain (L-shape) satisfies length 3', () {
+    test('a diagonal-only 3-chain satisfies length 3', () {
       final b = boardWith({
         0: const Tile(id: 1, tier: 2),
-        1: const Tile(id: 2, tier: 2),
-        6: const Tile(id: 3, tier: 2), // adjacent to index 1 (row1,col1)
+        6: const Tile(id: 2, tier: 2),
+        12: const Tile(id: 3, tier: 2),
       });
       expect(GameEngine.hasChainOfLength(b, 3), isTrue);
-      expect(GameEngine.isValidChain(b, [0, 1, 6]), isTrue);
+      expect(GameEngine.isValidChain(b, [0, 6, 12]), isTrue);
     });
 
-    test('a 3-in-a-row whose peak sits at the tier cap does NOT count', () {
+    test('a 3-in-a-row whose peak exceeds the milestone still counts', () {
       final b = boardWith({
         0: const Tile(id: 1, tier: kMaxTier - 2),
         1: const Tile(id: 2, tier: kMaxTier - 1),
         2: const Tile(id: 3, tier: kMaxTier),
       });
-      expect(GameEngine.hasChainOfLength(b, 3), isFalse);
+      expect(GameEngine.hasChainOfLength(b, 3), isTrue);
     });
 
     test('does not falsely find a chain across a repeated/non-adjacent path',
@@ -310,23 +291,20 @@ void main() {
       expect(GameEngine.hasChainOfLength(result, 3), isTrue);
     });
 
-    test('stops at a full board even if minChainLength is never satisfied',
-        () {
-      // Starting tile is tier 1; every subsequent drop sits at the tier cap,
-      // far enough above tier 1 (and equal-to-itself-but-capped) that no
-      // chain of any length ever becomes legal. Confirms refill fills the
-      // whole board and terminates rather than looping forever chasing an
-      // unreachable chain.
+    test('stops at a full board even if minChainLength is never satisfied', () {
+      // A 2x2 board cannot contain a five-tile chain. Confirms refill fills
+      // the whole board and terminates rather than chasing an unreachable
+      // chain length.
       final board = smallBoard([const Tile(id: 1, tier: 1), null, null, null]);
       final result = GameEngine.refill(
         board,
         targetFill: 1, // already met by the single starting tile
         tierAt: (_) => kMaxTier,
         landing: Prng(1),
-        minChainLength: 3,
+        minChainLength: 5,
       );
       expect(result.emptyIndices, isEmpty);
-      expect(GameEngine.hasChainOfLength(result, 3), isFalse);
+      expect(GameEngine.hasChainOfLength(result, 5), isFalse);
     });
   });
 
@@ -345,8 +323,7 @@ void main() {
       0: const Tile(id: 1, tier: 1),
       1: const Tile(id: 2, tier: 1),
     });
-    expect(
-        GameEngine.evaluateStatus(onlyTwoChain, minChainLength: 3).status,
+    expect(GameEngine.evaluateStatus(onlyTwoChain, minChainLength: 3).status,
         GameStatus.deadlocked);
     // Same board is still "playing" under the default (2) baseline.
     expect(GameEngine.evaluateStatus(onlyTwoChain).status, GameStatus.playing);
@@ -356,8 +333,7 @@ void main() {
       1: const Tile(id: 2, tier: 1),
       2: const Tile(id: 3, tier: 2),
     });
-    expect(
-        GameEngine.evaluateStatus(realThreeChain, minChainLength: 3).status,
+    expect(GameEngine.evaluateStatus(realThreeChain, minChainLength: 3).status,
         GameStatus.playing);
   });
 
@@ -395,13 +371,13 @@ void main() {
   });
 
   group('Connect-Merge path validation', () {
-    test('areOrthogonallyAdjacent: true for N/S/E/W, false for diagonal/wrap',
-        () {
-      expect(GameEngine.areOrthogonallyAdjacent(0, 1, 5), isTrue); // E
-      expect(GameEngine.areOrthogonallyAdjacent(0, kGridSize, 5), isTrue); // S
-      expect(GameEngine.areOrthogonallyAdjacent(0, kGridSize + 1, 5),
-          isFalse); // diag
-      expect(GameEngine.areOrthogonallyAdjacent(4, 5, 5), isFalse); // row wrap
+    test('areAdjacent: true for all eight neighbors, false for wrap/gaps', () {
+      expect(GameEngine.areAdjacent(0, 1, 5), isTrue); // E
+      expect(GameEngine.areAdjacent(0, kGridSize, 5), isTrue); // S
+      expect(GameEngine.areAdjacent(0, kGridSize + 1, 5), isTrue); // SE
+      expect(GameEngine.areAdjacent(1, kGridSize, 5), isTrue); // SW
+      expect(GameEngine.areAdjacent(4, 5, 5), isFalse); // row wrap
+      expect(GameEngine.areAdjacent(0, 2, 5), isFalse); // gap
     });
 
     test('isValidChain: accepts a connected same-tier run', () {
@@ -421,7 +397,7 @@ void main() {
         6: const Tile(id: 4, tier: 2),
       });
       expect(GameEngine.isValidChain(b, [0]), isFalse); // too short
-      expect(GameEngine.isValidChain(b, [0, 6]), isFalse); // not adjacent
+      expect(GameEngine.isValidChain(b, [0, 2]), isFalse); // not adjacent
       expect(GameEngine.isValidChain(b, [0, 1, 0]), isFalse); // repeat
       final empty = boardWith({0: const Tile(id: 1, tier: 2)});
       expect(GameEngine.isValidChain(empty, [0, 1]), isFalse); // cell 1 empty
@@ -470,44 +446,82 @@ void main() {
       expect(GameEngine.isValidChain(b, [0, 1]), isFalse);
     });
 
-    test('isValidChain: rejects a chain at max tier', () {
+    test('isValidChain: diagonal steps can cross two walled flanking cells',
+        () {
+      final cells = List<Tile?>.filled(kCellCount, null);
+      cells[0] = const Tile(id: 1, tier: 2);
+      cells[6] = const Tile(id: 2, tier: 2);
+      final b = BoardState(
+        cells: cells,
+        movesRemaining: 30,
+        score: 0,
+        nextTileId: 3,
+        dropIndex: 0,
+        adContinuesUsed: 0,
+        movesMade: 0,
+        status: GameStatus.playing,
+        walls: const {1, 5},
+      );
+      expect(GameEngine.isValidChain(b, [0, 6]), isTrue);
+    });
+
+    test('isValidChain: accepts a chain above the 2048 milestone', () {
       final b = boardWith({
         0: const Tile(id: 1, tier: kMaxTier),
         1: const Tile(id: 2, tier: kMaxTier),
       });
-      expect(GameEngine.isValidChain(b, [0, 1]), isFalse);
+      expect(GameEngine.isValidChain(b, [0, 1]), isTrue);
     });
 
-    test('isValidChain: rejects an ascend chain whose peak sits at max tier',
+    test('isValidChain: accepts an ascend chain whose peak exceeds milestone',
         () {
       final b = boardWith({
         0: const Tile(id: 1, tier: kMaxTier - 1),
         1: const Tile(id: 2, tier: kMaxTier),
       });
-      expect(GameEngine.isValidChain(b, [0, 1]), isFalse);
+      expect(GameEngine.isValidChain(b, [0, 1]), isTrue);
     });
   });
 
-  group('Connect-Merge scoring', () {
-    test('comboScore: 2-chain equals the legacy single-merge score', () {
-      // legacy merge of two tier-3 tiles scored 1 << 4 = 16
-      expect(GameEngine.comboScore(3, 2), 1 << 4);
+  group('sum-based merged tier', () {
+    test('exact powers of two stay exact and lossy sums round down', () {
+      expect(GameEngine.mergedTierFromSum(2 + 2), 2);
+      expect(GameEngine.mergedTierFromSum(2 + 2 + 2 + 2), 3);
+      expect(GameEngine.mergedTierFromSum(4 + 4 + 4 + 4), 4);
+      expect(GameEngine.mergedTierFromSum(2 + 4), 2);
     });
 
-    test('comboScore: longer chains apply the superlinear multiplier', () {
-      // tier 2 -> result value 8; multipliers 1,2,4,7,11
-      expect(GameEngine.comboScore(2, 2), 8);
-      expect(GameEngine.comboScore(2, 3), 16);
-      expect(GameEngine.comboScore(2, 4), 32);
-      expect(GameEngine.comboScore(2, 5), 56);
-      expect(GameEngine.comboScore(2, 6), 88);
+    test('integer boundaries remain exact around the seeded-play ceiling', () {
+      final maxMoves = kMovesPerDay + kMaxAdContinuesPerDay * kAdMoveReward;
+      final maxRefillsPerMove =
+          Difficulty.easy.cellCount - wallCountFor(Difficulty.easy) - 1;
+      final maxDropValue = 1 << dropCap(maxMoves * maxRefillsPerMove - 1);
+      final maxInitialMass = Difficulty.easy.startingFill * (1 << dropCap(0));
+      final derivedMass =
+          maxMoves * maxRefillsPerMove * maxDropValue + maxInitialMass;
+
+      expect(derivedMass, kMaxPlayableValueMass);
+      expect(GameEngine.mergedTierFromSum(1 << 17), kMaxPlayableTier);
+      expect(GameEngine.mergedTierFromSum((1 << 18) - 1), 17);
+      expect(GameEngine.mergedTierFromSum(1 << 18), 18);
+      expect(kMaxPlayableValueMass, 152416);
+      expect(GameEngine.mergedTierFromSum(kMaxPlayableValueMass),
+          kMaxPlayableTier);
+    });
+
+    test('a real-bound sum can collapse to tier 17 without a legality cap', () {
+      final b = boardWith({
+        0: const Tile(id: 1, tier: 16),
+        1: const Tile(id: 2, tier: 16),
+      });
+      expect(GameEngine.isValidChain(b, [0, 1]), isTrue);
+      expect(
+          GameEngine.collapseChain(b, [0, 1]).cells[1]!.tier, kMaxPlayableTier);
     });
   });
 
   group('Connect-Merge collapse', () {
-    test(
-        'collapse: endpoint climbs +1 keeping its id; others empty; scores combo',
-        () {
+    test('collapse: endpoint uses floor-power-of-two sum and keeps its id', () {
       final b = boardWith({
         0: const Tile(id: 10, tier: 2),
         1: const Tile(id: 11, tier: 2),
@@ -518,7 +532,7 @@ void main() {
       expect(r.cells[1], isNull);
       expect(r.cells[6]!.tier, 3);
       expect(r.cells[6]!.id, 12); // endpoint id preserved for animation
-      expect(r.score, GameEngine.comboScore(2, 3)); // 16
+      expect(r.score, (1 << 3) * comboMultiplier(3)); // 16
       expect(r.movesRemaining, kMovesPerDay - 1);
       expect(r.movesMade, 1);
       expect(r.filledCount, 1); // only the endpoint remains
@@ -535,8 +549,9 @@ void main() {
         8: const Tile(id: 14, tier: 3), // ascend into tier 3 (endpoint)
       });
       final r = GameEngine.collapseChain(b, [0, 1, 6, 7, 8]);
-      expect(r.cells[8]!.tier, 4); // peak tier 3 + 1
-      final expectedBase = GameEngine.comboScore(3, 5);
+      // 2 + 2 + 4 + 4 + 8 = 20, which rounds down to value 16 (tier 4).
+      expect(r.cells[8]!.tier, 4);
+      final expectedBase = (1 << 4) * comboMultiplier(5);
       final expectedAscend = ascendBonus(2) + ascendBonus(3);
       expect(r.score, expectedBase + expectedAscend);
     });
@@ -547,7 +562,35 @@ void main() {
         1: const Tile(id: 11, tier: 2),
       });
       final r = GameEngine.collapseChain(b, [0, 1]);
-      expect(r.score, GameEngine.comboScore(2, 2));
+      expect(r.score, (1 << 3) * comboMultiplier(2));
+    });
+
+    test('collapse: a lossy 2+4 sum produces tier 2 and still scores', () {
+      final b = boardWith({
+        0: const Tile(id: 10, tier: 1),
+        1: const Tile(id: 11, tier: 2),
+      });
+      final r = GameEngine.collapseChain(b, [0, 1]);
+      expect(r.cells[1]!.tier, 2);
+      expect(r.score, (1 << 2) * comboMultiplier(2) + ascendBonus(2));
+    });
+
+    test('collapse: four twos pin default and Combo Rush score formulas', () {
+      final b = boardWith({
+        0: const Tile(id: 10, tier: 1),
+        1: const Tile(id: 11, tier: 1),
+        6: const Tile(id: 12, tier: 1),
+        7: const Tile(id: 13, tier: 1),
+      });
+      final regular = GameEngine.collapseChain(b, [0, 1, 6, 7]);
+      final rush = GameEngine.collapseChain(
+        b,
+        [0, 1, 6, 7],
+        comboMultiplierFn: comboRushMultiplier,
+      );
+      expect(regular.cells[7]!.tier, 3);
+      expect(regular.score, (1 << 3) * comboMultiplier(4));
+      expect(rush.score, (1 << 3) * comboRushMultiplier(4));
     });
   });
 }

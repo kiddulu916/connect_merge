@@ -7,21 +7,26 @@ run for $0 (no authoritative server needed for gameplay itself).
 
 ## Gameplay
 
-**Connect-Merge:** drag a chain of two or more orthogonally-adjacent tiles of
-the same tier to collapse them onto the last tile in the chain, which levels
-up one tier (`2 → 4 → 8 → … → 2048`). Longer chains score a superlinear combo
-bonus instead of just the sum of pairwise merges, so hunting for long chains
-beats greedily merging pairs.
+**Connect-Merge:** drag a chain of two or more 8-directionally adjacent tiles,
+including diagonals. Each step may stay at the same tier or rise exactly one
+tier; it may never descend or skip. The chain collapses onto its last tile as
+the largest power of two no greater than the sum of all chained tile values,
+discarding any remainder. Longer chains score a superlinear combo bonus, so
+hunting for long chains beats greedily merging pairs.
 
 - **Moves:** 30 per day. Every collapse costs one move and immediately backfills
   the board with a new tile, so the board never runs dry mid-turn.
-- **Scoring:** a `2^tier` merge of `n` tiles scores `2^tier × comboMultiplier(n)`,
-  where `comboMultiplier(2) == 1` (identical to a plain pairwise merge) and grows
-  quadratically with chain length.
+- **Scoring:** a collapse resulting in tier `r` scores
+  `2^r × comboMultiplier(n) + ascendBonus`, where the multiplier is
+  `1 + (n-2)(n-1)/2` and the ascend bonus rewards each one-tier rise. That
+  grows roughly quadratically with chain length.
 - **End of day:** the run ends when moves run out or the board **deadlocks**
-  (no two adjacent tiles share a tier). Walls (seed-placed blocked cells) can
-  force a deadlock even with moves left.
-- **Cap:** tier 11 (2048) is the ceiling — two maxed tiles can no longer fuse.
+  (no 8-directionally adjacent pair differs by at most one tier). Walls
+  (seed-placed blocked cells) can force a deadlock even with moves left.
+- **Milestone and physical bound:** tier 11 (2048) remains the cosmetic and
+  achievement milestone, not a merge cap. Real seeded daily play is bounded
+  by available board mass at tier 17; this is a numeric invariant, not a
+  player-facing legality check.
 
 ### Difficulty tiers
 

@@ -308,13 +308,55 @@ select pg_temp.assert_true(
   ),
   'upsert_best_score persists the requested season'
 );
+select pg_temp.assert_true(
+  (select score = 2147483648::bigint and highest_tier = 17
+   from public.upsert_best_score(
+     '00000000-0000-0000-0000-000000000005',
+     current_date,
+     'easy',
+     45,
+     2147483648::bigint,
+     17
+   )),
+  'upsert_best_score accepts a score above the int4 ceiling'
+);
+
+reset role;
+
+set local role authenticated;
+
+select pg_temp.assert_true(
+  (select score = 2147483648::bigint and pg_typeof(score) = 'bigint'::regtype
+   from leaderboard(current_date, 'easy', 45, 100)
+   where is_me),
+  'leaderboard returns the above-int4 score as bigint'
+);
+select pg_temp.assert_true(
+  (select total = 2147483648::bigint and pg_typeof(total) = 'bigint'::regtype
+   from leaderboard_period('easy', current_date, current_date, 45, 100)
+   where is_me),
+  'leaderboard_period returns the above-int4 total as bigint'
+);
+select pg_temp.assert_true(
+  (select score = 2147483648::bigint and pg_typeof(score) = 'bigint'::regtype
+   from friends_leaderboard(current_date, 'easy', 45, 100)
+   where is_me),
+  'friends_leaderboard returns the above-int4 score as bigint'
+);
+select pg_temp.assert_true(
+  (select total = 2147483648::bigint and pg_typeof(total) = 'bigint'::regtype
+   from friends_leaderboard_period(
+     'easy', current_date, current_date, 45, 100
+   ) where is_me),
+  'friends_leaderboard_period returns the above-int4 total as bigint'
+);
 
 reset role;
 
 select pg_temp.assert_true(
   has_function_privilege(
     'service_role',
-    'public.upsert_best_score(uuid,date,text,integer,integer,integer)',
+    'public.upsert_best_score(uuid,date,text,integer,bigint,integer)',
     'EXECUTE'
   ),
   'service_role can execute upsert_best_score'
@@ -322,11 +364,11 @@ select pg_temp.assert_true(
 select pg_temp.assert_true(
   not has_function_privilege(
     'anon',
-    'public.upsert_best_score(uuid,date,text,integer,integer,integer)',
+    'public.upsert_best_score(uuid,date,text,integer,bigint,integer)',
     'EXECUTE'
   ) and not has_function_privilege(
     'authenticated',
-    'public.upsert_best_score(uuid,date,text,integer,integer,integer)',
+    'public.upsert_best_score(uuid,date,text,integer,bigint,integer)',
     'EXECUTE'
   ),
   'anon and authenticated cannot execute upsert_best_score'
@@ -339,7 +381,7 @@ select pg_temp.assert_true(
       coalesce(p.proacl, acldefault('f', p.proowner))
     ) as acl
     where p.oid =
-      'public.upsert_best_score(uuid,date,text,integer,integer,integer)'::regprocedure
+      'public.upsert_best_score(uuid,date,text,integer,bigint,integer)'::regprocedure
       and acl.grantee = 0
       and acl.privilege_type = 'EXECUTE'
   ),
@@ -349,17 +391,17 @@ select pg_temp.assert_true(
   (select not p.prosecdef and 'search_path=public' = any(p.proconfig)
    from pg_proc as p
    where p.oid =
-     'public.upsert_best_score(uuid,date,text,integer,integer,integer)'::regprocedure),
+     'public.upsert_best_score(uuid,date,text,integer,bigint,integer)'::regprocedure),
   'upsert_best_score is SECURITY INVOKER with a pinned public search_path'
 );
 select pg_temp.assert_true(
-  (select count(*) = 1
+  (select count(*) = 0
    from pg_constraint
    where conrelid = 'public.scores'::regclass
      and contype = 'u'
      and pg_get_constraintdef(oid) =
        'UNIQUE (player_id, utc_date, difficulty)'),
-  'Phase 1 preserves the old conflict target for the deployed Edge Function'
+  'the obsolete season-less score conflict target remains removed'
 );
 select pg_temp.assert_true(
   (select count(*) = 1

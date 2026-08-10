@@ -45,10 +45,15 @@ void main() {
             (event) => {'name': event.key, ...?event.value},
           ),
       [
-        {'name': 'score_submit_attempt', 'difficulty': 'easy'},
+        {
+          'name': 'score_submit_attempt',
+          'difficulty': 'easy',
+          'season': kLeaderboardSeason,
+        },
         {
           'name': 'score_submit_result',
           'difficulty': 'easy',
+          'season': kLeaderboardSeason,
           'outcome': 'success',
         },
       ],
@@ -86,6 +91,7 @@ void main() {
       {
         'name': 'score_submit_result',
         'difficulty': 'easy',
+        'season': kLeaderboardSeason,
         'outcome': 'terminal-rejection',
       },
     );
@@ -107,7 +113,8 @@ void main() {
                 required difficulty,
                 required moveLog,
                 required adContinues,
-              }) async => throw StateError('offline')
+              }) async =>
+                throw StateError('offline')
             : _submitWith(SubmitOutcome.retryableFailure),
         onError: (error, stack, {fatal = false}) => reported = error,
         onAnalyticsEvent: (name, [params]) {
@@ -163,7 +170,8 @@ void main() {
     await online.close();
   });
 
-  test('resume retries pending and terminal none, but not continue-eligible none',
+  test(
+      'resume retries pending and terminal none, but not continue-eligible none',
       () async {
     Future<int> resume(
       BoardState board, {
@@ -172,8 +180,7 @@ void main() {
     }) async {
       final storage = InMemoryStorageService();
       await _saveCompleted(storage, board);
-      await storage.saveSubmitStatus(
-          _date, _difficulty, status, generation);
+      await storage.saveSubmitStatus(_date, _difficulty, status, generation);
       var calls = 0;
       final cubit = GameCubit(
         storage: storage,
@@ -205,8 +212,7 @@ void main() {
   test('resumed settled status seeds the in-memory no-op guard', () async {
     final storage = InMemoryStorageService();
     await _saveCompleted(storage, _terminalBoard());
-    await storage.saveSubmitStatus(
-        _date, _difficulty, SubmitStatus.settled, 2);
+    await storage.saveSubmitStatus(_date, _difficulty, SubmitStatus.settled, 2);
     var calls = 0;
     final cubit = GameCubit(
       storage: storage,
@@ -232,8 +238,7 @@ void main() {
   test('resume and explicit submit coalesce the full attempt', () async {
     final storage = _RecordingSubmitStorage();
     await _saveCompleted(storage, _continueEligibleBoard());
-    await storage.saveSubmitStatus(
-        _date, _difficulty, SubmitStatus.pending, 4);
+    await storage.saveSubmitStatus(_date, _difficulty, SubmitStatus.pending, 4);
     storage.statusWrites.clear();
     final called = Completer<void>();
     final release = Completer<void>();
@@ -270,12 +275,12 @@ void main() {
     await cubit.close();
   });
 
-  test('continued board invalidates a stale result and its improved run submits',
+  test(
+      'continued board invalidates a stale result and its improved run submits',
       () async {
     final storage = InMemoryStorageService();
     await _saveCompleted(storage, _continueEligibleBoard());
-    await storage.saveSubmitStatus(
-        _date, _difficulty, SubmitStatus.pending, 1);
+    await storage.saveSubmitStatus(_date, _difficulty, SubmitStatus.pending, 1);
     final called = Completer<void>();
     final release = Completer<void>();
     final submittedLogs = <List<MoveEvent>>[];
@@ -306,8 +311,7 @@ void main() {
 
     expect(storage.loadSubmitStatus(_date, _difficulty),
         const SubmitStatusRecord(SubmitStatus.none, generation: 2));
-    final storedAfterContinue =
-        storage.loadSnapshot(_date, _difficulty)!;
+    final storedAfterContinue = storage.loadSnapshot(_date, _difficulty)!;
     expect(storedAfterContinue.completed, isFalse);
     expect(storedAfterContinue.board, continued);
     await first.close();
@@ -346,7 +350,8 @@ void main() {
     await second.close();
   });
 
-  test('a submission that outlives an account switch does not settle under the new account',
+  test(
+      'a submission that outlives an account switch does not settle under the new account',
       () async {
     final storage = InMemoryStorageService();
     await storage.rebindOwner('account-a');
@@ -527,6 +532,9 @@ List<int> _findChain(BoardState board) {
     for (final neighbor in [
       if (col + 1 < board.gridSize) i + 1,
       if (row + 1 < board.gridSize) i + board.gridSize,
+      if (row + 1 < board.gridSize && col + 1 < board.gridSize)
+        i + board.gridSize + 1,
+      if (row + 1 < board.gridSize && col - 1 >= 0) i + board.gridSize - 1,
     ]) {
       for (final path in [
         [i, neighbor],

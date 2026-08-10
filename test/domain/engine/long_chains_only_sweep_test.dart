@@ -40,6 +40,10 @@ bool _dfs(BoardState board, int idx, Set<int> visited, List<int> path,
     if (col - 1 >= 0) idx - 1,
     if (row + 1 < gs) idx + gs,
     if (row - 1 >= 0) idx - gs,
+    if (row + 1 < gs && col + 1 < gs) idx + gs + 1,
+    if (row + 1 < gs && col - 1 >= 0) idx + gs - 1,
+    if (row - 1 >= 0 && col + 1 < gs) idx - gs + 1,
+    if (row - 1 >= 0 && col - 1 >= 0) idx - gs - 1,
   ]) {
     if (visited.contains(n) || board.cells[n] == null) continue;
     path.add(n);
@@ -64,7 +68,9 @@ BoardState _playOut(String date) {
 
   while (board.status == GameStatus.playing) {
     final path = _findChainOfLength(board, 3);
-    if (path == null) break; // shouldn't happen: status would already be deadlocked
+    if (path == null) {
+      break; // shouldn't happen: status would already be deadlocked
+    }
     board = GameEngine.collapseChain(board, path);
     board = GameEngine.refill(
       board,
@@ -110,7 +116,8 @@ void main() {
     // full OR a legal chain exists, so a deadlock while cells remain empty
     // would mean refill's own postcondition was violated.
     expect(deadlockedWithRoom, 0,
-        reason: 'refill must never leave the board deadlocked with room to spare');
+        reason:
+            'refill must never leave the board deadlocked with room to spare');
 
     // The fix's whole point: most runs should reach the full move budget
     // rather than running out of legal chains long before move 30.

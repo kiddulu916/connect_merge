@@ -27,7 +27,6 @@ import {
   kChallengeSparseFill,
   kChallengeWallMazeCount,
   kMaxAdContinuesPerDay,
-  kMaxTier,
   kMovesPerDay,
   minChainLengthFor,
   STARTING_FILL,
@@ -50,29 +49,58 @@ export interface ContinueEvent {
 }
 export type MoveEvent = ChainEvent | ContinueEvent;
 
-export interface VerifyResult {
-  valid: boolean;
-  score: number;
-  highestTier: number;
-  reason?: string;
-}
+export const REJECTION_STAGES = [
+  "invalid_difficulty",
+  "malformed_log",
+  "malformed_event",
+  "chain_wrong_status",
+  "illegal_chain",
+  "continue_wrong_status",
+  "continue_count_exceeded",
+  "ad_usage_exceeded",
+  "continue_without_merge",
+  "moves_underflow",
+  "challenge_malformed_log",
+  "challenge_malformed_event",
+  "challenge_chain_wrong_status",
+  "challenge_chain_too_short",
+  "challenge_illegal_chain",
+  "challenge_continue_forbidden",
+  "challenge_moves_underflow",
+] as const;
+export type RejectionStage = (typeof REJECTION_STAGES)[number];
+
+export type VerifyResult =
+  | { valid: true; score: number; highestTier: number }
+  | {
+    valid: false;
+    score: 0;
+    highestTier: 0;
+    reason: "invalid_run";
+    stage: RejectionStage;
+  };
 
 // ---- pure rules (port of GameEngine) ----
 
-/** True when cells [a] and [b] are orthogonal neighbours (no diag, no wrap). */
-export function areOrthogonallyAdjacent(a: number, b: number, gridSize: number): boolean {
+/**
+ * True when cells [a] and [b] are any of the eight neighboring cells, without
+ * row wrap-around. Must stay in lockstep with Dart `GameEngine.areAdjacent`.
+ */
+export function areAdjacent(a: number, b: number, gridSize: number): boolean {
   const ra = Math.floor(a / gridSize), ca = a % gridSize;
   const rb = Math.floor(b / gridSize), cb = b % gridSize;
-  return Math.abs(ra - rb) + Math.abs(ca - cb) === 1;
+  const dr = Math.abs(ra - rb), dc = Math.abs(ca - cb);
+  return dr <= 1 && dc <= 1 && (dr !== 0 || dc !== 0);
 }
 
 /**
  * A legal Connect-Merge path: length >= 2, no repeats, every cell holds a
- * live tile, consecutive cells orthogonally adjacent, and each step's tier is
+ * live tile, consecutive cells 8-directionally adjacent, and each step's tier is
  * either equal to or exactly one higher than the previous tile's tier (never
  * descends, never skips a tier). Since the path is thus non-decreasing, the
- * final tile is always the peak, and it alone must sit below the cap. Walls
- * hold no tile, so they are rejected by the null-cell check.
+ * final tile is always the peak. Walls hold no tile, so they are rejected by
+ * the null-cell check; diagonals may pass between two flanking walls. There is
+ * no gameplay tier cap. Must stay in lockstep with Dart.
  */
 export function isValidChain(s: BoardState, path: number[]): boolean {
   if (!Array.isArray(path) || path.length < 2) return false;
@@ -87,26 +115,37 @@ export function isValidChain(s: BoardState, path: number[]): boolean {
     if (t === null || t === undefined) return false;
     if (prev !== null) {
       if (!canFollow(prev.tier, t.tier)) return false;
-      if (!areOrthogonallyAdjacent(path[i - 1], idx, s.gridSize)) return false;
+      if (!areAdjacent(path[i - 1], idx, s.gridSize)) return false;
     }
     prev = t;
   }
-  if (prev === null || prev.tier >= kMaxTier) return false;
-  return true;
+  return prev !== null;
 }
 
-/** Points for collapsing a chain of [chainLength] tiles of [mergedTier]. */
-export function comboScore(mergedTier: number, chainLength: number): number {
-  return (1 << (mergedTier + 1)) * comboMultiplier(chainLength);
+/**
+ * Returns floor(log2(sum)) via integer division. This stays correct for every
+ * positive safe-integer caller, including test-constructed boards beyond the
+ * real seeded-play bound. Must stay behaviorally identical to Dart.
+ */
+export function mergedTierFromSum(sum: number): number {
+  if (!Number.isSafeInteger(sum) || sum <= 0) {
+    throw new RangeError("mergedTierFromSum requires a positive safe integer");
+  }
+  let tier = 0;
+  let remaining = sum;
+  while (remaining >= 2) {
+    remaining = Math.floor(remaining / 2);
+    tier += 1;
+  }
+  return tier;
 }
 
 /**
  * Collapse a validated path onto its endpoint (path.last): endpoint becomes
- * tier+1 keeping its id, all other path cells empty, score gains the combo
- * total PLUS an ascendBonus for every ascend transition in the path, one
- * move spent. Caller must have checked isValidChain. Optional `multiplierFn`
- * overrides the default `comboMultiplier` (used by challenge rules such as
- * comboRush).
+ * the floor-power-of-two tier of the path's total value while keeping its id,
+ * all other path cells empty, score gains the combo total PLUS an ascendBonus
+ * for every ascend transition, and one move is spent. Must stay in lockstep
+ * with Dart `GameEngine.collapseChain`.
  */
 export function collapseChain(
   s: BoardState,
@@ -115,9 +154,11 @@ export function collapseChain(
 ): BoardState {
   const endIdx = path[path.length - 1];
   const end = s.cells[endIdx]!;
-  const mergedTier = end.tier;
   const fn = multiplierFn ?? comboMultiplier;
+  let sum = 0;
   let ascendTotal = 0;
+  for (const idx of path) sum += 2 ** s.cells[idx]!.tier;
+  const resultTier = mergedTierFromSum(sum);
   for (let i = 1; i < path.length; i++) {
     const prevTier = s.cells[path[i - 1]]!.tier;
     const curTier = s.cells[path[i]]!.tier;
@@ -127,11 +168,11 @@ export function collapseChain(
   }
   const cells = s.cells.slice();
   for (const idx of path) cells[idx] = null;
-  cells[endIdx] = { id: end.id, tier: mergedTier + 1 };
+  cells[endIdx] = { id: end.id, tier: resultTier };
   return {
     ...s,
     cells,
-    score: s.score + (1 << (mergedTier + 1)) * fn(path.length) + ascendTotal,
+    score: s.score + (2 ** resultTier) * fn(path.length) + ascendTotal,
     movesRemaining: s.movesRemaining - 1,
     movesMade: s.movesMade + 1,
   };
@@ -151,7 +192,11 @@ export function filledCount(s: BoardState): number {
   return n;
 }
 
-export function applyDrop(s: BoardState, tier: number, landing: Prng): BoardState {
+export function applyDrop(
+  s: BoardState,
+  tier: number,
+  landing: Prng,
+): BoardState {
   const empties = emptyIndices(s);
   if (empties.length === 0) {
     return { ...s, dropIndex: s.dropIndex + 1 };
@@ -183,7 +228,11 @@ export function refillBoard(
 ): BoardState {
   while (emptyIndices(board).length > 0) {
     const needsFill = filledCount(board) < targetFill;
-    const needsMerge = !hasChainOfLength(board.cells, board.gridSize, minChainLength);
+    const needsMerge = !hasChainOfLength(
+      board.cells,
+      board.gridSize,
+      minChainLength,
+    );
     if (!needsFill && !needsMerge) break;
     const tier = tierAt(board.dropIndex);
     board = applyDrop(board, tier, landing);
@@ -192,7 +241,7 @@ export function refillBoard(
 }
 
 /**
- * True if any two orthogonally-adjacent live tiles could legally merge in
+ * True if any two 8-directionally adjacent live tiles could legally merge in
  * SOME direction (spatial deadlock — non-adjacent mergeable tiles do NOT
  * count). Delegates to the single scan in `constants.ts` (`hasAnyMergeablePair`,
  * reached via `hasChainOfLength` at minLength 2) so the adjacency scan is
@@ -248,12 +297,15 @@ function parseEvent(raw: unknown): MoveEvent | null {
   return null;
 }
 
-const REJECT: VerifyResult = {
-  valid: false,
-  score: 0,
-  highestTier: 0,
-  reason: "invalid_run",
-};
+function reject(stage: RejectionStage): VerifyResult {
+  return {
+    valid: false,
+    score: 0,
+    highestTier: 0,
+    reason: "invalid_run",
+    stage,
+  };
+}
 
 /**
  * Regenerate the `(date,difficulty)` board and replay the move log to compute
@@ -266,8 +318,8 @@ export async function verifyRun(
   difficulty: string,
   log: unknown,
 ): Promise<VerifyResult> {
-  if (!isDifficulty(difficulty)) return REJECT;
-  if (!Array.isArray(log)) return REJECT;
+  if (!isDifficulty(difficulty)) return reject("invalid_difficulty");
+  if (!Array.isArray(log)) return reject("malformed_log");
 
   const seeder = new DailySeeder(date, difficulty as Difficulty);
   const start = await seeder.generate();
@@ -280,12 +332,12 @@ export async function verifyRun(
 
   for (const raw of log) {
     const ev = parseEvent(raw);
-    if (ev === null) return REJECT;
+    if (ev === null) return reject("malformed_event");
 
     if (ev.type === "chain") {
       // Mirror GameCubit.playChain: must currently be playing + legal path.
-      if (board.status !== "playing") return REJECT;
-      if (!isValidChain(board, ev.path)) return REJECT;
+      if (board.status !== "playing") return reject("chain_wrong_status");
+      if (!isValidChain(board, ev.path)) return reject("illegal_chain");
       board = collapseChain(board, ev.path);
       board = refillBoard(
         board,
@@ -296,10 +348,14 @@ export async function verifyRun(
       board = evaluateStatus(board);
     } else {
       // Mirror GameCubit.grantAdReward / canOfferAd guard.
-      if (board.status !== "outOfMoves") return REJECT;
-      if (continues >= kMaxAdContinuesPerDay) return REJECT;
-      if (board.adContinuesUsed >= kMaxAdContinuesPerDay) return REJECT;
-      if (!hasMergeAvailable(board)) return REJECT;
+      if (board.status !== "outOfMoves") return reject("continue_wrong_status");
+      if (continues >= kMaxAdContinuesPerDay) {
+        return reject("continue_count_exceeded");
+      }
+      if (board.adContinuesUsed >= kMaxAdContinuesPerDay) {
+        return reject("ad_usage_exceeded");
+      }
+      if (!hasMergeAvailable(board)) return reject("continue_without_merge");
       continues += 1;
       board = {
         ...board,
@@ -309,7 +365,7 @@ export async function verifyRun(
       };
     }
 
-    if (board.movesRemaining < 0) return REJECT;
+    if (board.movesRemaining < 0) return reject("moves_underflow");
   }
 
   return {
@@ -358,7 +414,14 @@ export async function seedChallengeStart(
     movesOverride,
     minChainLength,
   });
-  return { rule, start, startingFill, movesOverride, minChainLength, multiplierFn };
+  return {
+    rule,
+    start,
+    startingFill,
+    movesOverride,
+    minChainLength,
+    multiplierFn,
+  };
 }
 
 /**
@@ -379,7 +442,7 @@ export async function verifyRunChallenge(
   date: string,
   log: unknown,
 ): Promise<VerifyResult> {
-  if (!Array.isArray(log)) return REJECT;
+  if (!Array.isArray(log)) return reject("challenge_malformed_log");
 
   const { start, startingFill, minChainLength, multiplierFn } =
     await seedChallengeStart(date);
@@ -392,13 +455,19 @@ export async function verifyRunChallenge(
 
   for (const raw of log) {
     const ev = parseEvent(raw);
-    if (ev === null) return REJECT;
+    if (ev === null) return reject("challenge_malformed_event");
 
     if (ev.type === "chain") {
-      if (board.status !== "playing") return REJECT;
+      if (board.status !== "playing") {
+        return reject("challenge_chain_wrong_status");
+      }
       // Reject paths shorter than the active rule's minimum.
-      if (ev.path.length < minChainLength) return REJECT;
-      if (!isValidChain(board, ev.path)) return REJECT;
+      if (ev.path.length < minChainLength) {
+        return reject("challenge_chain_too_short");
+      }
+      if (!isValidChain(board, ev.path)) {
+        return reject("challenge_illegal_chain");
+      }
       board = collapseChain(board, ev.path, multiplierFn);
       board = refillBoard(
         board,
@@ -410,10 +479,10 @@ export async function verifyRunChallenge(
       board = evaluateStatus(board, minChainLength);
     } else {
       // Challenge mode has no ad-continues; treat any continue as illegal.
-      return REJECT;
+      return reject("challenge_continue_forbidden");
     }
 
-    if (board.movesRemaining < 0) return REJECT;
+    if (board.movesRemaining < 0) return reject("challenge_moves_underflow");
   }
 
   return {

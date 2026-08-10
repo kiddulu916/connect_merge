@@ -615,6 +615,7 @@ class GameCubit extends Cubit<GameState> {
     if (!_ownerUnchangedSince(capturedUid)) return;
     onAnalyticsEvent?.call('score_submit_attempt', {
       'difficulty': _difficulty.name,
+      'season': kLeaderboardSeason,
     });
 
     final hook = onSubmitRun;
@@ -664,6 +665,7 @@ class GameCubit extends Cubit<GameState> {
     };
     onAnalyticsEvent?.call('score_submit_result', {
       'difficulty': _difficulty.name,
+      'season': kLeaderboardSeason,
       'outcome': label,
     });
   }

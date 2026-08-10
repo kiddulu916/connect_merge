@@ -189,6 +189,10 @@ int _mergeableEdges(BoardState board) {
     for (final neighbor in [
       if (column + 1 < board.gridSize) index + 1,
       if (row + 1 < board.gridSize) index + board.gridSize,
+      if (row + 1 < board.gridSize && column + 1 < board.gridSize)
+        index + board.gridSize + 1,
+      if (row + 1 < board.gridSize && column - 1 >= 0)
+        index + board.gridSize - 1,
     ]) {
       if (GameEngine.isValidChain(board, [index, neighbor]) ||
           GameEngine.isValidChain(board, [neighbor, index])) {

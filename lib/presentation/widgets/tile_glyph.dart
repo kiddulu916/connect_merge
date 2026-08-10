@@ -12,8 +12,8 @@ import '../theme/tile_palette.dart';
 /// This composes ON TOP of the tile color from [GridCellWidget] — it never
 /// replaces it — so it works across every cosmetic ramp.
 class TileGlyph extends StatelessWidget {
-  /// The tile's tier (1..kMaxTier). Drives both the numeral (2^tier) and the
-  /// pattern selection.
+  /// The tile's positive tier. Drives the numeral (2^tier) and pattern
+  /// selection; live merges may exceed the tier-11 cosmetic milestone.
   final int tier;
 
   /// The tile face size in logical pixels (the glyph scales to it).
@@ -121,8 +121,7 @@ class _PatternPainter extends CustomPainter {
         for (var r = 0; r < cells; r++) {
           for (var c = 0; c < cells; c++) {
             if ((r + c).isEven) {
-              canvas.drawRect(
-                  Rect.fromLTWH(c * cw, r * ch, cw, ch), fill);
+              canvas.drawRect(Rect.fromLTWH(c * cw, r * ch, cw, ch), fill);
             }
           }
         }
@@ -135,6 +134,5 @@ class _PatternPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PatternPainter old) =>
-      old.pattern != pattern;
+  bool shouldRepaint(covariant _PatternPainter old) => old.pattern != pattern;
 }

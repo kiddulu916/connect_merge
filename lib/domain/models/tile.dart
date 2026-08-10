@@ -1,5 +1,6 @@
 /// A live tile. [id] is a stable identity used as the widget key so the UI can
-/// animate a tile as it slides/merges. [tier] is 1..kMaxTier; value is 2^tier.
+/// animate a tile as it slides/merges. [tier] is positive and value is 2^tier;
+/// live merges may exceed the tier-11 (2048) cosmetic milestone.
 ///
 /// [golden] (Phase 1) marks a deterministically seed-chosen drop as golden:
 /// merging it credits bonus coins to the client-side wallet. It is a purely

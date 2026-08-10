@@ -20,20 +20,20 @@ const tutorialDeadlockDropTiers = <int>[5];
 final tutorialDeadlockBoard = _board(const [
   1,
   2,
-  5,
-  1,
-  3,
-  5,
-  1,
-  3,
-  5,
-  1,
-  3,
-  5,
-  1,
-  3,
-  5,
-  1,
+  4,
+  7,
+  10,
+  13,
+  10,
+  13,
+  4,
+  7,
+  4,
+  7,
+  10,
+  13,
+  10,
+  13,
 ]);
 
 /// Scripted, non-submitting mechanics portion of the first-launch tour.
@@ -325,9 +325,10 @@ class _TutorialTourScreenState extends State<TutorialTourScreen> {
                 'possible drop tiers widen as the run progresses.',
           ),
         4 => (
-            'Equal or one tier up',
-            'A chain may stay level or rise exactly one tier at a time. It can '
-                'never go down or skip a tier.',
+            'Chain in all directions',
+            'Neighboring tiles include diagonals. Stay level or rise one tier '
+                'at a time; the collapse becomes the largest power of two no '
+                'greater than the chain total.',
           ),
         _ => (
             'Avoid a deadlock',

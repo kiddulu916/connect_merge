@@ -22,6 +22,7 @@ import {
   GRID_SIZE,
   hasChainOfLength,
   kMaxPlacementAttempts,
+  kMaxPlayableValueMass,
   kMovesPerDay,
   STARTING_FILL,
   type Tile,
@@ -93,7 +94,8 @@ export class DailySeeder {
     const a = new Prng(await this.seedA());
     const wallCount = opts?.wallCountOverride ?? WALL_COUNT[this.difficulty];
     const walls = await this.wallIndicesWithCount(wallCount);
-    const startingFill = opts?.startingFillOverride ?? STARTING_FILL[this.difficulty];
+    const startingFill = opts?.startingFillOverride ??
+      STARTING_FILL[this.difficulty];
     const movesRemaining = opts?.movesOverride ?? kMovesPerDay;
     const minChainLength = opts?.minChainLength ?? 2;
     const gridSize = GRID_SIZE[this.difficulty];
@@ -138,6 +140,15 @@ export class DailySeeder {
       status: "playing",
       gridSize,
     };
+    const valueMass = board.cells.reduce(
+      (mass, tile) => mass + (tile === null ? 0 : 2 ** tile.tier),
+      0,
+    );
+    if (valueMass > kMaxPlayableValueMass) {
+      throw new Error(
+        "seeded starting-board value mass exceeds gameplay bound",
+      );
+    }
     return { board };
   }
 

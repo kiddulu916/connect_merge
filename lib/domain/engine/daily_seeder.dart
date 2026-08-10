@@ -78,7 +78,8 @@ class DailySeeder {
     final w = Prng(seedForKey('$_key:walls'));
     final out = <int>{};
     while (out.length < count) {
-      out.add(w.nextInt(difficulty.cellCount)); // rejection sampling; deterministic
+      out.add(
+          w.nextInt(difficulty.cellCount)); // rejection sampling; deterministic
     }
     return out;
   }
@@ -94,7 +95,8 @@ class DailySeeder {
     int minChainLength = 2,
   }) {
     final a = Prng(_seedA);
-    final walls = _wallIndicesWithCount(wallCountOverride ?? wallCountFor(difficulty));
+    final walls =
+        _wallIndicesWithCount(wallCountOverride ?? wallCountFor(difficulty));
     final startingFill = startingFillOverride ?? difficulty.startingFill;
     final cellCount = difficulty.cellCount;
     final movesRemaining = movesOverride ?? kMovesPerDay;
@@ -179,6 +181,14 @@ class DailySeeder {
       status: GameStatus.playing,
       walls: walls,
       gridSize: difficulty.gridSize,
+    );
+    assert(
+      board.cells.fold<int>(
+            0,
+            (mass, tile) => mass + (tile == null ? 0 : 1 << tile.tier),
+          ) <=
+          kMaxPlayableValueMass,
+      'seeded starting-board value mass exceeds the derived gameplay bound',
     );
     return DailyStart(board, tiers);
   }

@@ -1,5 +1,10 @@
 import { assertEquals } from "@std/assert";
-import { type ChallengeRule, kLeaderboardSeason } from "./constants.ts";
+import {
+  type ChallengeRule,
+  type Difficulty,
+  GRID_SIZE,
+  kLeaderboardSeason,
+} from "./constants.ts";
 import { verifyRun, verifyRunChallenge } from "./engine.ts";
 import fixture from "./golden_vectors.json" with { type: "json" };
 import { challengeRule } from "./seeder.ts";
@@ -64,7 +69,36 @@ Deno.test("golden-vector fixture has the required dual-engine coverage", () => {
     new Set(rejections.map((rejection) => rejection.name)),
     REQUIRED_REJECTION_NAMES,
   );
+  assertEquals(
+    vectors.some(hasAllDiagonalChain),
+    true,
+    "fixture must exercise at least one all-diagonal chain",
+  );
 });
+
+function hasAllDiagonalChain(vector: HonestVector): boolean {
+  const gridSize = GRID_SIZE[vector.difficulty as Difficulty];
+  return vector.moveLog.some((raw) => {
+    if (typeof raw !== "object" || raw === null) return false;
+    const event = raw as { type?: unknown; path?: unknown };
+    if (
+      event.type !== "chain" || !Array.isArray(event.path) ||
+      event.path.length < 2
+    ) {
+      return false;
+    }
+    const path = event.path as number[];
+    return path.slice(1).every((cell, index) => {
+      const previous = path[index];
+      const current = cell as number;
+      const rowDelta = Math.abs(
+        Math.floor(previous / gridSize) - Math.floor(current / gridSize),
+      );
+      const columnDelta = Math.abs(previous % gridSize - current % gridSize);
+      return rowDelta === 1 && columnDelta === 1;
+    });
+  });
+}
 
 Deno.test("golden-vector honest runs replay through the TypeScript engine", async () => {
   for (const vector of vectors) {

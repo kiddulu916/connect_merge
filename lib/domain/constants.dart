@@ -6,16 +6,27 @@ import 'models/difficulty.dart';
 const int kGridSize = 5;
 const int kCellCount = kGridSize * kGridSize; // 25
 
-/// Tier 0 = empty. Tiers 1..kMaxTier are live tiles (displayed as 2^tier).
+/// The tier-11 (2048) cosmetic, achievement, near-miss, share-grid, and loot
+/// milestone. Live gameplay tiles may grow beyond this reference value.
 const int kMaxTier = 11; // 2^11 = 2048
+
+/// Maximum tier reachable in real seeded play under the current board, move,
+/// continue, and drop limits. Easy has at most 62 non-wall cells, so each of
+/// 39 moves can add at most 61 tier-6 drops; its initial mass is at most
+/// 40 * 4. Thus total introduced value is at most
+/// 39 * 61 * 64 + 160 = 152,416, whose floor-log2 is 17.
+///
+/// This is a numeric-sizing and seeded-generation assertion bound only. It is
+/// deliberately not a merge-legality cap. Keep in lockstep with TypeScript.
+const int kMaxPlayableValueMass = 152416;
+const int kMaxPlayableTier = 17;
 
 /// Daily move budget. One move == one successful merge.
 const int kMovesPerDay = 30;
 
 /// Board population is now per-difficulty (see [Difficulty.startingFill]). Each
 /// merge frees a cell and each drop fills one, so occupancy stays at the chosen
-/// tier's starting fill all day. All starting fills must be <= kMaxTier for
-/// deadlock to be reachable (pigeonhole: all-unique tiers needs <= 11 tiles).
+/// tier's starting fill all day.
 
 /// Moves granted per rewarded video, and the daily cap on rewarded continues.
 const int kAdMoveReward = 3;
@@ -36,8 +47,10 @@ const int kUndoStackDepth = 3;
 /// bounded (~one year of daily results across tiers).
 const int kHistoryRetentionDays = 366;
 
-/// Maximum number of drops that can ever occur in one day.
-const int kMaxDrops = kMovesPerDay + kAdMoveReward * kMaxAdContinuesPerDay; // 39
+/// Number of drop tiers precomputed for legacy/practice consumers. Daily play
+/// uses an on-demand deterministic stream, so refill drops are not capped here.
+const int kMaxDrops =
+    kMovesPerDay + kAdMoveReward * kMaxAdContinuesPerDay; // 39
 
 /// Phase 1 (engagement engine) — golden tiles. A deterministic, seed-derived
 /// subset (~[kGoldenDropPercent]% on average) of the day's drops are "golden".
@@ -142,13 +155,13 @@ const int kObjectiveRewardCoins = 25;
 /// these on every load even when the snapshot's board is reused as-is). An
 /// in-progress snapshot whose version != this is discarded on load (a daily
 /// resets anyway). Bumped for the Long Chains Only starting-density change.
-const int kSnapshotVersion = 4;
+const int kSnapshotVersion = 5;
 
 /// Used to filter leaderboard reads and (server-side) stamp every submitted
 /// score, so scores from a prior rule set never mix with the current season's.
 /// Reset to 1 after the 2026-07-31 database wipe (fresh season). Bump this in
 /// lockstep with the TS copy on any future gameplay-rule change.
-const int kLeaderboardSeason = 1;
+const int kLeaderboardSeason = 2;
 
 /// Seed-placed wall cells per difficulty (block tiles, break paths). Scales up with difficulty. Tuning knob.
 int wallCountFor(Difficulty d) => switch (d) {

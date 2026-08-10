@@ -584,22 +584,27 @@ void main() {
 
   test('refill guarantee: board always has a merge after each chain play',
       () async {
-    // Helper: find any 2-cell chain (east or south neighbour) on the board.
+    // Helper: find any legal 2-cell chain across all eight directions.
     List<int>? findChain(BoardState board) {
       final gs = board.gridSize;
       final count = board.cells.length;
       for (var i = 0; i < count; i++) {
         final t = board.cells[i];
-        if (t == null || t.tier >= kMaxTier) continue;
+        if (t == null) continue;
         final col = i % gs;
         final row = i ~/ gs;
-        if (col + 1 < gs) {
-          final e = board.cells[i + 1];
-          if (e != null && e.tier == t.tier) return [i, i + 1];
-        }
-        if (row + 1 < gs) {
-          final s = board.cells[i + gs];
-          if (s != null && s.tier == t.tier) return [i, i + gs];
+        for (final neighbor in [
+          if (col + 1 < gs) i + 1,
+          if (row + 1 < gs) i + gs,
+          if (row + 1 < gs && col + 1 < gs) i + gs + 1,
+          if (row + 1 < gs && col - 1 >= 0) i + gs - 1,
+        ]) {
+          for (final path in [
+            [i, neighbor],
+            [neighbor, i],
+          ]) {
+            if (GameEngine.isValidChain(board, path)) return path;
+          }
         }
       }
       return null;
@@ -723,6 +728,8 @@ List<int> _findChain(BoardState b) {
     for (final neighbor in [
       if (col + 1 < b.gridSize) i + 1,
       if (row + 1 < b.gridSize) i + b.gridSize,
+      if (row + 1 < b.gridSize && col + 1 < b.gridSize) i + b.gridSize + 1,
+      if (row + 1 < b.gridSize && col - 1 >= 0) i + b.gridSize - 1,
     ]) {
       for (final path in [
         [i, neighbor],

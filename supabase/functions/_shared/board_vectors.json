@@ -201,7 +201,7 @@
     {
       "date": "2026-07-21",
       "difficulty": "challenge",
-      "digest": "a51a6bb9823388bf6d5765ec96c7cc88db1d4469d5b89e86fec9be07ade4549d"
+      "digest": "0eb8ce7ff73b0d893544154f85041e5b77da7edc1f17c023e098b000422daf08"
     },
     {
       "date": "2026-07-22",
@@ -426,7 +426,7 @@
     {
       "date": "2026-07-30",
       "difficulty": "challenge",
-      "digest": "ac127d9c6391cd5917e9b3b360fc2f1d97f011fce79e7ce279eb24e1fbf07fc4"
+      "digest": "ba501533d83a94cee5ed33c6e20bf1348f354e7400053aa01b066df8cdd7d6a2"
     },
     {
       "date": "2026-07-31",
@@ -851,7 +851,7 @@
     {
       "date": "2026-08-16",
       "difficulty": "challenge",
-      "digest": "b8e9e036e5b63e71b16f83f9367362ee1fca9027c59d54bf476bf22176f57ff0"
+      "digest": "4f31d97f3217324a23071cf4f40028641d3fe55e36505199ddf634271b58ce83"
     },
     {
       "date": "2026-08-17",
@@ -901,7 +901,7 @@
     {
       "date": "2026-08-18",
       "difficulty": "challenge",
-      "digest": "99dc845cc5b2e934d0d18bc030e00ba414d5721b034de9589fa5146f37451200"
+      "digest": "bb2fc491bd7f42da0b9457c29fce7d7ff19e65c947722e2d6ba3c450bb961a2c"
     },
     {
       "date": "2026-08-19",
@@ -1726,7 +1726,7 @@
     {
       "date": "2026-09-20",
       "difficulty": "challenge",
-      "digest": "b6629c7e363d87cb0e58770c5bcb3be1f18d03913891de235db8268576f3fa0d"
+      "digest": "54a1e788026c5f2587a10da6dcf43bc03b6c8d45a9fcb91d45530e2119b14121"
     },
     {
       "date": "2026-09-21",
@@ -1751,7 +1751,7 @@
     {
       "date": "2026-09-21",
       "difficulty": "challenge",
-      "digest": "8ab3ea7f1bccda5d611920958bff4106e66073f392d7c55b7ddbe56175254ddc"
+      "digest": "f4cb87422d5313c306fd773908195b03b08ee70dd3845ceff2b7dbcc7258ac59"
     },
     {
       "date": "2026-09-22",
@@ -1976,7 +1976,7 @@
     {
       "date": "2026-09-30",
       "difficulty": "challenge",
-      "digest": "7124eb13a6c0a9010bda813caee8cf18b4784b6769432a27bb7fadeff6575fb1"
+      "digest": "d6aed4ac9c7fc962bd957f7adbcd535b1759ad3f3c43c53d7b718a2409c48569"
     },
     {
       "date": "2026-10-01",
@@ -2076,7 +2076,7 @@
     {
       "date": "2026-10-04",
       "difficulty": "challenge",
-      "digest": "9519b6c53f7ac8e497ebb288678dd29a1b39f3b1a07fc26cb6c62e84b50fd8ab"
+      "digest": "7d2ba9c1e7aaa8270a99096bff8c928737ac7ccc30aa6dad7911e20131bebb15"
     },
     {
       "date": "2026-10-05",
@@ -2126,7 +2126,7 @@
     {
       "date": "2026-10-06",
       "difficulty": "challenge",
-      "digest": "81a83b82a487cfcda389bdddc54821b602347897b95f6c9e6c362ea674218baa"
+      "digest": "bc43d51477b1ee28d06798cb8713ad48083ab76686f8d61e20a8984609d688d2"
     },
     {
       "date": "2026-10-07",
@@ -2501,7 +2501,7 @@
     {
       "date": "2026-10-21",
       "difficulty": "challenge",
-      "digest": "a1e25c9391396f4021e5074134f67695382f1c317e7732cadbb927c0abd38add"
+      "digest": "a5e74ed3ba63ee768ec97d3974a40dfbf330c9f42b37887885c39b3f3c5d5e17"
     },
     {
       "date": "2026-10-22",
@@ -2526,7 +2526,7 @@
     {
       "date": "2026-10-22",
       "difficulty": "challenge",
-      "digest": "19cde21b9ac0bada81e74328b1656de6e044f3e1a12789a9d6bce2678a032eb2"
+      "digest": "a463ab9ca55eb6df730340bfaa827450b43e5c526600091fedb62963cb97e778"
     },
     {
       "date": "2026-10-23",
@@ -2851,7 +2851,7 @@
     {
       "date": "2026-11-04",
       "difficulty": "challenge",
-      "digest": "73de88d674cbf4e20078a2d9d393cff634d129632b1c5bc40ff572d7a5b461ad"
+      "digest": "7f2e6875101b9bbb8d030d897e1ca40bfdb68146159a5187ec44dd8cc3094d0e"
     },
     {
       "date": "2026-11-05",
@@ -3151,7 +3151,7 @@
     {
       "date": "2026-11-16",
       "difficulty": "challenge",
-      "digest": "e88d36dcb52f7960efcb5f1f40103b972af08e2474400e457172233ba0d05efb"
+      "digest": "29e0b808d019cd82323eff5b84df72a96212a8ec0d83c6af3b4ca9f3341b8a13"
     },
     {
       "date": "2026-11-17",
@@ -3526,7 +3526,7 @@
     {
       "date": "2026-12-01",
       "difficulty": "challenge",
-      "digest": "306dd5424f4a531260140479d3372c220c9f8de409f1f8c59507e311c6d53df7"
+      "digest": "957c5483c98c190a9429304799f3890428e4afbad2aa9ba8cc0f1c214026c659"
     },
     {
       "date": "2026-12-02",
@@ -3851,7 +3851,7 @@
     {
       "date": "2026-12-14",
       "difficulty": "challenge",
-      "digest": "cb681e2b3e436072321b80e04a09dffb34f40e556f39149a5819c1ea635b6498"
+      "digest": "b1ef83e2ddf2d19ef0a7b8f47010d595dfbf7edefb90b9ab6150f3d14baa811b"
     },
     {
       "date": "2026-12-15",
@@ -4101,7 +4101,7 @@
     {
       "date": "2026-12-24",
       "difficulty": "challenge",
-      "digest": "680fe9188c9c410f6e91f34efc767cb4de25d6368b480b2dbec80f7c8ce9c746"
+      "digest": "841d2333fd74c03be65556535c0b62bd8b131d6ef4819f89c161d65d37ddffa8"
     },
     {
       "date": "2026-12-25",
@@ -4451,7 +4451,7 @@
     {
       "date": "2027-01-07",
       "difficulty": "challenge",
-      "digest": "5874671cabdefab9364f6ba65b0c39f6edfb32937e44cbc802b37cff4be6b14b"
+      "digest": "259de03722d8a4a502e43ba8d63deaed90caa374805744a67b4a7cb359613862"
     },
     {
       "date": "2027-01-08",
@@ -4626,7 +4626,7 @@
     {
       "date": "2027-01-14",
       "difficulty": "challenge",
-      "digest": "07d40089ecd298898f9a7dd644ba283ac9c2a439c19dd82b698606b7acf68b7b"
+      "digest": "34b80605917dc967cfcef7cd9a67c9138c073776c014caf497b11a24130b2514"
     },
     {
       "date": "2027-01-15",
@@ -4651,7 +4651,7 @@
     {
       "date": "2027-01-15",
       "difficulty": "challenge",
-      "digest": "0e21619e733c8666397edbe49e26df5abf6bc519fbf6dfb42f12fa95d8df445e"
+      "digest": "8dc878fee6c836208ccce7ac879d91268deae1abdd0389079e38b4ff7e780b1a"
     },
     {
       "date": "2027-01-16",
@@ -5126,7 +5126,7 @@
     {
       "date": "2027-02-03",
       "difficulty": "challenge",
-      "digest": "8b686e3ccf451747dbe38469090311ad364ae5c6db432cb1860d75392c0d4738"
+      "digest": "071c4d9ff9c94ada0506ab5501ea06aa9d674845d9bce0a8140680853bdbbcfb"
     },
     {
       "date": "2027-02-04",
@@ -5351,7 +5351,7 @@
     {
       "date": "2027-02-12",
       "difficulty": "challenge",
-      "digest": "9c60a1d1b4990b0cc8a7418b493ecf7aa56d67455a40e0e07a46820b71aa039f"
+      "digest": "d35cbc26c9184a339da0c8c04b1a195ad5fb95fc30ed0eed5d7d82d4af5ac525"
     },
     {
       "date": "2027-02-13",
@@ -5626,7 +5626,7 @@
     {
       "date": "2027-02-23",
       "difficulty": "challenge",
-      "digest": "36d65d142f1bf0877379a41691ade71870fb676b3b0a33aff50f509128307e05"
+      "digest": "239633b7e009341d50b84dd639292802f65f2bb4238ee3a491b4e66e874a2507"
     },
     {
       "date": "2027-02-24",
@@ -5826,7 +5826,7 @@
     {
       "date": "2027-03-03",
       "difficulty": "challenge",
-      "digest": "de8c39a926a6d0d05a1fdf1e1cf419a81fe89cf168256ccf12733ea43d1a919e"
+      "digest": "5bcdd95b9045188e16edeca33572e2cfc765916af314bae62d9d57300f21056a"
     },
     {
       "date": "2027-03-04",
@@ -5876,7 +5876,7 @@
     {
       "date": "2027-03-05",
       "difficulty": "challenge",
-      "digest": "b38bb78a03cb2eb020c62d5b7c4ced33c048230070f3ffc06bbfbc82e155bf3a"
+      "digest": "4db1c1c55e2f4616c269225d100b9558d1a960a0edc07c335631041f4b2ded39"
     },
     {
       "date": "2027-03-06",
@@ -6076,7 +6076,7 @@
     {
       "date": "2027-03-13",
       "difficulty": "challenge",
-      "digest": "b0c0c6f2935a66d94cab1440840a0e53e6d1644d67bc60ca667304965c20dcd5"
+      "digest": "0e94912b2f0b8ff8ad9d7613abc1a2ef3d7cfe7903ba5ae7ce70d61111edda93"
     },
     {
       "date": "2027-03-14",
@@ -6276,7 +6276,7 @@
     {
       "date": "2027-03-21",
       "difficulty": "challenge",
-      "digest": "ee23290b627f34cd676b5447436be9e386ef81a8d1d8199b45bf3a360c6eee01"
+      "digest": "1b0f27801909223a081b97dd426e76095ea9545e79a03372d545b5541887509b"
     },
     {
       "date": "2027-03-22",
@@ -6551,7 +6551,7 @@
     {
       "date": "2027-04-01",
       "difficulty": "challenge",
-      "digest": "4f5c829e96740e9ffe353a565233b2e2db73ef381ae2da4c9b16cc59190468e2"
+      "digest": "2b19a74850fe7aaade308dc2b0f0fce1f6ba2e094a194c37e3aee86c889525d6"
     },
     {
       "date": "2027-04-02",
@@ -6876,7 +6876,7 @@
     {
       "date": "2027-04-14",
       "difficulty": "challenge",
-      "digest": "9414e4458222e04e312b3c456518e8c698f485172de218f2ce9d6a0e3027e11f"
+      "digest": "f4cc364d159126b18b0bb7aa74f29ea61bad36a417be7d59f865c889d5f234d0"
     },
     {
       "date": "2027-04-15",
@@ -7226,7 +7226,7 @@
     {
       "date": "2027-04-28",
       "difficulty": "challenge",
-      "digest": "f4d6fface5fccee45e56965ca3af3fd872c326a06439609455b179ae9b3332d0"
+      "digest": "7fdade868f71c74cfe7af264b0f0312df3d544853757ea872904b81fb00385dc"
     },
     {
       "date": "2027-04-29",
@@ -7451,7 +7451,7 @@
     {
       "date": "2027-05-07",
       "difficulty": "challenge",
-      "digest": "e1315e090aab455af70ea19cae4a854aa32b1e94328dc54229314b5c392d2e82"
+      "digest": "157d21d5a05c045db099a24569e9727b47877452adb53329c93464c8f8718661"
     },
     {
       "date": "2027-05-08",
@@ -7926,7 +7926,7 @@
     {
       "date": "2027-05-26",
       "difficulty": "challenge",
-      "digest": "38af515b0e6ae56e7010cb856d53e4cb263ba2f0133af1833bf602eb85dc96bc"
+      "digest": "7424f9868660a5bda5cff846c5a4279250c509dc957995de61c117cbed3533b1"
     },
     {
       "date": "2027-05-27",
@@ -8101,7 +8101,7 @@
     {
       "date": "2027-06-02",
       "difficulty": "challenge",
-      "digest": "099f31bec15fae388060edfac3dcfc1e1a35f1d0573222ff7feeeca60edd0257"
+      "digest": "b3506b5740c454914eca760246390a03a303925e4767c05a22c5a6d3d20d53b1"
     },
     {
       "date": "2027-06-03",
@@ -8151,7 +8151,7 @@
     {
       "date": "2027-06-04",
       "difficulty": "challenge",
-      "digest": "51a2c6dfc4a6a2a261eb9821fd814aabc06627108848cf784e6bf85855efe3f1"
+      "digest": "188a3c174e5f86c07d78c0918b816ccf4ed036ac47b712299005fa554395bba4"
     },
     {
       "date": "2027-06-05",
@@ -8751,7 +8751,7 @@
     {
       "date": "2027-06-28",
       "difficulty": "challenge",
-      "digest": "210ad6fb90d44c30f74dbd090905836f0877aa6ad378e1140748151e30f29d66"
+      "digest": "8ee2e78f6ff8ff8c8995f6e1bc710bbaa70015b6261139975e4ce3a0e39d993b"
     },
     {
       "date": "2027-06-29",
@@ -8776,7 +8776,7 @@
     {
       "date": "2027-06-29",
       "difficulty": "challenge",
-      "digest": "b5ad20d2c998b24c9d9e2cec2aa5f57b7935f118bdac29d282cb202b7abae6b9"
+      "digest": "acf1308d3e31cc7025a8f693fb98474b6f2939b049d27fa66f69367d6ac9a1d1"
     },
     {
       "date": "2027-06-30",

@@ -5,8 +5,21 @@
 export const kGridSize = 5;
 export const kCellCount = kGridSize * kGridSize; // 25
 
-/** Tier 0 = empty. Tiers 1..kMaxTier are live tiles (displayed as 2^tier). */
+/** Tier-11 (2048) cosmetic/economy milestone, not a live-merge cap. */
 export const kMaxTier = 11; // 2^11 = 2048
+
+/**
+ * Maximum tier reachable in real seeded play under the current board, move,
+ * continue, and drop limits. Easy has at most 62 non-wall cells, so each of
+ * 39 moves can add at most 61 tier-6 drops; its initial mass is at most
+ * 40 * 4. Thus total introduced value is at most
+ * 39 * 61 * 64 + 160 = 152,416, whose floor-log2 is 17.
+ *
+ * Numeric-sizing and seeded-generation assertion bound only. Deliberately not
+ * a merge-legality cap. Must stay in lockstep with Dart.
+ */
+export const kMaxPlayableValueMass = 152416;
+export const kMaxPlayableTier = 17;
 
 /** Daily move budget. One move == one successful merge. */
 export const kMovesPerDay = 30;
@@ -15,7 +28,10 @@ export const kMovesPerDay = 30;
 export const kAdMoveReward = 3;
 export const kMaxAdContinuesPerDay = 3;
 
-/** Maximum number of drops that can ever occur in one day. */
+/**
+ * Number of drop tiers precomputed for legacy consumers. Daily replay uses an
+ * on-demand deterministic stream, so refill drops are not capped here.
+ */
 export const kMaxDrops = kMovesPerDay + kAdMoveReward * kMaxAdContinuesPerDay; // 39
 
 /**
@@ -29,7 +45,13 @@ export function dropCap(n: number): number {
 }
 
 /** Difficulty tiers. `name` is the stable seed-key token. */
-export const DIFFICULTIES = ["easy", "medium", "hard", "legendary", "challenge"] as const;
+export const DIFFICULTIES = [
+  "easy",
+  "medium",
+  "hard",
+  "legendary",
+  "challenge",
+] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
 /** Number of tiles placed on the board at the start of the day, per difficulty. */
@@ -100,7 +122,7 @@ export function canFollow(prevTier: number, nextTier: number): boolean {
 export function pairMergeable(aTier: number, bTier: number): boolean {
   const lower = aTier < bTier ? aTier : bTier;
   const higher = aTier > bTier ? aTier : bTier;
-  return canFollow(lower, higher) && higher < kMaxTier;
+  return canFollow(lower, higher);
 }
 
 /**
@@ -120,7 +142,7 @@ export function comboMultiplier(n: number): number {
  * Dart `ascendBonus`.
  */
 export function ascendBonus(intoTier: number): number {
-  return 1 << intoTier;
+  return 2 ** intoTier;
 }
 
 /** Seed-placed wall cells per difficulty (port of Dart `wallCountFor`). */
@@ -160,7 +182,7 @@ export function minChainLengthFor(rule: ChallengeRule): number {
 }
 
 /**
- * True if any two orthogonally-adjacent live tiles could legally merge in
+ * True if any two 8-directionally adjacent live tiles could legally merge in
  * SOME direction (spatial deadlock check — non-adjacent mergeable tiles do
  * NOT count). Structurally typed on cells (rather than using this file's own
  * `Tile` above) to keep this helper's signature independent of the board
@@ -185,6 +207,14 @@ function hasAnyMergeablePair(
     if (row + 1 < gridSize) {
       const so = cells[i + gridSize];
       if (so !== null && pairMergeable(t.tier, so.tier)) return true;
+      if (col + 1 < gridSize) {
+        const se = cells[i + gridSize + 1];
+        if (se !== null && pairMergeable(t.tier, se.tier)) return true;
+      }
+      if (col - 1 >= 0) {
+        const sw = cells[i + gridSize - 1];
+        if (sw !== null && pairMergeable(t.tier, sw.tier)) return true;
+      }
     }
   }
   return false;
@@ -199,7 +229,7 @@ function searchChain(
   length: number,
   minLength: number,
 ): boolean {
-  if (length === minLength) return tier < kMaxTier;
+  if (length === minLength) return true;
   const row = Math.floor(idx / gridSize);
   const col = idx % gridSize;
   const neighbours: number[] = [];
@@ -207,13 +237,21 @@ function searchChain(
   if (col - 1 >= 0) neighbours.push(idx - 1);
   if (row + 1 < gridSize) neighbours.push(idx + gridSize);
   if (row - 1 >= 0) neighbours.push(idx - gridSize);
+  if (row + 1 < gridSize && col + 1 < gridSize) {
+    neighbours.push(idx + gridSize + 1);
+  }
+  if (row + 1 < gridSize && col - 1 >= 0) neighbours.push(idx + gridSize - 1);
+  if (row - 1 >= 0 && col + 1 < gridSize) neighbours.push(idx - gridSize + 1);
+  if (row - 1 >= 0 && col - 1 >= 0) neighbours.push(idx - gridSize - 1);
   for (const n of neighbours) {
     if (visited.has(n)) continue;
     const t = cells[n];
     if (t === null) continue;
     if (!canFollow(tier, t.tier)) continue;
     visited.add(n);
-    if (searchChain(cells, gridSize, n, visited, t.tier, length + 1, minLength)) {
+    if (
+      searchChain(cells, gridSize, n, visited, t.tier, length + 1, minLength)
+    ) {
       return true;
     }
     visited.delete(n);
@@ -266,7 +304,7 @@ export function comboRushMultiplier(n: number): number {
  * after the 2026-07-31 database wipe (fresh season); bump in lockstep with the
  * Dart copy on any future gameplay-rule change.
  */
-export const kLeaderboardSeason = 1;
+export const kLeaderboardSeason = 2;
 
 /**
  * Cap on placement re-roll attempts in the seeder before throwing (port of the
