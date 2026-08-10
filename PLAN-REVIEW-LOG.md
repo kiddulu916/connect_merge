@@ -110,3 +110,67 @@ Verified before accepting: grepped `resultTier - 1`/`comboScore(2, 4)` directly 
 Five rounds, every one substantive, none rejected outright — several partial-accepts with recorded reasoning (Round 2/3's rollout-window pushback: language sharpened, proposed new infrastructure rejected as out-of-scope, independently reconfirmed reasonable by the reviewer in Round 3). The plan changed substantially and for the better: the scoring fix alone was redesigned twice (first an off-by-2× bug caught in Round 1, then Round 4 caught that the *fix* itself would have silently broken Combo Rush by routing through the wrong function) — each round's own correction introduced a new, real, verified bug the previous round hadn't surfaced, the same trajectory noted as a strong argument for not skipping this act in the earlier (parked) leaderboard/invite plan's review log. Two of the plan's original scope claims were flatly wrong and caught only by direct code-reading, not intuition: "board generation is out of scope" (false — the seeder's re-roll loop shares the exact predicate being changed) and the initial "tier 45" ceiling (unfounded guess; replaced with a derived-and-independently-reverified tier 17 from real game constants).
 
 Round 5's three findings are incorporated into `PLAN-diagonal-merge.md` above. No 6th round was run — `MAX_ROUNDS=5` is a hard cap per the skill, exhausted by this round. The plan's remaining open items (Risks section) are genuinely open, not swept under: the exact `kSnapshotVersion` bump mechanics, `GameEngine.canMerge`'s fate, and the `BoardWidget` highlight needing only a confirming test (not new rendering) are all explicitly flagged as implementation-time work, not resolved here. Handing to the user for sign-off with that caveat stated plainly, per the skill's deadlock rule.
+
+## Round 6 — Codex (same thread, resumed)
+Confirmed prior substantive findings addressed (scoring fix, comboScore removal, TS floor-log2). Four new — all internal-consistency leftovers from earlier rounds' edits, not new design issues:
+
+1. **Two spots still endorsed `clz32`/leading-zero arithmetic**, contradicting the integer-division-loop mandate from Round 5's own fix: the Approach step 4 helper description ("bit-length/leading-zero-count arithmetic") and a stale Risks bullet ("`Math.clz32` is confirmed safe in TS") that Round 5's `Math.clz32` reversal never propagated to.
+2. **Goal paragraph says `comboScore` is "preserved"** while Approach step 5 and Key Decisions both delete it — the *formula* is preserved (inlined), the named helper is not.
+3. **`areOrthogonallyAdjacent` never gets renamed** despite becoming 8-directional — a false, misleading name left in both engines and their call sites.
+4. **"Safety ceiling... is required" wording (Key Decisions) reads as a runtime-enforced cap**, conflicting with Approach step 7's explicit rule that tier 17 is never wired into `isValidChain`/`collapseChain` as a legality check.
+
+VERDICT: REVISE
+
+### Claude's response
+Verified each directly against PLAN.md before accepting: grepped `clz32|leading-zero|bit-length` (confirmed #1 — step 4 said "bit-length/leading-zero-count," the Risks bullet still said "Math.clz32 is confirmed safe," both contradicting step 7's actual `Math.clz32`-rejection); grepped `comboScore` (confirmed #2 — Goal literally names `comboScore` as preserved, while step 5/Key Decisions delete it); grepped `areOrthogonallyAdjacent` (confirmed #3 — named in step 1 and step 15, never renamed despite the geometry change); grepped `safety ceiling` (confirmed #4 — Key Decisions bullet's "is required" phrasing, unqualified, next to step 7's "never wired in as a cap" rule).
+
+**Incorporated (all 4):** #1 reworded step 4 to say Dart may use `bitLength`-based arithmetic (safe at 64-bit) while TS must use the integer-division loop, and fixed the stale Risks bullet to reference the actual adopted TS technique; #2 reworded the Goal paragraph to name the preserved *formula* (`2^tier × length-multiplier + ascendBonus`) plus `ascendBonus`, not the deleted `comboScore` helper by name; #3 added an explicit rename instruction (`areOrthogonallyAdjacent` → `areAdjacent`, Dart + TS, all call sites) to step 1, and updated step 15's reference to match; #4 reworded the Key Decisions bullet to "derived production bound... required for numeric type sizing and test assertions (not runtime enforcement)" and cross-referenced step 7's prohibition explicitly.
+
+**Rejected:** none — all four were real, code-grounded (well, plan-text-grounded) internal contradictions.
+
+## Round 7 — Codex (same thread, resumed)
+Confirmed all four Round 6 findings addressed. Two new — both material, not wording:
+
+1. **Season isolation isn't actually enforced.** The client already sends `season` in the submit-score body (`leaderboard_service.dart:104`), but `validate_request.ts` discards it and `index.ts` always stamps the server's own current `kLeaderboardSeason` when writing. PLAN.md:34 (step 11) assumed a stale client's move log gets cleanly `rejected`, but nothing actually validates the client's claimed season — a stale log that happens to replay cleanly (not guaranteed to fail, only likely to) would silently land in the new season under a server-recomputed score.
+2. **Rejection-stage logging (step 20) isn't implementable as scoped.** Every failure branch in `verifyRun`/`verifyRunChallenge` returns the same shared `REJECT` singleton — `index.ts` has no signal to log *which* check failed.
+
+VERDICT: REVISE
+
+### Claude's response
+Verified both directly: read `leaderboard_service.dart:104` (confirms the client already sends `'season': kLeaderboardSeason` in the request body) and `validate_request.ts` in full (confirms it never reads `season` at all — only `date`/`difficulty`/`moveLog`); grepped `REJECT` in `engine.ts` (confirms ~14 `return REJECT` sites across `verifyRun`/`verifyRunChallenge`, all returning the identical singleton with no distinguishing field).
+
+**Incorporated (both):** #1 added step 10a requiring `validateSubmitRequest` to explicitly check the client-supplied `season` against `kLeaderboardSeason` and reject a mismatch as a new `stale_season` reason, before replay runs — explicit defense-in-depth rather than relying on replay divergence as an accidental filter; softened step 11's "rejected as invalid_run" claim into "with step 10a's explicit check, this is now a deterministic rejection" rather than an assumed one. #2 added step 20a requiring `verifyRun`/`verifyRunChallenge` to carry an internal (never client-facing) rejection-stage tag replacing the shared `REJECT` singleton, so `index.ts` can log which check failed while the external response contract (`{valid:false, reason:"invalid_run"}`) stays unchanged; noted this is TS-only with no Dart-mirror obligation, since the Dart engine has no replay-verifier counterpart.
+
+**Rejected:** none — both were real, code-grounded gaps in the season-isolation and observability mechanisms this plan itself introduces/relies on.
+
+## Round 8 — Codex (same thread, resumed)
+Confirmed both Round 7 findings addressed. One new — a real bug in Round 7's own fix:
+
+1. **Step 10a's new `stale_season` reason breaks client retry semantics.** `GameSessionFactory._submitRun` (`game_session_factory.dart:70`) maps only `reason == 'invalid_run'` to `SubmitOutcome.terminalRejection`; every other reason falls through to `retryableFailure`. A stale client — exactly the client that would receive `stale_season` — can never learn the new classification (it would need an app update to know about it) and would retry indefinitely on every resume. Fix: log `stale_season` internally only; return the existing `invalid_run` reason externally.
+
+VERDICT: REVISE
+
+### Claude's response
+Verified directly: read `game_session_factory.dart:58-73` — confirmed `_submitRun` treats literally only the string `'invalid_run'` as terminal; any other reason (including a hypothetical `stale_season`) becomes `retryableFailure`, and a stale client's `kLeaderboardSeason` build-time constant can never self-correct without an update, so this would have been a genuine infinite-retry bug shipped by my own Round 7 fix.
+
+**Incorporated:** rewrote step 10a so the season-mismatch rejection returns the existing `invalid_run` reason externally (unchanged client contract, correct terminal-rejection handling) and is tagged `stale_season` only in the internal server-side logging added by step 20a; updated step 20a to include this pre-replay `validate_request.ts` code path in its internal-stage taxonomy (a separate path from the `REJECT`-singleton replay failures, logged through the same mechanism); corrected step 11's language, which had prematurely described `stale_season` as an externally-visible, client-parseable rejection.
+
+**Rejected:** none — Codex caught a real regression introduced by my own prior round's fix, not a pre-existing plan gap.
+
+## Round 9 — Codex (same thread, resumed)
+Confirmed the stale-client retry fix addressed. No new material problems. Two editorial cross-reference fixes:
+
+1. Step 7b points its "run after `supabase db reset`" verification note at step 20, but full verification is step 21 (step 20 is Analytics/observability).
+2. The Risks section's server-side-logging bullet points at step 19 (Documentation sweep, wrong) and mentions a `rule` dimension that step 20's actual text never defines.
+
+VERDICT: APPROVED
+
+### Claude's response
+Verified both directly: step 7b's stale reference (confirmed step 20 is Analytics, step 21 is Full verification) and the Risks bullet's stale reference (confirmed step 19 is the Documentation sweep, not logging; confirmed step 20's actual scope is "rejection stage, supplied season, and difficulty" — no `rule` dimension exists anywhere else in the plan).
+
+**Incorporated (both):** fixed step 7b's cross-reference to step 21; fixed the Risks bullet's cross-reference to step 20/20a and dropped the undefined `rule` dimension to match step 20's actual scope (season/difficulty/rejection-stage).
+
+**Rejected:** none.
+
+## Resolution — VERDICT: APPROVED (Round 9)
+Nine rounds total (5 in the original grill session, 4 more in this continuation at the user's request to keep reviewing rather than move to build). Every round's findings were code-grounded and material or, in the final two rounds, genuine editorial cross-reference cleanup. Two rounds (7-8) surfaced a real chain of bugs in the plan's own season-isolation and observability additions: Round 7 found season validation was entirely absent (client sends it, server discards it); the first fix (Round 7's own edit) introduced a new client-visible `stale_season` reason string that Round 8 caught as breaking `GameSessionFactory`'s terminal-vs-retryable classification for exactly the stale clients it was meant to reject — the same "each round's fix introduces a new verified bug" trajectory noted in the original 5-round log for the scoring formula. Codex confirms no material problems remain. Plan is locked and approved; ready for Act 3 (build) sign-off with the user.
