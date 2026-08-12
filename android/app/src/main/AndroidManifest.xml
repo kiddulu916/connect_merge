@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for every network call the app makes (Supabase auth/leaderboard,
+         Google Sign-In, AdMob requests, UMP consent form fetch). The Flutter
+         template only adds this to the debug/profile manifests (for the VM
+         service), so release builds need it declared here explicitly or all
+         network access is denied at the OS level. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Contacts is OPT-IN and used ONLY to find friends already on Connect Merge.
          Raw phone numbers / emails NEVER leave the device — they are normalized
          and SHA256-hashed on-device, and only hashes are checked against
