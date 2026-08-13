@@ -78,7 +78,7 @@ env/supabase.json
 .superpowers/
 .vscode/
 skills-lock.json
-
+local.properties
 # Android signing & machine-specific config (NEVER commit — hold secrets/paths)
 # key.properties holds keystore passwords; local.properties holds this machine's
 # SDK path (its own header says it must not be version-controlled).
@@ -103,3 +103,6 @@ test-results/
 
 # Local Play Store release tooling (machine-specific, not part of the app)
 /tool/play-publish/
+
+# adb logcat dumps (device-specific debugging scratch)
+logcat*.txt

@@ -163,6 +163,32 @@ void main() {
       expect(events.where((event) => event == 'ad_load_failed'), hasLength(1));
     });
 
+    test('a load failure reports the AdMob error code and message', () async {
+      final params = <Map<String, Object?>?>[];
+      final adService = AdService.withSeams(
+        analytics: AnalyticsService.withSeams(
+          logEvent: (name, p) async {
+            if (name == 'ad_load_failed') params.add(p);
+          },
+        ),
+        loadRewarded: ({
+          required adUnitId,
+          required request,
+          required rewardedAdLoadCallback,
+        }) async => rewardedAdLoadCallback.onAdFailedToLoad(_loadError),
+      );
+
+      _requestPreload(adService);
+      await Future<void>.delayed(Duration.zero);
+
+      // Without the code+message the app cannot distinguish a genuine no-fill
+      // from a misconfigured ad unit — the exact ambiguity that hid the
+      // rewarded unit's "Ad unit doesn't match format" 403 behind NO_FILL.
+      expect(params, hasLength(1));
+      expect(params.single?['code'], 1);
+      expect(params.single?['message'], 'failed');
+    });
+
     test('placeholder rewarded ID skips the loader', () {
       var calls = 0;
       final adService = AdService.withSeams(

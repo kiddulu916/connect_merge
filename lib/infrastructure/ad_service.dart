@@ -80,7 +80,17 @@ class AdService {
       adUnitId: AdConfig.bannerUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
-      listener: const BannerAdListener(),
+      listener: BannerAdListener(
+        // Disposal stays with the caller (see this method's contract above);
+        // this listener only reports.
+        onAdFailedToLoad: (_, error) {
+          debugPrint('Banner ad load failed: ${error.code} ${error.message}');
+          analytics?.logEvent('banner_load_failed', {
+            'code': error.code,
+            'message': error.message,
+          });
+        },
+      ),
     )..load();
   }
 
@@ -103,19 +113,30 @@ class AdService {
             }
             _loadingRewarded = false;
           },
-          onAdFailedToLoad: (_) => _handleLoadFailure(),
+          onAdFailedToLoad: _handleLoadFailure,
         ),
-      ).catchError((_) => _handleLoadFailure());
+      ).catchError((_) => _handleLoadFailure(null));
     } catch (_) {
-      _handleLoadFailure();
+      _handleLoadFailure(null);
     }
   }
 
-  void _handleLoadFailure() {
+  /// [error] is null when the failure came from the loader throwing rather
+  /// than from AdMob. The code/message are reported verbatim: AdMob returns
+  /// `3` (no-fill) for *both* genuinely absent demand and a rejected request
+  /// (e.g. HTTP 403 "Ad unit doesn't match format"), so the message is the
+  /// only way to tell a real no-fill from a misconfigured unit.
+  void _handleLoadFailure(AdError? error) {
     if (!_loadingRewarded) return;
     _loadingRewarded = false;
     _rewarded = null;
-    analytics?.logEvent('ad_load_failed');
+    if (error != null) {
+      debugPrint('Rewarded ad load failed: ${error.code} ${error.message}');
+    }
+    analytics?.logEvent('ad_load_failed', {
+      if (error != null) 'code': error.code,
+      if (error != null) 'message': error.message,
+    });
   }
 
   /// Shows a rewarded ad for feature [adType] (e.g. `'hint'`, `'undo'`,
@@ -165,10 +186,11 @@ class AdService {
           _preloadRewarded();
         }
       },
-      onAdFailedToShowFullScreenContent: (ad, _) => _handleShowFailure(
+      onAdFailedToShowFullScreenContent: (ad, error) => _handleShowFailure(
         ad: ad,
         adType: adType,
         onUnavailable: onUnavailable,
+        error: error,
       ),
     );
     analytics?.logEvent('ad_shown', {'adType': adType});
@@ -196,6 +218,7 @@ class AdService {
     required RewardedAd ad,
     required String adType,
     required void Function() onUnavailable,
+    AdError? error,
   }) {
     if (_showTerminalHandled) return;
     _showTerminalHandled = true;
@@ -203,7 +226,11 @@ class AdService {
     _rewarded = null;
     _pendingReward = null;
     _showing.value = false;
-    analytics?.logEvent('ad_show_failed', {'adType': adType});
+    analytics?.logEvent('ad_show_failed', {
+      'adType': adType,
+      if (error != null) 'code': error.code,
+      if (error != null) 'message': error.message,
+    });
     onUnavailable();
     _preloadRewarded();
   }

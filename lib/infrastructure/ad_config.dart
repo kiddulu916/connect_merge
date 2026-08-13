@@ -17,7 +17,7 @@ class AdConfig {
   // Real unit IDs used for release builds.
   static const _realBannerAndroid = 'ca-app-pub-4807961095325796/8783611212';
   static const _realBannerIos = 'null';
-  static const _realRewardedAndroid = 'ca-app-pub-4807961095325796/9560406184';
+  static const _realRewardedAndroid = 'ca-app-pub-4807961095325796/9447234852';
   static const _realRewardedIos = 'null';
 
   static bool get _ios => Platform.isIOS;
