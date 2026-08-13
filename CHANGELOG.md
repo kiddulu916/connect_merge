@@ -1,6 +1,14 @@
 # Changelog
 
-## 1.2.0+7 (unreleased)
+## 1.2.1+8
+
+### Fixed
+- Rewarded ads now report the underlying AdMob error code and message when they
+  fail to load, instead of failing silently — this is what surfaced the
+  misconfigured rewarded ad unit.
+- Pointed the rewarded ad unit at the correct AdMob ID.
+
+## 1.2.0+7
 
 ### New
 - **Diagonal merges.** Chain tiles in all 8 directions now, not just up/down/left/right.
