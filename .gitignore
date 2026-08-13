@@ -100,3 +100,6 @@ coverage/
 
 # Generated codebase-rehab audit microsites
 test-results/
+
+# Local Play Store release tooling (machine-specific, not part of the app)
+/tool/play-publish/
